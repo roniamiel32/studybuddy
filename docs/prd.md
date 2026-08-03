@@ -6,7 +6,7 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Product requirements and software design document for
              StudyBuddy. Source of truth for product scope; the technical
              design in docs/technical-design.md implements it.
-Version:     1.1
+Version:     1.2
 Date:        August 2026
 
 Modifications:
@@ -15,6 +15,9 @@ Modifications:
                        in section 3, and "smart messaging" with "WhatsApp
                        handoff" in section 5 Phase 4, to align with the
                        approved technical design (no in-app chat)
+    1.2 - 2026-08-03 - Section 3 Smart Onboarding: availability may be entered
+                       manually or derived from a connected external calendar
+                       (decision D7 in the technical design)
 ```
 
 **Project Name:** StudyBuddy
@@ -50,7 +53,11 @@ connected academic community.
 
 **Smart Onboarding:** A streamlined registration process where students
 complete a learning preference questionnaire (study style, available hours,
-academic institution) and sync their current courses.
+academic institution) and sync their current courses. Availability is captured
+in whichever way suits the student: they either fill in a weekly grid manually,
+or connect an external calendar (Google Calendar, or an Apple Calendar import)
+and let StudyBuddy derive their free hours from it automatically. Only derived
+free/busy times are stored — never event titles or details.
 
 **AI-Powered Matching Engine:** The core logic of the application. An
 AI-driven engine cross-references academic data (courses), scheduling

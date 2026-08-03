@@ -12,7 +12,19 @@
 import path from 'node:path';
 
 import react from '@vitejs/plugin-react';
+import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
+
+/*
+ * Integration tests talk to the local Supabase stack, so they need the same
+ * variables the app reads. Vitest does not load .env files on its own, and
+ * without this the integration suite would silently skip on a machine that is
+ * otherwise correctly set up — the worst failure mode for a test.
+ */
+process.env = {
+  ...process.env,
+  ...loadEnv('test', import.meta.dirname, ''),
+};
 
 export default defineConfig({
   plugins: [react()],

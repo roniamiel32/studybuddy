@@ -1,6 +1,6 @@
 {
   "name": "studybuddy",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "AI-assisted matchmaking that connects university students who share a course, have overlapping free time, and study in compatible ways.",
   "author": "Roni Amiel & Eden Bitran",
@@ -21,7 +21,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff",
-    "gen:types": "supabase gen types typescript --local > src/types/database.types.ts",
+    "gen:types": "node scripts/gen-types.mjs",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {

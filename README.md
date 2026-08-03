@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.2.0** — scaffold complete, no features yet.
+Version **0.3.0** — schema complete, no features yet.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final
@@ -16,11 +16,13 @@ project for the Full-Stack course at Reichman University.
 |---|---|---|
 | 0 | Technical design | ✅ [docs/technical-design.md](docs/technical-design.md) |
 | 0.5 | Project scaffold | ✅ Next.js, Tailwind, shadcn/ui, Supabase clients, test stack |
-| 1 | Database schema & RLS | ⬜ Not started |
+| 1a | Database schema | ✅ 14 tables, seeds, helper functions, 20 integration tests |
+| 1b | Row Level Security | ⬜ Not started — RLS is on, with no policies, so all client access is denied |
 | 1c | Auth & onboarding | ⬜ Not started |
 | 2 | Rule-based matching | ⬜ Not started |
 | 3 | AI re-rank & icebreaker | ⬜ Not started |
-| 4 | WhatsApp handoff & polish | ⬜ Not started |
+| 4a | WhatsApp handoff | ⬜ Not started |
+| 4c | Calendar sync (D7) | ⬜ Not started — stretch goal |
 
 ## Stack
 
@@ -54,8 +56,15 @@ npm run dev
 ```
 
 The landing page is at http://localhost:3000. Until Phase 1c lands there is no
-auth, so the app runs without Supabase configured — but `npm run db:start` is
-needed from Phase 1a onward.
+auth, so the page itself renders without Supabase — but the integration tests
+need the local stack running, and skip with a warning if it is not.
+
+### A note on the seeded courses
+
+`supabase/seed/02_course_catalog.sql` uses **placeholder course codes**. The
+course names are real; the codes are invented. Replace them with the
+registrar's before submission — nothing joins on the code except the seed
+itself, so that one file is the only change needed.
 
 ### Scripts
 

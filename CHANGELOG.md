@@ -4,6 +4,74 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-08-03
+
+Phase 1a — database schema. The schema exists, is seeded, and is completely
+inaccessible to clients until the Phase 1b policies land.
+
+### Added
+- Nine migrations under `supabase/migrations/`: enum types, tenancy roots,
+  profiles/contacts/preferences, the academic catalog and availability,
+  connection requests and blocks, the AI cache and generation log, helper
+  functions and triggers, RLS enablement, and the Data API grants.
+- 14 tables, 12 enum types, 12 triggers and 3 helper functions.
+- Seed data for two universities. Reichman is the rollout target; Tel Aviv
+  exists so the Phase 1b RLS tests have a real cross-tenant boundary to attack,
+  and both offer a course of the same name as a leakage tripwire. Reichman has
+  a past and a current term so the term dimension is actually exercised.
+- 20 schema integration tests covering tenant resolution at signup, the
+  denormalised `university_id` triggers, the unordered-pair request constraint,
+  the availability overlap function, and the E.164 phone check. They skip with
+  a warning when the local stack is not configured.
+- `scripts/gen-types.mjs`, so regenerating database types preserves the file
+  header instead of stripping it.
+
+### Changed — decision D7, hybrid availability
+- Availability may be entered manually **or** derived from a connected
+  calendar. `availability_source` and `availability_mode` enums,
+  `availability_slots.source` and `profiles.availability_mode` ship now, with
+  safe defaults, so no backfill is needed when the sync itself is built.
+- `source` is part of the uniqueness constraint on `availability_slots`, so a
+  calendar resync replaces only its own rows and never discards hand-added
+  slots.
+- Design doc gains §1.4.1 (input modes and the `calendar_connections` sketch),
+  roadmap Phase 4c, and §6.6 covering the risks.
+- PRD to rev 1.2: Smart Onboarding now describes both input paths.
+
+### Changed — schema corrections found while building
+- `profiles.full_name` is nullable. The row is created by a trigger the moment
+  the auth user exists, which is before the student has entered a name.
+  Inventing one from the email address was the alternative, and it is worse.
+- `app_are_connected(a, b)` became `app_is_connected_to(other)`. The
+  two-argument form let any authenticated user probe whether two strangers were
+  connected; the new form derives the caller from `auth.uid()`.
+- Every function pins an empty `search_path` and fully qualifies its
+  references, closing the privilege-escalation path a `SECURITY DEFINER`
+  function with a mutable search path would leave open.
+- `connection_requests` gained a trigger asserting both parties belong to the
+  offering's university, making a cross-institution request impossible at the
+  storage layer regardless of application code.
+- ESLint now ignores `supabase/.temp/`, the generated types, and test
+  artefacts; the Supabase CLI cache contains a minified bundle that produced
+  ~150 spurious errors.
+- `rpc_find_candidates` deferred to Phase 2, where it is the deliverable and
+  can be tested against real student data.
+
+### Notes
+- **Course codes in the seed are placeholders.** The course names are real Efi
+  Arazi School subjects; the codes were invented. Replace them from the
+  official course list before submission — only
+  `supabase/seed/02_course_catalog.sql` needs changing. Lecturer is left NULL
+  rather than populated with invented names.
+- Explicit `GRANT`s were required: Supabase no longer auto-exposes new
+  public-schema objects, and the legacy opt-out is removed on 2026-10-30.
+  Access now needs both a grant and an RLS policy.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 43 tests (23 unit + 20 integration),
+production build. `supabase db reset` applies all nine migrations and both
+seeds cleanly from scratch.
+
 ## [0.2.0] — 2026-08-03
 
 Phase 0.5 — project scaffold. The application now builds, runs and tests, but
