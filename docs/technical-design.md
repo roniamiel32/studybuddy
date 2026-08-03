@@ -6,13 +6,19 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.1.1
+Version:     0.1.2
 
 Modifications:
     0.1.0 - 2026-08-03 - Initial technical design
     0.1.1 - 2026-08-03 - Section 7 item 1 resolved: PRD section 3 renamed
                          "Smart Interaction" to "WhatsApp Handoff", so the
                          two documents now agree
+    0.1.2 - 2026-08-03 - Reconciled with the Phase 0.5 scaffold as built:
+                         no tailwind.config.ts (Tailwind v4 is CSS-first),
+                         vitest.config.mts, shadcn/ui adopted for
+                         components/ui and exempted from the header
+                         convention, VERSION retired into package.json,
+                         pinned versions and the npm audit position recorded
 ```
 
 ---
@@ -545,20 +551,28 @@ studybuddy/
 │   └── config/
 │       └── questionnaire.ts         # question text/options, single source
 ├── tests/
-│   ├── unit/{overlap,score,wa-link,phone,sanitize}.test.ts
+│   ├── setup.ts                     # jest-dom matchers, per-test env reset
+│   ├── unit/{env,errors,overlap,score,wa-link,phone,sanitize}.test.ts
 │   ├── integration/{rls,requests-flow,rpc-candidates}.test.ts
-│   └── e2e/{signup-onboarding,course-match-handoff}.spec.ts
+│   └── e2e/{landing,signup-onboarding,course-match-handoff}.spec.ts
 ├── .env.example
 ├── CHANGELOG.md
 ├── README.md
-├── VERSION                          # replaced by package.json "version" at scaffold
+├── components.json                  # shadcn/ui registry config
 ├── next.config.ts
-├── tailwind.config.ts
+├── postcss.config.mjs               # loads @tailwindcss/postcss
+├── eslint.config.mjs
 ├── tsconfig.json
-├── vitest.config.ts
+├── vitest.config.mts                # .mts so Vite loads it as ESM
 ├── playwright.config.ts
-└── package.json
+└── package.json                     # canonical version lives here
 ```
+
+No `tailwind.config.ts`: Tailwind v4 is CSS-first, so design tokens are
+declared in an `@theme` block inside `src/app/globals.css` instead of a JS
+config file. There is also no root `VERSION` file — that placeholder existed
+only between Phase 0 and Phase 0.5, and the version now lives in
+`package.json`, importable from code.
 
 Two structural rules worth stating:
 
@@ -683,6 +697,25 @@ RootLayout (S)
 `ChoiceChip`, `ChipGroup`, `Card`, `Badge`, `Avatar`, `Dialog`, `Sheet`,
 `Tabs`, `Tooltip`, `Skeleton`, `Spinner`, `Alert`, `EmptyState`,
 `ConfirmDialog`, `FormField`, `SubmitButton` (C, `useFormStatus`).
+
+These come from **shadcn/ui**, which copies component source into the repo
+rather than adding a runtime dependency, so they are editable and shipped as
+our own files. shadcn v4 builds on Base UI, which supplies the focus trapping
+and ARIA behaviour for `Dialog`, `Tabs` and `Select` — the parts that are easy
+to get subtly wrong by hand. Pull each one in on the phase that first needs it:
+
+```bash
+npx shadcn@latest add dialog tabs select
+```
+
+Two consequences worth recording. First, Base UI components take a `render`
+prop rather than shadcn's older `asChild`; to style a Next `<Link>` as a
+button, apply `buttonVariants({ ... })` to the link's `className` instead of
+nesting it in a `<Button>`. Second, files under `components/ui/` are
+third-party-authored and are **exempt from the file-header convention** —
+adding our authorship header to them would be a false attribution, and it
+would be overwritten by the next `shadcn add` anyway. Everything we write
+ourselves, including `components/` outside `ui/`, carries the header.
 
 ### 4.2 Auth
 
@@ -818,8 +851,9 @@ updated, no known regressions.
 
 | Phase | Version | Branch | Deliverable | Exit criteria |
 |---|---|---|---|---|
-| **0** Bootstrap | `0.1.0` | `main` | This document, `.gitignore`, `VERSION`, `README`, `CHANGELOG`, commit convention | Design approved by you |
-| **0.5** Scaffold | `0.2.0` | `feature/project-scaffold` | `create-next-app` + TS + Tailwind, `lib/env.ts`, Supabase clients, vitest + playwright configs, `.env.example`; `VERSION` retired into `package.json` | `npm run dev` serves the landing page; `npm test` green |
+| ~~**0** Bootstrap~~ **done** | `0.1.0` | `main` | This document, `.gitignore`, `VERSION`, `README`, `CHANGELOG`, commit convention | ✅ Design approved 2026-08-03 |
+| ~~**0.1** PRD alignment~~ **done** | `0.1.1` | `chore/prd-alignment` | PRD added to the repo, "Smart Interaction" renamed "WhatsApp Handoff" | ✅ Both documents agree |
+| ~~**0.5** Scaffold~~ **done** | `0.2.0` | `feature/project-scaffold` | `create-next-app` + TS + Tailwind, shadcn/ui, `lib/env.ts`, Supabase clients, error contract, vitest + playwright, `supabase init`, `.env.example`, landing page; `VERSION` retired into `package.json` | ✅ lint, typecheck, 23 unit tests, 4 e2e tests and `next build` all pass; dev server renders the landing page |
 | **1a** Schema | `0.3.0` | `feature/db-schema` | All migrations §1.1–1.8, seed for Reichman + 2026 Semester B, generated `database.types.ts` | `supabase db reset` clean; types compile |
 | **1b** RLS | `0.4.0` | `feature/rls-policies` | Policies §1.9 + integration tests that *attempt* cross-tenant reads and assert zero rows | RLS test suite green — this is the security proof for the report |
 | **1c** Auth + onboarding | `0.5.0` | `feature/auth-onboarding` | Login, callback, domain gate, 4-step onboarding, profile/prefs/availability/enrollment CRUD | A new student can sign up and reach an empty dashboard |
@@ -892,12 +926,49 @@ Flagged rather than silently applied:
 2. **File-header author is `Roni Amiel & Eden Bitran`**, not `Sagi` as the
    conventions skill hardcodes — per your explicit answer, since authorship
    is graded.
-3. **`VERSION` file instead of `package.json`.** The skill requires a
+3. ~~**`VERSION` file instead of `package.json`.** The skill requires a
    callable version from the first commit, but you scoped this session to
-   docs only, so there is no `package.json` yet. `VERSION` is the placeholder;
-   Phase 0.5 moves the number into `package.json` and deletes it. This is the
-   one place where the version is not yet importable from code.
+   docs only, so there is no `package.json` yet.~~
+   **Resolved 2026-08-03 in Phase 0.5.** `VERSION` deleted; the version is now
+   `package.json`'s `version` field at `0.2.0`, importable from code.
 4. **`course_offerings` added** as a layer the PRD did not mention. Without a
    term dimension, matching pairs students across different semesters.
 5. **`profile_contacts` split from `profiles`** — forced by PostgreSQL RLS
    being table-level, not column-level.
+6. **No `tailwind.config.ts`.** Tailwind v4 dropped the JS config in favour of
+   an `@theme` block in CSS. The design originally listed the config file; it
+   does not exist and should not be created.
+7. **`components/ui/` is exempt from the file-header convention** — those files
+   are shadcn/ui source, not ours, and `shadcn add` overwrites them. See §4.1.
+8. **`AI_MODEL` has no default in code.** The conventions favour explicit
+   configuration, and a model id hardcoded in source is guaranteed to go stale.
+   `isAiConfigured()` therefore requires both a key and a model, and the app
+   reports AI as unconfigured rather than guessing an id.
+9. **AI provider is restricted to `openai | gemini`**, following the PRD's §4
+   verbatim. Worth revisiting before Phase 3: Claude models are strong at the
+   structured-output re-ranking this design needs, and the provider abstraction
+   in `lib/ai/provider.ts` is one enum value away from supporting it. Flagged,
+   not changed — the PRD is authoritative.
+
+### Pinned versions as of Phase 0.5
+
+| Package | Version |
+|---|---|
+| Next.js | 16.2.12 (Turbopack build) |
+| React / React DOM | 19.2.4 |
+| TypeScript | 5.x |
+| Tailwind CSS | 4.x, via `@tailwindcss/postcss` |
+| shadcn/ui | 4.16.x, on Base UI 1.6.x |
+| `@supabase/supabase-js` | 2.112.0 |
+| `@supabase/ssr` | 0.12.4 |
+| Zod | 4.4.3 |
+| Vitest | 4.x |
+| Playwright | 1.62.x |
+| Supabase CLI | 2.111.x (dev dependency) |
+
+`npm audit` reports three high-severity advisories in `postcss` and `sharp`.
+Both are transitive dependencies of `next@16.2.12` itself; npm's only offered
+remedy is downgrading to `next@9`, which is not a real option. `postcss` runs
+at build time and `sharp` only in image optimisation, so neither is reachable
+by untrusted input in this app. Left in place deliberately — revisit when Next
+ships a patched dependency tree.
