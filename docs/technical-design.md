@@ -6,10 +6,13 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.1.0
+Version:     0.1.1
 
 Modifications:
     0.1.0 - 2026-08-03 - Initial technical design
+    0.1.1 - 2026-08-03 - Section 7 item 1 resolved: PRD section 3 renamed
+                         "Smart Interaction" to "WhatsApp Handoff", so the
+                         two documents now agree
 ```
 
 ---
@@ -879,9 +882,13 @@ tests that log in as a student of university A and try to read B's data.
 
 Flagged rather than silently applied:
 
-1. **No in-app chat**, per your D3 answer. The PRD's §3 "Smart Interaction"
+1. ~~**No in-app chat**, per your D3 answer. The PRD's §3 "Smart Interaction"
    is realised as an AI icebreaker + WhatsApp deep link. Update the PRD text
-   so the two documents agree before submission.
+   so the two documents agree before submission.~~
+   **Resolved 2026-08-03.** [`docs/prd.md`](prd.md) rev 1.1 renames §3
+   "Smart Interaction" to "WhatsApp Handoff" and §5 Phase 4 "smart messaging"
+   to "WhatsApp handoff". The PRD now states explicitly that no in-app chat
+   is built, and why. No divergence remains between the two documents.
 2. **File-header author is `Roni Amiel & Eden Bitran`**, not `Sagi` as the
    conventions skill hardcodes — per your explicit answer, since authorship
    is graded.

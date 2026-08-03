@@ -4,6 +4,25 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-08-03
+
+Documentation alignment. No code, no functional change.
+
+### Added
+- `docs/prd.md` — the SDD/PRD, previously held outside the repository, now
+  version-controlled alongside the technical design.
+
+### Changed
+- **PRD §3: "Smart Interaction" renamed to "WhatsApp Handoff"** (PRD rev 1.1).
+  The feature now states plainly that the AI-generated icebreaker is handed
+  off into WhatsApp through a `wa.me` deep link, that no in-app chat is built,
+  and that contact details are exchanged only after a request is accepted.
+- PRD §5 Phase 4: "smart messaging feature" → "WhatsApp handoff feature".
+- `docs/technical-design.md` §7 item 1 struck through and marked resolved —
+  the PRD/design divergence it flagged no longer exists. Design doc header
+  bumped to 0.1.1.
+- `README.md` — PRD added to the documentation index.
+
 ## [0.1.0] — 2026-08-03
 
 Initial commit. Design only — no application code.

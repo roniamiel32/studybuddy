@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.1.0** — design phase, no application code yet.
+Version **0.1.1** — design phase, no application code yet.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final
@@ -42,6 +42,8 @@ project for the Full-Stack course at Reichman University.
 
 ## Documentation
 
+- [Software Design Document (PRD)](docs/prd.md) — product scope, core
+  features, business value, phased workflow
 - [Technical Design Document](docs/technical-design.md) — schema, folder
   structure, backend surface, component tree, phased plan, risks
 - [Commit convention](.claude/commit-convention.md)
