@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Course Dashboard - StudyBuddy</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-on-surface": "#f3f0f2",
+                        "inverse-primary": "#c3c0ff",
+                        "tertiary": "#8a2ab9",
+                        "surface-container-low": "#f6f3f5",
+                        "on-secondary-fixed-variant": "#7b2f00",
+                        "on-error": "#ffffff",
+                        "inverse-surface": "#303032",
+                        "error-container": "#ffdad6",
+                        "surface-dim": "#dcd9dc",
+                        "secondary": "#9f420a",
+                        "surface-tint": "#4c42e9",
+                        "on-primary-fixed-variant": "#321ed2",
+                        "on-primary": "#ffffff",
+                        "on-secondary-container": "#6c2800",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#635bff",
+                        "tertiary-container": "#a548d4",
+                        "on-tertiary-container": "#fffafa",
+                        "background": "#fcf8fb",
+                        "surface-bright": "#fcf8fb",
+                        "on-tertiary-fixed-variant": "#7201a2",
+                        "primary": "#493ee5",
+                        "outline-variant": "#c7c4d8",
+                        "tertiary-fixed": "#f6d9ff",
+                        "surface-container-highest": "#e4e2e4",
+                        "on-tertiary-fixed": "#310048",
+                        "secondary-fixed": "#ffdbcc",
+                        "on-secondary": "#ffffff",
+                        "on-surface-variant": "#464555",
+                        "surface-container": "#f0edef",
+                        "secondary-fixed-dim": "#ffb694",
+                        "on-tertiary": "#ffffff",
+                        "surface": "#fcf8fb",
+                        "on-primary-fixed": "#0f0069",
+                        "surface-container-high": "#eae7ea",
+                        "primary-fixed": "#e2dfff",
+                        "on-primary-container": "#fefaff",
+                        "on-surface": "#1b1b1d",
+                        "on-error-container": "#93000a",
+                        "outline": "#777587",
+                        "surface-variant": "#e4e2e4",
+                        "on-background": "#1b1b1d",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "tertiary-fixed-dim": "#e8b3ff",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#351000",
+                        "secondary-container": "#fd894f"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "120px",
+                        "margin-mobile": "20px",
+                        "lg": "48px",
+                        "md": "24px",
+                        "sm": "12px",
+                        "xs": "4px",
+                        "gutter": "24px",
+                        "base": "8px",
+                        "xl": "80px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Plus Jakarta Sans", "sans-serif"],
+                        "headline-md": ["Be Vietnam Pro", "sans-serif"],
+                        "label-sm": ["Plus Jakarta Sans", "sans-serif"],
+                        "label-md": ["Plus Jakarta Sans", "sans-serif"],
+                        "headline-lg": ["Be Vietnam Pro", "sans-serif"],
+                        "headline-lg-mobile": ["Be Vietnam Pro", "sans-serif"],
+                        "body-lg": ["Plus Jakarta Sans", "sans-serif"],
+                        "headline-xl": ["Be Vietnam Pro", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "700" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "36px", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-xl": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Import Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: theme('colors.background');
+        }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Be Vietnam Pro', sans-serif;
+        }
+        
+        /* Utility for Material Symbols */
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        /* Subtle gradient background for the page */
+        .bg-page-gradient {
+            background: linear-gradient(135deg, theme('colors.background') 0%, #F0EEFE 100%);
+        }
+    </style>
+</head>
+<body class="bg-page-gradient text-on-background min-h-screen pb-24 md:pb-0">
+<!-- TopAppBar (Hidden on Mobile) -->
+<header class="hidden md:flex justify-between items-center px-margin-desktop h-16 w-full sticky top-0 z-50 bg-surface/70 dark:bg-surface-dim/70 backdrop-blur-xl shadow-sm">
+<div class="flex items-center gap-md">
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary tracking-tight">StudyBuddy</span>
+</div>
+<nav class="flex gap-lg">
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors flex items-center gap-2" href="#">
+<span class="material-symbols-outlined">auto_awesome</span> Match
+            </a>
+<a class="text-primary font-bold font-label-md text-label-md hover:bg-surface-container-high transition-colors flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10" href="#">
+<span class="material-symbols-outlined">school</span> Courses
+            </a>
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors flex items-center gap-2" href="#">
+<span class="material-symbols-outlined">forum</span> Chat
+            </a>
+</nav>
+<div class="flex items-center gap-sm">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-surface-container-low cursor-pointer">
+<img alt="Student profile photo" class="w-full h-full object-cover" data-alt="A 3D claymorphic style avatar of a young student with a friendly expression, soft lighting, vibrant pastel colors, set against a clean studio background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBwBd1zJu9rnRf6t8e1O0RQKQxoUcjTP6HAHPeepVdsXF_P-ctLFIZKx3YyplIFGvtTq44oo79O5faLIdU9KlcUTYnu6ji162z8FIY6I3freSRYwtts10jytsjF1Cvnpjq3J9gXJvUVQS-0SI0l9SVxVCkJuvppSLWFj_w1oMiPJUQjMZMgoMiT_UsDcgykcE5Zyv2uxgq5o_HjeDVspKGKddtPRoKNyPuJO8Fyc6giuD3LAGy8sRs"/>
+</div>
+</div>
+</header>
+<!-- Main Content Container -->
+<main class="max-w-[1200px] mx-auto px-margin-mobile md:px-margin-desktop pt-lg md:pt-xl pb-xl">
+<!-- Page Header -->
+<div class="mb-lg">
+<div class="flex items-center gap-2 text-on-surface-variant mb-2">
+<a class="font-label-sm text-label-sm hover:text-primary transition-colors" href="#">My Courses</a>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="font-label-sm text-label-sm text-primary">CS-301</span>
+</div>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-2">Computational Models</h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl">Connect with classmates, find project partners, or join study sessions to master finite automata and Turing machines.</p>
+</div>
+<!-- Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
+<!-- Sidebar (Course Info & Quick Actions) -->
+<aside class="lg:col-span-4 flex flex-col gap-gutter">
+<!-- Course Overview Card -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm border border-surface-container-high relative overflow-hidden">
+<div class="absolute top-0 right-0 w-24 h-24 bg-tertiary-fixed opacity-50 rounded-full blur-2xl -mr-10 -mt-10"></div>
+<h2 class="font-headline-md text-headline-md text-on-surface mb-md">Course Info</h2>
+<ul class="flex flex-col gap-sm">
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary mt-1 text-[20px]">schedule</span>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Mon, Wed, Fri</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">10:00 AM - 11:30 AM</p>
+</div>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary mt-1 text-[20px]">location_on</span>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Turing Hall, Room 402</p>
+</div>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary mt-1 text-[20px]">person</span>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Prof. Alan Smith</p>
+<a class="font-body-md text-body-md text-primary text-sm hover:underline" href="#">View Syllabus</a>
+</div>
+</li>
+</ul>
+</div>
+<!-- Join Study Group CTA -->
+<div class="bg-primary rounded-xl p-md shadow-lg relative overflow-hidden text-on-primary">
+<div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full blur-xl translate-x-10 -translate-y-10"></div>
+<div class="flex items-center gap-3 mb-sm">
+<span class="material-symbols-outlined text-[28px]">groups</span>
+<h3 class="font-headline-md text-headline-md text-on-primary">Study Groups</h3>
+</div>
+<p class="font-body-md text-body-md text-primary-fixed mb-md opacity-90">Join the official peer-led study session for the upcoming midterm exam.</p>
+<button class="w-full bg-white text-primary font-label-md text-label-md py-3 rounded-lg hover:bg-surface-container-lowest transition-colors shadow-sm flex justify-center items-center gap-2">
+                        Join Next Session <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+<p class="text-center font-label-sm text-label-sm text-primary-fixed mt-3 opacity-80">Next: Thu, 6:00 PM</p>
+</div>
+</aside>
+<!-- Main Content (Student Listing) -->
+<section class="lg:col-span-8">
+<!-- Filters -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-md gap-4">
+<h3 class="font-headline-md text-headline-md text-on-surface">Find Partners</h3>
+<div class="flex flex-wrap gap-2">
+<button class="px-4 py-2 rounded-full bg-primary text-on-primary font-label-md text-label-md shadow-sm transition-colors border border-primary">All Students</button>
+<button class="px-4 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-md text-label-md hover:bg-surface-container-high transition-colors border border-outline-variant">Same Section</button>
+<button class="px-4 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-md text-label-md hover:bg-surface-container-high transition-colors border border-outline-variant">Project Partners</button>
+<button class="px-4 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-md text-label-md hover:bg-surface-container-high transition-colors border border-outline-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">tune</span> Filters
+                        </button>
+</div>
+</div>
+<!-- Student Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<!-- Student Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm border border-surface-container-highest hover:shadow-md transition-shadow relative group">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl pointer-events-none"></div>
+<div class="flex items-start gap-4 mb-4">
+<div class="w-14 h-14 rounded-full overflow-hidden border-[3px] border-surface shadow-sm">
+<img alt="Maya profile" class="w-full h-full object-cover" data-alt="A 3D claymorphic style avatar of a female student with glasses, looking studious and friendly, soft pastel purple background, high quality render." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9k4khex3SISFN4ENuhOoQrZgtL94KKxf1DQxsXBUH_cLzLK1pCawV5Jks8uymHXG1yJ2uthJOdovwUmfBt6I3S_wtFKEOMcZAfwZn0vEJOjJwJXdCOS2qexghbl5QwzajysY6S0r198sGR6wuhzapcYEfJ1jEcwKIQ-lUhbNANULhZeqbdDsperz3HTa__zVkR8xhpP9TUZlRzHe88-Z7q9UjremQ6Z_9iYrKBfyLPl7xuBBOSX0"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-headline-md text-[18px] text-on-surface leading-tight">Maya Chen</h4>
+<span class="text-tertiary font-label-sm text-label-sm bg-tertiary-fixed px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">High Match</span>
+</div>
+<p class="font-body-md text-body-md text-sm text-on-surface-variant">Section A • Looking for Project Partner</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 mb-md">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F6F4EB] text-[#7A6B29] font-label-sm text-[11px]">
+                                ☀️ Early Bird
+                            </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#EBF4F6] text-[#296B7A] font-label-sm text-[11px]">
+                                📊 Visual Learner
+                            </span>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-surface-container-high text-on-surface font-label-md text-label-md py-2 rounded-lg hover:bg-surface-container-highest transition-colors">Message</button>
+<button class="flex-1 bg-secondary text-on-secondary font-label-md text-label-md py-2 rounded-lg hover:bg-secondary/90 transition-colors shadow-sm relative overflow-hidden group-hover:shadow">Connect</button>
+</div>
+</div>
+<!-- Student Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm border border-surface-container-highest hover:shadow-md transition-shadow relative group">
+<div class="flex items-start gap-4 mb-4">
+<div class="w-14 h-14 rounded-full overflow-hidden border-[3px] border-surface shadow-sm">
+<img alt="Leo profile" class="w-full h-full object-cover" data-alt="A 3D claymorphic style avatar of a male student with a cap, relaxed and approachable, soft pastel blue background, high quality 3D render." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9EVYyTZCfYVB4VBSWrB-1x7Yl80hSzcveskW4rhfe1TmBHug621A30YwhQxWlPSgoPumuNMzWbgyUhj9ihPVpqMsPw4c1CJbigi4oCWMHdWpSUNxOLPRY7Pd-YYSlY-2_x9oQaM5peUh_Djjui6cjTBk8OP7MQ9nq9E6D8h5zx6WmVOmCy3g18QSGu3nKs-Z9NwdMWwjAGNJyorbsQD6uBzaK8gTxpN62v7oqtN8nVdm8RwZ7bhU"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-headline-md text-[18px] text-on-surface leading-tight">Leo Rodriguez</h4>
+</div>
+<p class="font-body-md text-body-md text-sm text-on-surface-variant">Section B • Exam Prep Focus</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 mb-md">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F2F0FF] text-[#4C42E9] font-label-sm text-[11px]">
+                                🌙 Night Owl
+                            </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F6EBF0] text-[#7A2952] font-label-sm text-[11px]">
+                                🗣️ Discusses Aloud
+                            </span>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-surface-container-high text-on-surface font-label-md text-label-md py-2 rounded-lg hover:bg-surface-container-highest transition-colors">Message</button>
+<button class="flex-1 bg-secondary-container text-on-secondary-container font-label-md text-label-md py-2 rounded-lg hover:bg-secondary-container/90 transition-colors shadow-sm">Connect</button>
+</div>
+</div>
+<!-- Student Card 3 -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm border border-surface-container-highest hover:shadow-md transition-shadow relative group">
+<div class="flex items-start gap-4 mb-4">
+<div class="w-14 h-14 rounded-full overflow-hidden border-[3px] border-surface shadow-sm">
+<img alt="Sam profile" class="w-full h-full object-cover" data-alt="A 3D claymorphic style avatar of a non-binary student with colorful hair, creative and focused, soft pastel green background, appealing lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDq4TIFAMmpYCN8AAuIx1GkWEORXgJ5PC1btOHM5mDEmZ-OasUBZe-DouMapTZKQoXVk9doRh3MTQ1hA2QNTWl8YQUS8U-OHj8H2lvInAZZV3wAoYuDWferZtLUw-FbIJfndoHV_U4awKiEbBb9J9bc10Rr9dNxFGmGtX61WyoMLbpxh1Rj-TbK2364UzazVHAl3uh8eWMTRdbIfsoRZVSdPOvo23pDklNnBEjtYnvpswBcqntQ1QE"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-headline-md text-[18px] text-on-surface leading-tight">Sam Taylor</h4>
+</div>
+<p class="font-body-md text-body-md text-sm text-on-surface-variant">Section A • Homework Buddy</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 mb-md">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#EBF6EC] text-[#297A35] font-label-sm text-[11px]">
+                                ⚖️ Balanced
+                            </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F6F4EB] text-[#7A6B29] font-label-sm text-[11px]">
+                                ✍️ Note Taker
+                            </span>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-surface-container-high text-on-surface font-label-md text-label-md py-2 rounded-lg hover:bg-surface-container-highest transition-colors">Message</button>
+<button class="flex-1 bg-secondary text-on-secondary font-label-md text-label-md py-2 rounded-lg hover:bg-secondary/90 transition-colors shadow-sm">Connect</button>
+</div>
+</div>
+</div>
+<!-- Load More -->
+<div class="mt-lg text-center">
+<button class="font-label-md text-label-md text-primary hover:text-primary-container transition-colors py-2 px-4 rounded-full border border-outline-variant bg-surface-container-lowest shadow-sm hover:shadow">
+                        Show More Students
+                    </button>
+</div>
+</section>
+</div>
+</main>
+<!-- BottomNavBar (Visible on Mobile) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-3 pb-safe bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl shadow-[0_-4px_12px_rgba(76,66,233,0.08)] rounded-t-xl">
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60 hover:opacity-100 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1">auto_awesome</span>
+<span class="font-label-sm text-label-sm">Match</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary dark:text-inverse-primary relative after:content-[''] after:w-1 after:h-1 after:bg-tertiary after:rounded-full after:mt-1 scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1 material-symbols-fill">school</span>
+<span class="font-label-sm text-label-sm font-bold">Courses</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60 hover:opacity-100 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1">forum</span>
+<span class="font-label-sm text-label-sm">Chat</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60 hover:opacity-100 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1">person</span>
+<span class="font-label-sm text-label-sm">Profile</span>
+</a>
+</nav>
+</body></html>

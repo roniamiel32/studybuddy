@@ -6,9 +6,14 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.2.1
+Version:     0.3.0
 
 Modifications:
+    0.3.0 - 2026-08-03 - Added section 8: the "Kinetic Learning" visual design
+                         system transcribed from the Google Stitch export,
+                         its deliberate substitutions, the nine points where
+                         the design and the approved architecture disagree
+                         (C1-C9, unresolved), and the screen-to-route map
     0.2.1 - 2026-08-03 - Reconciled with the Phase 1a schema as built:
                          full_name nullable, app_is_connected_to replaces
                          app_are_connected, explicit GRANT layer documented in
@@ -977,14 +982,15 @@ updated, no known regressions.
 | ~~**0.1** PRD alignment~~ **done** | `0.1.1` | `chore/prd-alignment` | PRD added to the repo, "Smart Interaction" renamed "WhatsApp Handoff" | ✅ Both documents agree |
 | ~~**0.5** Scaffold~~ **done** | `0.2.0` | `feature/project-scaffold` | `create-next-app` + TS + Tailwind, shadcn/ui, `lib/env.ts`, Supabase clients, error contract, vitest + playwright, `supabase init`, `.env.example`, landing page; `VERSION` retired into `package.json` | ✅ lint, typecheck, 23 unit tests, 4 e2e tests and `next build` all pass; dev server renders the landing page |
 | ~~**1a** Schema~~ **done** | `0.3.0` | `feature/db-schema` | 9 migrations (§1.1–1.8 plus grants), two-tenant seed with a past and a current term, generated `database.types.ts`, 20 schema integration tests | ✅ `supabase db reset` clean; 43 tests pass; `npm run verify` green |
-| **1b** RLS | `0.4.0` | `feature/rls-policies` | Policies §1.9 + integration tests that *attempt* cross-tenant reads and assert zero rows | RLS test suite green — this is the security proof for the report |
-| **1c** Auth + onboarding | `0.5.0` | `feature/auth-onboarding` | Login, callback, domain gate, 4-step onboarding, profile/prefs/availability/enrollment CRUD | A new student can sign up and reach an empty dashboard |
-| **2** Rule matching | `0.6.0` | `feature/matching-engine` | `rpc_find_candidates`, course dashboard, `MatchCard`, filters | Two seeded students with overlapping slots see each other, correctly scored |
-| **3a** Requests | `0.7.0` | `feature/connection-requests` | Request send/accept/decline/cancel, requests page, unordered-pair constraint | Full request lifecycle works; duplicate request rejected by the DB, not just the UI |
-| **3b** AI re-rank | `0.8.0` | `feature/ai-rerank` | `/api/ai/rerank`, `match_scores` cache, structured output validation, rate limit, graceful degradation | Matches show AI reasons; with the API key removed the page still renders rule-ranked results |
-| **3c** AI icebreaker | `0.9.0` | `feature/ai-icebreaker` | `/api/ai/icebreaker`, `IcebreakerDialog`, prompt-injection sanitisation | Generated opener is course- and preference-specific, ≤600 chars |
-| **4a** WhatsApp handoff | `0.10.0` | `feature/whatsapp-handoff` | `getWhatsAppHandoff`, partners page, consent notices, `blocked_users` | Accepted partner opens WhatsApp with the text prefilled on a real phone |
-| **4c** Calendar sync (D7) | `0.11.0` | `feature/calendar-sync` | `calendar_connections` migration, OAuth flow, free/busy → slot inversion, `AvailabilitySourceChooser`, resync + disconnect | A student connects a calendar, their grid fills from real busy times, and disconnecting deletes both the tokens and the synced slots |
+| ~~**1.5** Design system~~ **done** | `0.4.0` | `feature/design-system` | Kinetic Learning tokens, restyled primitives, Chip, landing page rebuilt to the Stitch design | ✅ verify green; landing matches the reference at desktop and mobile |
+| **1b** RLS | `0.5.0` | `feature/rls-policies` | Policies §1.9 + integration tests that *attempt* cross-tenant reads and assert zero rows | RLS test suite green — this is the security proof for the report |
+| **1c** Auth + onboarding | `0.6.0` | `feature/auth-onboarding` | Login, callback, domain gate, 4-step onboarding, profile/prefs/availability/enrollment CRUD | A new student can sign up and reach an empty dashboard |
+| **2** Rule matching | `0.7.0` | `feature/matching-engine` | `rpc_find_candidates`, course dashboard, `MatchCard`, filters | Two seeded students with overlapping slots see each other, correctly scored |
+| **3a** Requests | `0.8.0` | `feature/connection-requests` | Request send/accept/decline/cancel, requests page, unordered-pair constraint | Full request lifecycle works; duplicate request rejected by the DB, not just the UI |
+| **3b** AI re-rank | `0.9.0` | `feature/ai-rerank` | `/api/ai/rerank`, `match_scores` cache, structured output validation, rate limit, graceful degradation | Matches show AI reasons; with the API key removed the page still renders rule-ranked results |
+| **3c** AI icebreaker | `0.10.0` | `feature/ai-icebreaker` | `/api/ai/icebreaker`, `IcebreakerDialog`, prompt-injection sanitisation | Generated opener is course- and preference-specific, ≤600 chars |
+| **4a** WhatsApp handoff | `0.11.0` | `feature/whatsapp-handoff` | `getWhatsAppHandoff`, partners page, consent notices, `blocked_users` | Accepted partner opens WhatsApp with the text prefilled on a real phone |
+| **4c** Calendar sync (D7) | `0.12.0` | `feature/calendar-sync` | `calendar_connections` migration, OAuth flow, free/busy → slot inversion, `AvailabilitySourceChooser`, resync + disconnect | A student connects a calendar, their grid fills from real busy times, and disconnecting deletes both the tokens and the synced slots |
 | **4b** Polish | `1.0.0` | `feature/polish-and-hardening` | Responsive pass, loading/error/empty states, a11y, E2E suite, Vercel deploy, README with setup + architecture | E2E green; deployed URL works; ready to submit |
 
 Suggested order of attack if time gets tight: 0.5 → 1a → 1b → 1c → 2 → 3a →
@@ -1177,3 +1183,94 @@ remedy is downgrading to `next@9`, which is not a real option. `postcss` runs
 at build time and `sharp` only in image optimisation, so neither is reachable
 by untrusted input in this app. Left in place deliberately — revisit when Next
 ships a patched dependency tree.
+
+---
+
+## 8. Visual design system — "Kinetic Learning"
+
+Source: a Google Stitch design, archived verbatim in
+[`docs/design/stitch/`](design/stitch/). `kinetic_learning/DESIGN.md` is the
+authoritative token list; the four `code.html` files are Stitch's own Tailwind
+output and were used to confirm values in context.
+
+**The brief's own words win.** Every colour, type step, radius and shadow below
+is transcribed from that source rather than invented. Where something had to be
+derived, it is called out.
+
+### 8.1 Tokens
+
+Implemented in [`src/app/globals.css`](../src/app/globals.css). Tailwind v4 is
+CSS-first, so that `@theme` block *is* the configuration.
+
+| Group | Values |
+|---|---|
+| Brand | `brand #493ee5`, `brand-bright #635bff`, `brand-fixed #e2dfff` |
+| Sunset | `sunset #fd894f`, `sunset-deep #9f420a`, `sunset-fixed #ffdbcc` |
+| Grape | `grape #8a2ab9`, `grape-fixed #f6d9ff` |
+| Surfaces | `surface #fcf8fb` → `surface-container-highest #e4e2e4`, all purple-tinted |
+| Ink | `on-surface #1b1b1d`, `on-surface-variant #464555`, `outline #777587` |
+| Type | Be Vietnam Pro (600/700) headings, Plus Jakarta Sans (400–700) body |
+| Scale | `headline-xl/lg/md`, `body-lg/md`, `label-md/sm` |
+| Radius | cards `1.5rem`, buttons and inputs `0.75rem`, chips full |
+| Shadow | `clay`, `clay-lifted`, `clay-btn`, `clay-btn-pressed`, `clay-sunset`, `clay-soft`, `nav` |
+
+Spacing needs no custom scale: Stitch's 8px rhythm (4/8/12/24/48/80) maps
+exactly onto Tailwind's default steps 1/2/3/6/12/20.
+
+### 8.2 The signature: claymorphism
+
+Two details carry it, and both are load-bearing:
+
+1. **Shadows are tinted with the brand purple, never black.** On a pastel
+   surface a black shadow reads as dirt; a purple one reads as light.
+2. **A white inset highlight along the top edge** (`inset 0 2px 0 0 rgb(255 255 255 / 0.8)`).
+   This is what makes a card look moulded rather than drawn.
+
+Primary buttons carry a gradient plus their own drop shadow, and physically
+depress 2px on `:active`. That press is the one piece of motion in the system
+that is not decorative — it is feedback.
+
+### 8.3 Deliberate substitutions
+
+| Design element | What was built | Why |
+|---|---|---|
+| 3D claymorphic illustrations (phone, mascot, floating props) | The hero phone is rebuilt as **real DOM**, styled from the same tokens as the product's match cards | Those assets cannot be generated here. Real DOM is also sharper at any density, reflows on a phone, and cannot drift from the product's real styling. Two floating accents survive instead of a crowd of props — at this fidelity, more reads as clutter. |
+| Five university crest logos, "Join students from top universities" | "Built for Reichman University. Designed to open to more campuses without a rebuild." | The crests were fabricated institutions, and the app serves exactly one university today. Claiming otherwise on the landing page is a claim a grader can check. |
+| Per-chip bespoke text colours | The four neutral pastel chips share `on-surface-variant` | Giving each its own text colour meant inventing four more hexes for no gain in meaning, and would have doubled the palette. The three brand tones keep their own colour, because those say something about the product. |
+| Second gradient stop on buttons | Derived with `color-mix` from two colours already in the palette | Keeps the palette closed — no fifth purple that exists only inside a button. |
+
+Dark mode is **not implemented**. Stitch supplied no dark palette, and shipping
+a theme nobody designed would look worse than not offering one.
+
+### 8.4 Where the design and the architecture disagree
+
+The Stitch screens describe a somewhat different product from the one approved
+in §0. Listed here rather than silently reconciled, because each needs a
+decision. **C1–C3 are decided; C4–C9 are still open.**
+
+| # | In the design | Conflicts with | Options |
+|---|---|---|---|
+| ~~C1~~ **resolved** | **A full in-app chat** (`smart_interaction`): bubbles, composer, read receipts | **D3** — no in-app chat; an AI icebreaker handed to WhatsApp | ✅ **D3 stands.** The screen's *AI Icebreaker card* is lifted onto `/partners` as the handoff surface. No `messages` table, no Realtime, no new RLS — and the best idea in the mockup survives. |
+| ~~C2~~ **resolved** | Bottom nav is Match / Courses / **Chat** / Profile | Our IA needs **Requests** and **Partners**; the accept/decline flow (D2) has nowhere to live | ✅ Chat tab becomes **Requests**. Partners lives under Profile, keeping the nav at four items. |
+| ~~C3~~ **resolved** | A **"Message"** button on every match card | Same as C1 — implies messaging before any consent | ✅ Becomes **"Connect"**, which sends a request. The card keeps its two-button layout. |
+| C4 | **Study Groups**, "Join Next Session" | Product is 1:1 partner matching; no group or session tables | Cut, or accept a schema addition |
+| C5 | **"Schedule Session — find a matching time"** | No sessions table; overlap is computed but never booked | Cut for MVP; it is a natural v2 |
+| C6 | **"Sync Courses" from "Reichman University Portal"** | **D1** — seeded catalog with a picker. There is no SIS integration, and building one needs the university's cooperation | Reword to the course picker. Promising an automatic sync we cannot deliver is the worst option |
+| C7 | **Online / presence** dot | No presence tracking; needs Realtime | Cut, or replace with "active this week" from `updated_at` |
+| C8 | Course info: **meeting times, room, syllabus link** | `course_offerings` has only `lecturer` | Cut, or add columns and seed them |
+| C9 | **"Section A / Section B"** | Sections are not modelled | Cut, or add `section` to `enrollments` |
+
+Two things the design got *right* that are worth noting: the match-percentage
+badge maps cleanly onto `match_scores.ai_score`, and the landing page's "Sync
+your schedule — connect your calendar" independently arrives at **D7**, which
+is a good sign the hybrid availability decision matches how students think.
+
+### 8.5 Screen mapping
+
+| Stitch screen | Route | Phase |
+|---|---|---|
+| `landing` | `/` | ✅ built |
+| `smart_onboarding` | `/onboarding/*` | 1c |
+| `ai_powered_matching` | `/dashboard` | 2 |
+| `course_dashboard` | `/courses/[offeringId]` | 2 |
+| `smart_interaction` | `/partners` — icebreaker card + WhatsApp handoff, **not** a chat (C1) | 4a |

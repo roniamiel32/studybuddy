@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.3.0** — schema complete, no features yet.
+Version **0.4.0** — schema and design system complete, no features yet.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final
@@ -17,6 +17,7 @@ project for the Full-Stack course at Reichman University.
 | 0 | Technical design | ✅ [docs/technical-design.md](docs/technical-design.md) |
 | 0.5 | Project scaffold | ✅ Next.js, Tailwind, shadcn/ui, Supabase clients, test stack |
 | 1a | Database schema | ✅ 14 tables, seeds, helper functions, 20 integration tests |
+| 1.5 | Design system | ✅ "Kinetic Learning" tokens, claymorphic primitives, landing page |
 | 1b | Row Level Security | ⬜ Not started — RLS is on, with no policies, so all client access is denied |
 | 1c | Auth & onboarding | ⬜ Not started |
 | 2 | Rule-based matching | ⬜ Not started |
@@ -118,7 +119,11 @@ one place that does not carry our file-header convention.
 - [Software Design Document (PRD)](docs/prd.md) — product scope, core
   features, business value, phased workflow
 - [Technical Design Document](docs/technical-design.md) — schema, folder
-  structure, backend surface, component tree, phased plan, risks
+  structure, backend surface, component tree, phased plan, risks, and the
+  design system (§8)
+- [Design source](docs/design/stitch/) — the Google Stitch export the visual
+  design is transcribed from. `kinetic_learning/DESIGN.md` is the token
+  reference
 - [Commit convention](.claude/commit-convention.md)
 - [Changelog](CHANGELOG.md)
 

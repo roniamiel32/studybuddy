@@ -1,130 +1,262 @@
+/**
+ * File:        src/app/globals.css
+ * Authors:     Roni Amiel & Eden Bitran
+ * Description: The "Kinetic Learning" design system, transcribed from the
+ *              Google Stitch design in docs/design/stitch/kinetic_learning/.
+ *              Every colour, type step, radius and shadow here is taken from
+ *              that source rather than invented, so the built app and the
+ *              design stay comparable.
+ *
+ *              Tailwind v4 is CSS-first: this @theme block IS the config.
+ *              There is no tailwind.config.ts.
+ * Version:     0.4.0
+ *
+ * Modifications:
+ *     0.2.0 - 2026-08-03 - shadcn/ui defaults (Phase 0.5)
+ *     0.4.0 - 2026-08-03 - Replaced with the Kinetic Learning tokens
+ */
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@theme {
+  /* ---------------------------------------------------------------------
+   * Typography
+   *
+   * Be Vietnam Pro carries the headlines: geometric, confident, and it holds
+   * up at the heavy weights the display scale asks for. Plus Jakarta Sans
+   * runs everything else — its soft terminals are what keep a dense match
+   * card feeling approachable rather than administrative.
+   * ------------------------------------------------------------------- */
+  --font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-be-vietnam), var(--font-plus-jakarta), sans-serif;
 
+  --text-headline-xl: 3rem; /* 48px */
+  --text-headline-xl--line-height: 3.5rem;
+  --text-headline-xl--letter-spacing: -0.02em;
+  --text-headline-xl--font-weight: 700;
+
+  --text-headline-lg: 2rem; /* 32px */
+  --text-headline-lg--line-height: 2.5rem;
+  --text-headline-lg--letter-spacing: -0.01em;
+  --text-headline-lg--font-weight: 700;
+
+  --text-headline-md: 1.5rem; /* 24px */
+  --text-headline-md--line-height: 2rem;
+  --text-headline-md--font-weight: 600;
+
+  --text-body-lg: 1.125rem; /* 18px */
+  --text-body-lg--line-height: 1.75rem;
+
+  --text-body-md: 1rem; /* 16px */
+  --text-body-md--line-height: 1.5rem;
+
+  --text-label-md: 0.875rem; /* 14px */
+  --text-label-md--line-height: 1.25rem;
+  --text-label-md--letter-spacing: 0.01em;
+  --text-label-md--font-weight: 600;
+
+  --text-label-sm: 0.75rem; /* 12px */
+  --text-label-sm--line-height: 1rem;
+  --text-label-sm--font-weight: 700;
+
+  /* ---------------------------------------------------------------------
+   * Shape — "ultra-rounded", per the design system. No sharp corners.
+   * Cards 24px, buttons and inputs 12px, chips fully round.
+   * ------------------------------------------------------------------- */
+  --radius-sm: 0.25rem;
+  --radius-DEFAULT: 0.5rem;
+  --radius-md: 0.75rem; /* buttons, inputs */
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem; /* cards, containers */
+  --radius-2xl: 2rem;
+
+  /* ---------------------------------------------------------------------
+   * Palette — Deep Electric Purple against Vibrant Sunset Orange.
+   *
+   * The surface ramp is tinted rather than grey: every "grey" here carries a
+   * trace of purple, which is what stops the interface reading as clinical.
+   * ------------------------------------------------------------------- */
+  --color-surface: #fcf8fb;
+  --color-surface-dim: #dcd9dc;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f6f3f5;
+  --color-surface-container: #f0edef;
+  --color-surface-container-high: #eae7ea;
+  --color-surface-container-highest: #e4e2e4;
+  --color-on-surface: #1b1b1d;
+  --color-on-surface-variant: #464555;
+  --color-inverse-surface: #303032;
+  --color-inverse-on-surface: #f3f0f2;
+  --color-outline: #777587;
+  --color-outline-variant: #c7c4d8;
+
+  --color-brand: #493ee5;
+  --color-brand-bright: #635bff;
+  --color-brand-tint: #4c42e9;
+  --color-brand-fixed: #e2dfff;
+  --color-brand-fixed-dim: #c3c0ff;
+  --color-on-brand-fixed: #0f0069;
+  --color-on-brand-fixed-variant: #321ed2;
+
+  --color-sunset: #fd894f;
+  --color-sunset-deep: #9f420a;
+  --color-on-sunset-container: #6c2800;
+  --color-sunset-fixed: #ffdbcc;
+  --color-sunset-fixed-dim: #ffb694;
+
+  --color-grape: #8a2ab9;
+  --color-grape-bright: #a548d4;
+  --color-grape-fixed: #f6d9ff;
+  --color-on-grape-fixed: #310048;
+
+  /* Field background. Inputs sit on a faint purple wash so that focusing one
+   * — which turns it white — reads as the field lighting up. */
+  --color-field: #f8f7ff;
+
+  /* ---------------------------------------------------------------------
+   * Claymorphism — the system's signature.
+   *
+   * Two things make it work, and both matter: the ambient shadow is tinted
+   * with the brand purple rather than black, so cards look lit rather than
+   * dirty; and the inset white highlight along the top edge is what reads as
+   * a moulded, soft-plastic surface instead of a flat rectangle.
+   * ------------------------------------------------------------------- */
+  --shadow-clay:
+    0 10px 30px -10px rgb(73 62 229 / 0.15),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.8);
+  --shadow-clay-lifted:
+    0 18px 40px -12px rgb(73 62 229 / 0.22),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.8);
+  --shadow-clay-btn:
+    0 8px 20px -6px rgb(73 62 229 / 0.4),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.3);
+  --shadow-clay-btn-pressed:
+    0 4px 10px -4px rgb(73 62 229 / 0.4),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.3);
+  --shadow-clay-sunset:
+    0 8px 20px -6px rgb(159 66 10 / 0.35),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.3);
+  --shadow-clay-soft: 0 4px 12px -4px rgb(73 62 229 / 0.1);
+  --shadow-nav: 0 -4px 12px rgb(76 66 233 / 0.08);
+}
+
+/* -------------------------------------------------------------------------
+ * shadcn/ui semantic aliases.
+ *
+ * Mapped onto the palette above so every primitive inherits the design
+ * automatically instead of each component re-deriving it.
+ * ---------------------------------------------------------------------- */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  --background: #fcf8fb;
+  --foreground: #1b1b1d;
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --card: #ffffff;
+  --card-foreground: #1b1b1d;
+  --popover: #ffffff;
+  --popover-foreground: #1b1b1d;
+
+  --primary: #493ee5;
+  --primary-foreground: #ffffff;
+
+  /* The high-conversion orange, reserved for the single most important
+   * action on a screen. Used sparingly on purpose — the design system calls
+   * it out for "Get Started" and "Connect", nothing else. */
+  --secondary: #fd894f;
+  --secondary-foreground: #6c2800;
+
+  --muted: #f0edef;
+  --muted-foreground: #464555;
+
+  --accent: #e2dfff;
+  --accent-foreground: #0f0069;
+
+  --destructive: #ba1a1a;
+
+  --border: #e4e2e4;
+  --input: #c7c4d8;
+  --ring: #493ee5;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
+  html {
+    @apply font-sans;
+  }
+
   body {
     @apply bg-background text-foreground;
   }
-  html {
-    @apply font-sans;
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading;
+  }
+}
+
+@layer components {
+  /*
+   * The dotted field the app screens sit on. Faint enough to read as texture
+   * rather than pattern — it gives the flat pastel surface something to be,
+   * without competing with content.
+   */
+  .bg-dotted {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      rgb(73 62 229 / 0.06) 2px,
+      transparent 0
+    );
+    background-size: 40px 40px;
+  }
+
+  /* Sticky headers and the bottom nav, per the design system's glass spec. */
+  .glass {
+    background-color: rgb(255 255 255 / 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+}
+
+/*
+ * Motion is decorative here, so all of it is opt-out. Anyone who has asked
+ * their system for reduced motion gets a static page, not a slower one.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

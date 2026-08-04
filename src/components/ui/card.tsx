@@ -1,3 +1,18 @@
+/**
+ * File:        src/components/ui/card.tsx
+ * Authors:     Roni Amiel & Eden Bitran
+ * Description: Card primitive. Scaffolded by shadcn/ui, then restyled to the
+ *              Kinetic Learning "clay" surface: a 24px radius, a purple-tinted
+ *              ambient shadow, and a white inset highlight along the top edge.
+ *              The tint is the point — a black shadow on a pastel surface reads
+ *              as grime, a purple one reads as light.
+ * Version:     0.4.0
+ *
+ * Modifications:
+ *     0.2.0 - 2026-08-03 - Added by `shadcn add` (Phase 0.5)
+ *     0.4.0 - 2026-08-03 - Restyled to the Stitch design system
+ */
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -12,7 +27,7 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-xl bg-card py-(--card-spacing) text-sm text-card-foreground ring-1 ring-foreground/10 [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
+        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-xl border border-outline-variant/30 bg-card py-(--card-spacing) text-body-md text-card-foreground shadow-clay [--card-spacing:--spacing(5)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
         className
       )}
       {...props}
@@ -38,7 +53,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm",
+        "font-heading text-headline-md leading-snug group-data-[size=sm]/card:text-body-lg",
         className
       )}
       {...props}

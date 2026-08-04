@@ -4,6 +4,60 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-08-03
+
+Visual design system. Transcribed from the Google Stitch "Kinetic Learning"
+design, which is archived in `docs/design/stitch/`.
+
+### Added
+- Full token layer in `src/app/globals.css`: the purple/sunset/grape palette,
+  the tinted surface ramp, the Be Vietnam Pro + Plus Jakarta Sans type scale,
+  the ultra-rounded radius scale, and seven claymorphic shadow tokens.
+- `Chip` — pill-shaped trait labels with eight tones.
+- `Wordmark` and `PhoneShowcase` marketing components.
+- Design source archived under `docs/design/stitch/`, so the reference is
+  version-controlled next to the implementation.
+- Design doc §8: tokens, the claymorphism spec, deliberate substitutions, the
+  screen-to-route map, and **C1–C9, the nine points where the design and the
+  approved architecture disagree**. All nine are unresolved and need decisions.
+
+### Changed
+- `Button` rewritten: gradient fills with a white inner top glow, a 2px
+  physical depression on press, a `sunset` variant for the single
+  highest-intent action per screen, and 44px+ touch targets throughout.
+- `Card` restyled to the clay surface — 24px radius, purple-tinted ambient
+  shadow, white inset highlight.
+- `Input` now rests on a faint purple wash and turns white on focus.
+- Landing page rebuilt to the Stitch design.
+- Roadmap versions after Phase 1a shift up one minor to make room for this
+  phase; Phase 1b is now `0.5.0`.
+
+### Fixed
+- **`cn()` silently dropped custom font sizes.** `cn('text-label-sm',
+  'text-brand')` returned only the colour, because tailwind-merge cannot tell a
+  custom font-size from a custom colour when both use the `text-` prefix — so
+  chips rendered at 16px/400 instead of 12px/700. The custom `font-size` and
+  `shadow` scales are now registered with tailwind-merge. This failed with no
+  error or warning and would have affected every component using the type
+  scale.
+- Landing footer no longer strands itself below the closing band on tall
+  viewports.
+
+### Notes
+- **The 3D illustrations could not be reproduced.** The hero phone is rebuilt
+  as real DOM styled from the same tokens as the product's match cards, which
+  stays sharp, reflows on mobile, and cannot drift from the real UI.
+- The landing page's fabricated university crests were replaced with an honest
+  statement that the app serves Reichman University today.
+- Dark mode is deliberately not implemented; the source supplies no dark
+  palette.
+
+### Verification
+`npm run verify` passes (lint, typecheck, 43 tests, build) and `npm run
+test:e2e` passes 4 tests across chromium and mobile Safari. The landing page
+was compared against the Stitch reference at 1280px and 375px, and computed
+styles were checked against the token spec.
+
 ## [0.3.0] — 2026-08-03
 
 Phase 1a — database schema. The schema exists, is seeded, and is completely

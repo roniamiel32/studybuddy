@@ -1,32 +1,42 @@
 # Commit Convention — StudyBuddy
 
-Recorded on 2026-08-03. Applies to every commit in this repository, in this
-and all future sessions, unless Roni changes it.
+Applies to every commit in this repository, in this and all future sessions,
+unless Roni changes it.
 
 ## Title format
+
+**Current format, set by Roni on 2026-08-03 (supersedes the original below):**
+
+```
+Study-Buddy: Version - X.Y.Z
+```
+
+- `X.Y.Z` — the project version **as it stands after this commit**, matching
+  `package.json`.
+- Nothing else goes in the title. All detail — what changed, why, tradeoffs —
+  belongs in the body, which stays as demanding as ever.
+
+Examples:
+
+```
+Study-Buddy: Version - 0.4.0
+Study-Buddy: Version - 0.5.0
+```
+
+Because the title no longer describes the change, **the body's first line
+carries that weight** — open it with a one-sentence summary of what this
+commit does before the detailed sections.
+
+### Superseded format (commits v0.1.0 – v0.3.0)
+
+The first four commits use Conventional Commits with a version prefix:
 
 ```
 [vX.Y.Z] type(scope): summary
 ```
 
-- `vX.Y.Z` — the project version **as it stands after this commit** (see
-  `VERSION`, later `package.json`).
-- `type` — one of: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`,
-  `perf`, `style`, `build`, `ci`.
-- `scope` — the affected area. Established scopes:
-  `auth`, `profile`, `prefs`, `availability`, `courses`, `enrollment`,
-  `matching`, `ai`, `requests`, `handoff`, `db`, `rls`, `ui`, `docs`,
-  `deps`, `config`.
-- `summary` — imperative mood, lowercase, no trailing period, ≤ 60 chars
-  including the version prefix where possible.
-
-Examples:
-
-```
-[v0.2.0] feat(matching): add SQL prefilter RPC for course candidates
-[v0.2.1] fix(rls): stop contact phone leaking to non-accepted partners
-[v0.1.1] docs(db): correct FK direction in schema diagram
-```
+Left in the history as-is rather than rewritten. If Roni ever wants the log
+uniform, that is a rebase, and it needs an explicit go-ahead.
 
 ## Body
 

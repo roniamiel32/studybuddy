@@ -12,23 +12,31 @@
  */
 
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Be_Vietnam_Pro, Plus_Jakarta_Sans } from 'next/font/google';
 
 import './globals.css';
 
 /*
- * The variable name must stay in sync with the `@theme` block in globals.css,
- * which maps Tailwind's `font-sans` to `--font-sans`. A mismatch here is silent:
- * the page simply falls back to the browser's default serif.
+ * The two faces of the Kinetic Learning system. The variable names must stay
+ * in sync with the `@theme` block in globals.css — a mismatch is silent, and
+ * the page just falls back to the browser's default serif.
+ *
+ * Only the weights the type scale actually uses are loaded: headlines at 600
+ * and 700, body at 400/600/700. Shipping the full families would cost several
+ * hundred kilobytes for weights nothing renders.
  */
-const geistSans = Geist({
-  variable: '--font-sans',
+const beVietnamPro = Be_Vietnam_Pro({
+  variable: '--font-be-vietnam',
   subsets: ['latin'],
+  weight: ['600', '700'],
+  display: 'swap',
 });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: '--font-plus-jakarta',
   subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -54,7 +62,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${beVietnamPro.variable} ${plusJakartaSans.variable} h-full antialiased`}
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
         {children}

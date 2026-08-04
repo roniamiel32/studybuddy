@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StudyBuddy - Match</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700&amp;family=Plus+Jakarta+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "inverse-on-surface": "#f3f0f2",
+                      "inverse-primary": "#c3c0ff",
+                      "tertiary": "#8a2ab9",
+                      "surface-container-low": "#f6f3f5",
+                      "on-secondary-fixed-variant": "#7b2f00",
+                      "on-error": "#ffffff",
+                      "inverse-surface": "#303032",
+                      "error-container": "#ffdad6",
+                      "surface-dim": "#dcd9dc",
+                      "secondary": "#9f420a",
+                      "surface-tint": "#4c42e9",
+                      "on-primary-fixed-variant": "#321ed2",
+                      "on-primary": "#ffffff",
+                      "on-secondary-container": "#6c2800",
+                      "surface-container-lowest": "#ffffff",
+                      "primary-container": "#635bff",
+                      "tertiary-container": "#a548d4",
+                      "on-tertiary-container": "#fffafa",
+                      "background": "#fcf8fb",
+                      "surface-bright": "#fcf8fb",
+                      "on-tertiary-fixed-variant": "#7201a2",
+                      "primary": "#493ee5",
+                      "outline-variant": "#c7c4d8",
+                      "tertiary-fixed": "#f6d9ff",
+                      "surface-container-highest": "#e4e2e4",
+                      "on-tertiary-fixed": "#310048",
+                      "secondary-fixed": "#ffdbcc",
+                      "on-secondary": "#ffffff",
+                      "on-surface-variant": "#464555",
+                      "surface-container": "#f0edef",
+                      "secondary-fixed-dim": "#ffb694",
+                      "on-tertiary": "#ffffff",
+                      "surface": "#fcf8fb",
+                      "on-primary-fixed": "#0f0069",
+                      "surface-container-high": "#eae7ea",
+                      "primary-fixed": "#e2dfff",
+                      "on-primary-container": "#fefaff",
+                      "on-surface": "#1b1b1d",
+                      "on-error-container": "#93000a",
+                      "outline": "#777587",
+                      "surface-variant": "#e4e2e4",
+                      "on-background": "#1b1b1d",
+                      "primary-fixed-dim": "#c3c0ff",
+                      "tertiary-fixed-dim": "#e8b3ff",
+                      "error": "#ba1a1a",
+                      "on-secondary-fixed": "#351000",
+                      "secondary-container": "#fd894f"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "margin-desktop": "120px",
+                      "margin-mobile": "20px",
+                      "lg": "48px",
+                      "md": "24px",
+                      "sm": "12px",
+                      "xs": "4px",
+                      "gutter": "24px",
+                      "base": "8px",
+                      "xl": "80px"
+              },
+              "fontFamily": {
+                      "body-md": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "headline-md": [
+                              "Be Vietnam Pro"
+                      ],
+                      "label-sm": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "label-md": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "headline-lg": [
+                              "Be Vietnam Pro"
+                      ],
+                      "headline-lg-mobile": [
+                              "Be Vietnam Pro"
+                      ],
+                      "body-lg": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "headline-xl": [
+                              "Be Vietnam Pro"
+                      ]
+              },
+              "fontSize": {
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "letterSpacing": "0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "28px",
+                              {
+                                      "lineHeight": "36px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-xl": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        .clay-card {
+            background: #ffffff;
+            box-shadow: 0 10px 30px -10px rgba(73, 62, 229, 0.15),
+                        inset 0 2px 0 0 rgba(255, 255, 255, 0.8);
+            border-radius: 24px;
+        }
+        .clay-btn-primary {
+            background: linear-gradient(135deg, #635bff 0%, #493ee5 100%);
+            box-shadow: 0 8px 20px -6px rgba(73, 62, 229, 0.4),
+                        inset 0 2px 0 0 rgba(255, 255, 255, 0.3);
+            border: none;
+            transition: all 0.2s ease;
+        }
+        .clay-btn-primary:active {
+            transform: translateY(2px);
+            box-shadow: 0 4px 10px -4px rgba(73, 62, 229, 0.4),
+                        inset 0 2px 0 0 rgba(255, 255, 255, 0.3);
+        }
+        .clay-btn-secondary {
+            background: #ffffff;
+            border: 1.5px solid #493ee5;
+            color: #493ee5;
+            box-shadow: 0 4px 12px -4px rgba(73, 62, 229, 0.1);
+            transition: all 0.2s ease;
+        }
+        .clay-btn-secondary:hover {
+            background: #f6d9ff;
+        }
+        .chip {
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .bg-pattern {
+            background-color: #fcf8fb;
+            background-image: radial-gradient(#e2dfff 2px, transparent 2px);
+            background-size: 30px 30px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased min-h-screen pb-24 md:pb-0">
+<!-- Top Navigation (Desktop) -->
+<header class="hidden md:flex justify-between items-center px-margin-desktop h-16 w-full sticky top-0 z-50 bg-surface/70 dark:bg-surface-dim/70 backdrop-blur-xl shadow-sm">
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full overflow-hidden border-2 border-primary">
+<img alt="Student profile photo" class="w-full h-full object-cover" data-alt="A smiling college student with short hair, wearing a casual hoodie, brightly lit portrait style, optimistic and friendly mood, soft pastel background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7svmnsi3O0NYdL9jo8DcN0xelWfrDV9xHJ1ekhUmxMMblXEPEbtYCkKm0juvTmToC_gusf665CjpfOL7A0c6xW--U6eBzAgFzhaFKlDIlmNif9kONbqqH3ej8WTxwue3D0ZBBO_yBXFbDDgXrgHsaIgr6cruhV-svZ-lBLoO6mWJA0H5hfQjhi76H8wL7m97A9hs26Bhrbl88r7CiPkHILYnTUg0k0jjLcPaZgHh0CFOphoQ1qBg"/>
+</div>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary">StudyBuddy</span>
+</div>
+<nav class="flex gap-8">
+<a class="text-primary font-bold font-label-md text-label-md flex items-center gap-2" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                Match
+            </a>
+<a class="text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md flex items-center gap-2 py-1 px-3 rounded-full" href="#">
+<span class="material-symbols-outlined">school</span>
+                Courses
+            </a>
+<a class="text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md flex items-center gap-2 py-1 px-3 rounded-full" href="#">
+<span class="material-symbols-outlined">forum</span>
+                Chat
+            </a>
+<a class="text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md flex items-center gap-2 py-1 px-3 rounded-full" href="#">
+<span class="material-symbols-outlined">person</span>
+                Profile
+            </a>
+</nav>
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-colors text-primary dark:text-inverse-primary">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+<!-- Top Navigation (Mobile Shell) -->
+<header class="md:hidden flex justify-between items-center px-margin-mobile h-16 w-full sticky top-0 z-50 bg-surface/70 dark:bg-surface-dim/70 backdrop-blur-xl shadow-sm">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden border-2 border-primary">
+<img alt="Student profile photo" class="w-full h-full object-cover" data-alt="A smiling college student with short hair, wearing a casual hoodie, brightly lit portrait style, optimistic and friendly mood, soft pastel background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-1MFU3lJ67133tCSpZjOijHtm0_UH2HXiobMSfoay7IcwuDkQxbKaGVaZm_VVsdk8HGn6HmK_bECZ-nkfmVQ9uiFKO_ves9PXyDNfeHDEr2Mv4cSVCE6yIJN9SneUrZqbJjkh0U0yd2oCl3e-yiklwYdtpEREe40JftK7wXOu4tzOi3gb4GoyWRTarS9IeA2WuK3XeAVOy-qUR93KHGW1apQbz6qrhU3STPqJg9OrTLCo2tfcdcg"/>
+</div>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary">StudyBuddy</span>
+</div>
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-colors text-primary dark:text-inverse-primary">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+<main class="max-w-[1200px] mx-auto px-margin-mobile md:px-margin-desktop py-md md:py-lg bg-pattern min-h-screen">
+<div class="mb-8">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-2">AI-Powered Matches</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">We found some great study partners based on your schedule and courses.</p>
+</div>
+<!-- Top Match Card (Bento Style) -->
+<section class="mb-12">
+<h2 class="font-label-md text-label-md text-tertiary uppercase tracking-wider mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary" style="font-variation-settings: 'FILL' 1;">stars</span>
+                Top Match
+            </h2>
+<div class="clay-card p-6 md:p-8 flex flex-col md:flex-row gap-6 items-start relative overflow-hidden">
+<!-- Decorative background elements -->
+<div class="absolute -top-10 -right-10 w-40 h-40 bg-secondary-fixed rounded-full blur-3xl opacity-50"></div>
+<div class="absolute bottom-0 left-20 w-32 h-32 bg-primary-fixed rounded-full blur-2xl opacity-40"></div>
+<div class="flex-shrink-0 relative z-10">
+<div class="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-white shadow-md">
+<img alt="Maya's profile" class="w-full h-full object-cover" data-alt="A brightly lit 3D claymorphic avatar of a female student with glasses and wavy hair, smiling warmly, soft pastel background, friendly and approachable." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC_d1ni8FmzzRlDdVaNzzCiuePUdwYmKOUMiDharbf4as3gyHEP4PC84fcKT1TE9_LIKPjpmNga7dEpwTGGN16OyDkjD2kBjQFrPEah8FxS4_i7m2tNQSqAcCYx-1eaYVDh2yTWUZDmFxN4hNbcS-F56g6cTJM2RdgCgKQsTSb6rdXDGqmSGjaJx2MMUD8n87nkjWyBfF0w9XhqESfENSr0ZjQjcCitUfO6gME5_cfugR6OVRjCcPU"/>
+</div>
+<div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-surface-container-lowest px-3 py-1 rounded-full shadow-sm text-xs font-bold text-secondary flex items-center gap-1 border border-secondary-fixed">
+<span class="material-symbols-outlined text-[14px]">local_fire_department</span>
+                        98% Match
+                    </div>
+</div>
+<div class="flex-grow z-10 w-full">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Maya S.</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Psychology Major</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 mb-4">
+<span class="chip bg-primary-fixed text-on-primary-fixed">
+<span class="material-symbols-outlined text-[14px]">book</span> CS 101
+                        </span>
+<span class="chip bg-secondary-fixed text-on-secondary-fixed">
+<span class="material-symbols-outlined text-[14px]">wb_sunny</span> Early Bird
+                        </span>
+<span class="chip bg-tertiary-fixed text-on-tertiary-fixed">
+<span class="material-symbols-outlined text-[14px]">volume_off</span> Quiet Study
+                        </span>
+</div>
+<div class="bg-surface-container-low p-4 rounded-xl mb-4 border border-outline-variant/30">
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-1">Shared Availability:</p>
+<p class="font-body-md text-body-md font-semibold text-on-surface">Tue, Thu • 9:00 AM - 12:00 PM</p>
+</div>
+<button class="clay-btn-primary w-full md:w-auto px-6 py-3 rounded-full font-label-md text-label-md text-white flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">waving_hand</span>
+                        Send Smart Icebreaker
+                    </button>
+</div>
+</div>
+</section>
+<!-- Other Matches Grid -->
+<section>
+<h2 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-4">More Potential Partners</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Match Card 1 -->
+<div class="clay-card p-5 flex flex-col items-center text-center relative group">
+<div class="w-20 h-20 rounded-full overflow-hidden border-3 border-white shadow-sm mb-3">
+<img alt="Leo's profile" class="w-full h-full object-cover" data-alt="A friendly 3D claymorphic avatar of a male student wearing a beanie, smiling casually, soft warm lighting, academic setting implied." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCNRIsbAN2CYkqMSlPEOshBnVqyPwVymsMoJz7jSSprx3yjif0xu1WdZAJUfI2B3Ocj7QWknSDME0HVzxBdnLnpMMFdU8SsnKjG-YdySsHTmmmHZ2K7azs-PRdNUdjjd3zoa0yB-fXdV0s7jKVOsbklpd2WN6jCn_bXqDbaJpnJXV6GZyLhfyXPr8X2xWlXOuW4xNP46691uWdHd1WSr670FSWA3DLLVTODdz63au4QxEEd8hKv18"/>
+</div>
+<h3 class="font-label-md text-label-md text-on-surface text-lg">Leo T.</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-3">Data Science</p>
+<div class="flex flex-wrap justify-center gap-1.5 mb-4">
+<span class="chip bg-primary-fixed/50 text-on-primary-fixed text-[10px] py-1 px-2">CS 101</span>
+<span class="chip bg-surface-container text-on-surface text-[10px] py-1 px-2">
+<span class="material-symbols-outlined text-[12px]">balance</span> Balanced
+                        </span>
+</div>
+<button class="clay-btn-secondary w-full py-2 rounded-lg font-label-sm text-label-sm mt-auto">View Profile</button>
+<div class="absolute top-4 right-4 bg-surface-container-lowest px-2 py-1 rounded-full shadow-sm text-[10px] font-bold text-primary border border-primary-fixed">
+                        85%
+                    </div>
+</div>
+<!-- Match Card 2 -->
+<div class="clay-card p-5 flex flex-col items-center text-center relative group">
+<div class="w-20 h-20 rounded-full overflow-hidden border-3 border-white shadow-sm mb-3">
+<img alt="Alex's profile" class="w-full h-full object-cover" data-alt="A bright 3D claymorphic avatar of a male student with messy hair, looking energetic, soft cool lighting, friendly and open expression." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB4PHRGn9mbNxU5tiaDE0uwUeluNr_exRk9qZizJz-LMQD64oUcdEflEvad99weJ2wIj8AWoRFxwTFUihzBEOYYV8aQ5syrIwPZClJhEsElGzPqaUBIe9l6G9gBRNec5zKWlR1JgWwAjEGeHK_T7BFoOAeLKYbfq2dqBI5SS5VW6yzQBw3JE6HywLqh9KHAs1BYBnYRtbJWzAVplUPmZuOfjp32tmh85oMHRj-2BF6iTOv-A0uWvE0"/>
+</div>
+<h3 class="font-label-md text-label-md text-on-surface text-lg">Alex K.</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-3">Computer Science</p>
+<div class="flex flex-wrap justify-center gap-1.5 mb-4">
+<span class="chip bg-primary-fixed/50 text-on-primary-fixed text-[10px] py-1 px-2">CS 101</span>
+<span class="chip bg-tertiary-fixed/70 text-on-tertiary-fixed text-[10px] py-1 px-2">
+<span class="material-symbols-outlined text-[12px]">bedtime</span> Night Owl
+                        </span>
+</div>
+<button class="clay-btn-secondary w-full py-2 rounded-lg font-label-sm text-label-sm mt-auto">View Profile</button>
+<div class="absolute top-4 right-4 bg-surface-container-lowest px-2 py-1 rounded-full shadow-sm text-[10px] font-bold text-primary border border-primary-fixed">
+                        78%
+                    </div>
+</div>
+<!-- Match Card 3 -->
+<div class="clay-card p-5 flex flex-col items-center text-center relative group">
+<div class="w-20 h-20 rounded-full overflow-hidden border-3 border-white shadow-sm mb-3">
+<img alt="Sarah's profile" class="w-full h-full object-cover" data-alt="A soft 3D claymorphic avatar of a female student with hijab, smiling softly, warm and inviting pastel lighting, studious mood." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRlZN21SVkt6kOpEHEH6ANMb2dNSU_XTg_Ew9T7J3qk9TahFivaQUyhD9N1UtBhT2C2Cmfx0L7wW6-F5cM1AgD0GS5slQSaZI5KZgEwiP5Otr2Ajjlg4CtSZIV58hqEzaY3Fbe9uQEQUVM8dUOP1W5_LFzJq77w7N-2zSVQjZ8IZg0gYwLtLxO91ZHd9iUTDm5EKoLBQkjkossMEnDTaSkqwG0Fcboih1Bpk75KgEx12xDYGlFoRM"/>
+</div>
+<h3 class="font-label-md text-label-md text-on-surface text-lg">Sarah M.</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-3">Biology</p>
+<div class="flex flex-wrap justify-center gap-1.5 mb-4">
+<span class="chip bg-surface-container text-on-surface text-[10px] py-1 px-2">
+<span class="material-symbols-outlined text-[12px]">wb_sunny</span> Early Bird
+                        </span>
+<span class="chip bg-surface-container text-on-surface text-[10px] py-1 px-2">
+<span class="material-symbols-outlined text-[12px]">volume_off</span> Quiet
+                        </span>
+</div>
+<button class="clay-btn-secondary w-full py-2 rounded-lg font-label-sm text-label-sm mt-auto">View Profile</button>
+<div class="absolute top-4 right-4 bg-surface-container-lowest px-2 py-1 rounded-full shadow-sm text-[10px] font-bold text-primary border border-primary-fixed">
+                        72%
+                    </div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar (Mobile) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-3 pb-safe bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl shadow-[0_-4px_12px_rgba(76,66,233,0.08)] rounded-t-xl">
+<a class="flex flex-col items-center justify-center text-primary dark:text-inverse-primary relative after:content-[''] after:w-1 after:h-1 after:bg-tertiary after:rounded-full after:mt-1 hover:opacity-100 transition-opacity Active: scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="font-label-sm text-label-sm">Match</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60 hover:opacity-100 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1">school</span>
+<span class="font-label-sm text-label-sm">Courses</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60 hover:opacity-100 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1">forum</span>
+<span class="font-label-sm text-label-sm">Chat</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60 hover:opacity-100 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1">person</span>
+<span class="font-label-sm text-label-sm">Profile</span>
+</a>
+</nav>
+<!-- Floating Action Button (Desktop - Find My Match) -->
+<button class="hidden md:flex fixed bottom-8 right-8 clay-btn-primary px-6 py-4 rounded-full text-white font-label-md text-label-md items-center gap-2 z-40 hover:scale-105 transition-transform">
+<span class="material-symbols-outlined">search</span>
+        Find My Match
+    </button>
+</body></html>

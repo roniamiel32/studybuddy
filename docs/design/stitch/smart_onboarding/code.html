@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StudyBuddy - Onboarding</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&amp;family=Plus+Jakarta+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-on-surface": "#f3f0f2",
+                    "inverse-primary": "#c3c0ff",
+                    "tertiary": "#8a2ab9",
+                    "surface-container-low": "#f6f3f5",
+                    "on-secondary-fixed-variant": "#7b2f00",
+                    "on-error": "#ffffff",
+                    "inverse-surface": "#303032",
+                    "error-container": "#ffdad6",
+                    "surface-dim": "#dcd9dc",
+                    "secondary": "#9f420a",
+                    "surface-tint": "#4c42e9",
+                    "on-primary-fixed-variant": "#321ed2",
+                    "on-primary": "#ffffff",
+                    "on-secondary-container": "#6c2800",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-container": "#635bff",
+                    "tertiary-container": "#a548d4",
+                    "on-tertiary-container": "#fffafa",
+                    "background": "#fcf8fb",
+                    "surface-bright": "#fcf8fb",
+                    "on-tertiary-fixed-variant": "#7201a2",
+                    "primary": "#493ee5",
+                    "outline-variant": "#c7c4d8",
+                    "tertiary-fixed": "#f6d9ff",
+                    "surface-container-highest": "#e4e2e4",
+                    "on-tertiary-fixed": "#310048",
+                    "secondary-fixed": "#ffdbcc",
+                    "on-secondary": "#ffffff",
+                    "on-surface-variant": "#464555",
+                    "surface-container": "#f0edef",
+                    "secondary-fixed-dim": "#ffb694",
+                    "on-tertiary": "#ffffff",
+                    "surface": "#fcf8fb",
+                    "on-primary-fixed": "#0f0069",
+                    "surface-container-high": "#eae7ea",
+                    "primary-fixed": "#e2dfff",
+                    "on-primary-container": "#fefaff",
+                    "on-surface": "#1b1b1d",
+                    "on-error-container": "#93000a",
+                    "outline": "#777587",
+                    "surface-variant": "#e4e2e4",
+                    "on-background": "#1b1b1d",
+                    "primary-fixed-dim": "#c3c0ff",
+                    "tertiary-fixed-dim": "#e8b3ff",
+                    "error": "#ba1a1a",
+                    "on-secondary-fixed": "#351000",
+                    "secondary-container": "#fd894f"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-desktop": "120px",
+                    "margin-mobile": "20px",
+                    "lg": "48px",
+                    "md": "24px",
+                    "sm": "12px",
+                    "xs": "4px",
+                    "gutter": "24px",
+                    "base": "8px",
+                    "xl": "80px"
+            },
+            "fontFamily": {
+                    "body-md": [
+                            "Plus Jakarta Sans"
+                    ],
+                    "headline-md": [
+                            "Be Vietnam Pro"
+                    ],
+                    "label-sm": [
+                            "Plus Jakarta Sans"
+                    ],
+                    "label-md": [
+                            "Plus Jakarta Sans"
+                    ],
+                    "headline-lg": [
+                            "Be Vietnam Pro"
+                    ],
+                    "headline-lg-mobile": [
+                            "Be Vietnam Pro"
+                    ],
+                    "body-lg": [
+                            "Plus Jakarta Sans"
+                    ],
+                    "headline-xl": [
+                            "Be Vietnam Pro"
+                    ]
+            },
+            "fontSize": {
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-md": [
+                            "24px",
+                            {
+                                    "lineHeight": "32px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "label-sm": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "label-md": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "letterSpacing": "0.01em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "headline-lg": [
+                            "32px",
+                            {
+                                    "lineHeight": "40px",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "headline-lg-mobile": [
+                            "28px",
+                            {
+                                    "lineHeight": "36px",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-xl": [
+                            "48px",
+                            {
+                                    "lineHeight": "56px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ]
+            }
+          }
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Custom claymorphism shadow for main card */
+        .clay-card {
+            box-shadow: 
+                35px 35px 68px 0px rgba(73, 62, 229, 0.05),
+                inset -8px -8px 16px 0px rgba(255, 255, 255, 0.6),
+                inset 0px 11px 28px 0px rgb(255, 255, 255);
+        }
+        
+        .bg-pattern {
+            background-image: radial-gradient(circle at 20px 20px, rgba(73, 62, 229, 0.05) 2px, transparent 0);
+            background-size: 40px 40px;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md antialiased min-h-screen flex flex-col bg-pattern">
+<!-- Top Navigation (Transactional - minimal) -->
+<header class="w-full flex justify-between items-center px-margin-mobile md:px-margin-desktop h-20 sticky top-0 z-50 bg-surface/80 backdrop-blur-xl">
+<div class="flex items-center gap-2">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">Study<span class="text-secondary-container">Buddy</span></span>
+</div>
+<button class="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2 font-label-md text-label-md">
+<span>Exit Setup</span>
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</header>
+<!-- Main Content -->
+<main class="flex-grow flex flex-col items-center justify-center py-lg px-margin-mobile md:px-margin-desktop max-w-[1200px] mx-auto w-full">
+<!-- Progress Bar -->
+<div class="w-full max-w-2xl mb-xl">
+<div class="flex justify-between mb-sm font-label-md text-label-md text-on-surface-variant">
+<span>Step 2 of 4</span>
+<span class="text-primary font-bold">Your Learning Style</span>
+</div>
+<div class="h-2 w-full bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-500 ease-out" style="width: 50%;"></div>
+</div>
+</div>
+<!-- Onboarding Container -->
+<div class="w-full max-w-4xl bg-surface-container-lowest rounded-[2rem] clay-card p-md md:p-xl flex flex-col md:flex-row gap-lg md:gap-xl items-center relative overflow-hidden">
+<!-- Decorative Blob -->
+<div class="absolute -top-32 -right-32 w-96 h-96 bg-primary-fixed rounded-full mix-blend-multiply filter blur-3xl opacity-50 z-0"></div>
+<div class="absolute -bottom-32 -left-32 w-96 h-96 bg-secondary-fixed rounded-full mix-blend-multiply filter blur-3xl opacity-50 z-0"></div>
+<!-- Left: Form Area -->
+<div class="w-full md:w-3/5 z-10 flex flex-col gap-lg">
+<div>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-sm">How do you study best?</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Tell us your preferences so we can find your perfect match at Reichman University.</p>
+</div>
+<!-- Learning Style Selection -->
+<div class="space-y-sm">
+<label class="font-label-md text-label-md text-on-surface block">Preferred Environment</label>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-sm">
+<!-- Option 1 -->
+<label class="cursor-pointer group">
+<input checked="" class="peer sr-only" name="environment" type="radio"/>
+<div class="border-2 border-outline-variant rounded-xl p-md flex flex-col items-center gap-sm text-center transition-all peer-checked:border-primary peer-checked:bg-primary-fixed peer-hover:border-primary/50">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-primary peer-checked:bg-white group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[24px]">headset_mic</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md text-on-surface mb-xs">Quiet Focus</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant font-normal">Headphones on, deep work.</p>
+</div>
+</div>
+</label>
+<!-- Option 2 -->
+<label class="cursor-pointer group">
+<input class="peer sr-only" name="environment" type="radio"/>
+<div class="border-2 border-outline-variant rounded-xl p-md flex flex-col items-center gap-sm text-center transition-all peer-checked:border-secondary peer-checked:bg-secondary-fixed peer-hover:border-secondary/50">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-secondary peer-checked:bg-white group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[24px]">groups</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md text-on-surface mb-xs">Active Discussion</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant font-normal">Talking it out, whiteboard sessions.</p>
+</div>
+</div>
+</label>
+</div>
+</div>
+<!-- Sync Courses -->
+<div class="space-y-sm">
+<label class="font-label-md text-label-md text-on-surface block">Your Courses</label>
+<div class="bg-[#F8F7FF] rounded-xl p-sm flex items-center justify-between border border-outline-variant/30">
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">school</span>
+</div>
+<div>
+<h4 class="font-label-md text-label-md text-on-surface">Reichman University Portal</h4>
+<p class="font-label-sm text-label-sm text-on-surface-variant font-normal">Not connected</p>
+</div>
+</div>
+<button class="px-md py-sm rounded-lg bg-surface-container-lowest border-1.5 border-primary text-primary font-label-md text-label-md hover:bg-primary-fixed transition-colors">
+                            Sync Courses
+                        </button>
+</div>
+</div>
+<!-- Navigation Buttons -->
+<div class="flex items-center justify-between pt-sm mt-auto">
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                        Back
+                    </button>
+<button class="px-xl py-sm bg-primary text-on-primary rounded-xl font-label-md text-label-md shadow-[0_4px_14px_0_rgba(73,62,229,0.39)] hover:shadow-[0_6px_20px_rgba(73,62,229,0.23)] hover:-translate-y-0.5 transition-all relative overflow-hidden group">
+<div class="absolute inset-0 bg-white/20 translate-y-[-100%] group-hover:translate-y-[100%] transition-transform duration-500"></div>
+                        Continue
+                    </button>
+</div>
+</div>
+<!-- Right: Illustration / Helper Area -->
+<div class="w-full md:w-2/5 z-10 flex flex-col items-center justify-center bg-primary-fixed-dim/30 rounded-3xl p-md min-h-[300px]">
+<!-- Illustration Placeholder -->
+<div class="w-48 h-48 mb-md relative">
+<img class="w-full h-full object-contain filter drop-shadow-xl" data-alt="A soft, friendly 3D claymorphic illustration of a smiling student character sitting at a stylized desk with an open book and a glowing laptop. The scene is brightly lit with a cheerful light mode aesthetic, featuring soft pastel purples and oranges. The background is minimal, focusing on the cute, optimistic study vibe to encourage the user." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAqc3kUFmniaA-gPNQhPwIHotypXHC8VL0Ff7C1KRGksLdWXcMzjMDcc3KQ5SJJQ4TbHIFmY5S3HtL3ig6aZQ-KQPxdeKyYomTtPQ8lYoN7LcqTZvRoeN75rPGdt87ExxmOAaiQ7cfDVqKq9DBtm1ZU79iIJb4VKFvaGV42FQGROTOmBVFDPvnvVXIAuYF3yaY-OFwcM-OWfmFC2d2tFixBMNCENmJA6NjCXf8FmR3mXGkjD8wn1rc"/>
+</div>
+<div class="text-center">
+<h3 class="font-label-md text-label-md text-primary font-bold mb-xs">Pro Tip!</h3>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Students who sync their courses find a match 3x faster. We'll automatically suggest partners taking the same classes.</p>
+</div>
+</div>
+</div>
+</main>
+</body></html>
