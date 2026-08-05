@@ -6,9 +6,14 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.3.0
+Version:     0.3.1
 
 Modifications:
+    0.3.1 - 2026-08-05 - Recorded the RLS policies as built (Phase 1b):
+                         app_can_see_profile, split request-update policies,
+                         two immutability triggers, one-directional block
+                         visibility, and the BEFORE-trigger/WITH CHECK ordering
+                         that blocks cross-tenant enrollment
     0.3.0 - 2026-08-03 - Added section 8: the "Kinetic Learning" visual design
                          system transcribed from the Google Stitch export,
                          its deliberate substitutions, the nine points where
@@ -512,6 +517,43 @@ create index on ai_generation_log (profile_id, created_at desc);
 | `match_scores` | `profile_id = auth.uid()` | service role only | service role only | self |
 | `ai_generation_log` | `profile_id = auth.uid()` | service role only | — | — |
 
+#### As built (Phase 1b)
+
+The matrix above is what shipped, with five refinements found while writing it:
+
+1. **`app_can_see_profile(uuid)`** replaces an inline "same university and
+   discoverable" subquery on `profiles`, `learning_preferences`,
+   `availability_slots` and `enrollments`. `SECURITY DEFINER`, so the profiles
+   policy that calls it does not re-enter itself and recurse. It also treats an
+   **accepted connection as its own grant of visibility** — otherwise a student
+   who switches discoverability off would vanish from the screens of partners
+   they had already agreed to meet.
+2. **Two update policies on `connection_requests`, not one.** Permissive
+   policies are OR'd, so the requester gets `pending → cancelled` and the
+   addressee gets `pending → accepted | declined`, and neither can perform the
+   other's transition. A requester attempting to accept their own request is
+   refused outright rather than silently ignored.
+3. **Two immutability triggers**, because RLS `WITH CHECK` sees only the new
+   row and can never express "this column may not change":
+   - `prevent_profile_tenant_change()` — a student cannot move themselves
+     between institutions.
+   - `freeze_request_content()` — an addressee may accept or decline, but may
+     not rewrite the icebreaker they were sent. That text is reused verbatim in
+     the WhatsApp handoff, so an editable one would be a way to put words in
+     the requester's mouth.
+4. **`blocked_users` is readable in one direction only.** You see the blocks you
+   created, never the ones naming you; being able to detect that you have been
+   blocked defeats the point.
+5. **A pending request grants nothing.** Contact access requires
+   `status = 'accepted'`. Consent is the acceptance, not the asking.
+
+`enrollments` insert relies on ordering that is worth stating explicitly:
+`BEFORE` triggers run before `WITH CHECK` is evaluated, so
+`set_enrollment_university()` derives `university_id` from the offering first,
+and the policy then tests that derived value. Sending a forged `university_id`
+therefore cannot get a student into another institution's course — verified by
+test.
+
 Two rules the code must respect:
 
 1. **No write path uses the service-role key on behalf of a user request**
@@ -983,7 +1025,7 @@ updated, no known regressions.
 | ~~**0.5** Scaffold~~ **done** | `0.2.0` | `feature/project-scaffold` | `create-next-app` + TS + Tailwind, shadcn/ui, `lib/env.ts`, Supabase clients, error contract, vitest + playwright, `supabase init`, `.env.example`, landing page; `VERSION` retired into `package.json` | ✅ lint, typecheck, 23 unit tests, 4 e2e tests and `next build` all pass; dev server renders the landing page |
 | ~~**1a** Schema~~ **done** | `0.3.0` | `feature/db-schema` | 9 migrations (§1.1–1.8 plus grants), two-tenant seed with a past and a current term, generated `database.types.ts`, 20 schema integration tests | ✅ `supabase db reset` clean; 43 tests pass; `npm run verify` green |
 | ~~**1.5** Design system~~ **done** | `0.4.0` | `feature/design-system` | Kinetic Learning tokens, restyled primitives, Chip, landing page rebuilt to the Stitch design | ✅ verify green; landing matches the reference at desktop and mobile |
-| **1b** RLS | `0.5.0` | `feature/rls-policies` | Policies §1.9 + integration tests that *attempt* cross-tenant reads and assert zero rows | RLS test suite green — this is the security proof for the report |
+| ~~**1b** RLS~~ **done** | `0.5.0` | `feature/rls-policies` | 33 policies across 14 tables, `app_can_see_profile`, two immutability triggers, 35 adversarial tests run as real signed-in students | ✅ 78 tests pass; suite verified to fail when a policy is deliberately weakened |
 | **1c** Auth + onboarding | `0.6.0` | `feature/auth-onboarding` | Login, callback, domain gate, 4-step onboarding, profile/prefs/availability/enrollment CRUD | A new student can sign up and reach an empty dashboard |
 | **2** Rule matching | `0.7.0` | `feature/matching-engine` | `rpc_find_candidates`, course dashboard, `MatchCard`, filters | Two seeded students with overlapping slots see each other, correctly scored |
 | **3a** Requests | `0.8.0` | `feature/connection-requests` | Request send/accept/decline/cancel, requests page, unordered-pair constraint | Full request lifecycle works; duplicate request rejected by the DB, not just the UI |

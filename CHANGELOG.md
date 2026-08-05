@@ -4,6 +4,54 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-08-05
+
+Phase 1b — Row Level Security. The schema was fully inaccessible to clients
+after Phase 1a; this opens it deliberately, table by table.
+
+### Added
+- **33 policies across all 14 tables**, in the shape of design §1.9. `anon`
+  receives no policy at all.
+- `app_can_see_profile(uuid)` — the shared visibility predicate for `profiles`,
+  `learning_preferences`, `availability_slots` and `enrollments`.
+  `SECURITY DEFINER`, so the profiles policy that calls it cannot recurse. An
+  accepted connection counts as visibility in its own right, so a student who
+  switches discoverability off does not vanish from partners they already
+  agreed to meet.
+- Two immutability triggers, covering what RLS structurally cannot express —
+  a `WITH CHECK` sees only the new row, never the old one:
+  - `prevent_profile_tenant_change()` — a student cannot move themselves
+    between institutions.
+  - `freeze_request_content()` — an addressee may accept or decline, but cannot
+    rewrite the icebreaker they were sent. That text is reused verbatim in the
+    WhatsApp handoff, so an editable one would let the addressee put words in
+    the requester's mouth.
+- **35 adversarial integration tests**, each run as a real signed-in student.
+  Twelve are dedicated to cross-tenant isolation, including the case that
+  matters most: both universities offer a course named "Data Structures", and a
+  Reichman student querying by that name gets exactly one row — theirs.
+
+### Notes
+- **The test suite was verified to have teeth.** A deliberately permissive
+  policy was added to `courses`, and exactly the three cross-tenant course
+  tests failed; removing it returned the suite to green. A security test that
+  cannot fail proves nothing.
+- Requests use **two update policies rather than one**. Permissive policies are
+  OR'd, so the requester gets `pending → cancelled` and the addressee gets
+  `pending → accepted | declined`, and neither can perform the other's
+  transition.
+- `blocked_users` is readable in one direction only — you see blocks you
+  created, never ones naming you.
+- A **pending** request grants no contact access. Consent is the acceptance.
+- Test clients now use a unique Supabase `storageKey` each. Sharing one lets a
+  second sign-in overwrite the first client's session, which would let a
+  security test unknowingly run as the wrong user and pass while proving
+  nothing.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 78 tests, production build.
+`supabase db reset` applies all ten migrations and both seeds cleanly.
+
 ## [0.4.0] — 2026-08-03
 
 Visual design system. Transcribed from the Google Stitch "Kinetic Learning"

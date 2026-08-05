@@ -23,14 +23,70 @@ export const RUNI_PAST_TERM_ID = 'dddd0001-0000-4000-8000-000000000001';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+/** Password every test student is created with. */
+export const TEST_PASSWORD = 'test-password-1234';
 
 /**
  * Reports whether the local stack is configured and reachable.
  *
- * @returns True when both the URL and service key are present.
+ * @returns True when the URL, service key and anon key are all present.
  */
 export function hasLocalDb(): boolean {
-  return Boolean(url && serviceKey);
+  return Boolean(url && serviceKey && anonKey);
+}
+
+/**
+ * Builds an unauthenticated client, carrying the anon key only.
+ *
+ * @returns A Supabase client with no session.
+ * @throws Error if the local stack is not configured.
+ */
+export function anonDb(): SupabaseClient<Database> {
+  if (!url || !anonKey) {
+    throw new Error('Local Supabase is not configured. Run `npm run db:start`.');
+  }
+
+  return createClient<Database>(url, anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      /*
+       * A unique storage key per client, which is not cosmetic. Supabase
+       * clients sharing a key share a session slot, so signing in as a second
+       * student can overwrite the first client's session — and a security test
+       * that unknowingly runs as the wrong user passes while proving nothing.
+       */
+      storageKey: `sb-test-${crypto.randomUUID()}`,
+    },
+  });
+}
+
+/**
+ * Signs in as a student and returns a client bound to their session.
+ *
+ * This is the only honest way to test RLS: the service-role client used
+ * elsewhere bypasses policies entirely, so a suite built on it would pass no
+ * matter how the policies were written.
+ *
+ * @param email - The student's address.
+ * @returns A Supabase client authenticated as that student.
+ * @throws Error if sign-in fails.
+ */
+export async function signInAs(email: string): Promise<SupabaseClient<Database>> {
+  const client = anonDb();
+
+  const { error } = await client.auth.signInWithPassword({
+    email,
+    password: TEST_PASSWORD,
+  });
+
+  if (error) {
+    throw new Error(`signInAs(${email}) failed: ${error.message}`);
+  }
+
+  return client;
 }
 
 /**
@@ -67,7 +123,7 @@ export async function createStudent(
 ): Promise<string> {
   const { data, error } = await db.auth.admin.createUser({
     email,
-    password: 'test-password-1234',
+    password: TEST_PASSWORD,
     email_confirm: true,
   });
 
