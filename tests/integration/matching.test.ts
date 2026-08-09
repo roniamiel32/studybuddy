@@ -87,13 +87,20 @@ describeDb('matching engine', () => {
       offerings: string[];
       discoverable?: boolean;
       universityId: string;
+      formats?: string[];
+      city?: string;
+      birthYear?: number;
+      yearOfStudy?: number;
+      degreeId?: string;
     },
   ) {
     const profile = await admin
       .from('profiles')
       .update({
         full_name: options.name,
-        year_of_study: 2,
+        year_of_study: options.yearOfStudy ?? 2,
+        city: options.city ?? null,
+        degree_id: options.degreeId ?? null,
         is_discoverable: options.discoverable ?? true,
         onboarding_completed_at: new Date().toISOString(),
       })
@@ -104,11 +111,20 @@ describeDb('matching engine', () => {
       profile_id: id,
       preferred_time_blocks: options.times as never,
       study_environments: options.envs as never,
+      study_formats: (options.formats ?? ['in_person', 'remote']) as never,
       group_sizes: options.groups as never,
       studies_on_saturday: options.saturday,
       spoken_languages: options.languages,
     });
     if (prefs.error) throw new Error(`${options.name} prefs: ${prefs.error.message}`);
+
+    if (options.birthYear) {
+      const dob = await admin.from('profile_private').insert({
+        profile_id: id,
+        date_of_birth: `${options.birthYear}-06-15`,
+      });
+      if (dob.error) throw new Error(`${options.name} dob: ${dob.error.message}`);
+    }
 
     if (options.slots.length > 0) {
       const slots = await admin.from('availability_slots').insert(
@@ -360,4 +376,189 @@ describeDb('matching engine', () => {
     });
   });
 
+
+  describe('v2 rules', () => {
+    const v2 = {
+      viewer: `v2-viewer-${stamp}@post.runi.ac.il`,
+      remoteOnly: `v2-remote-${stamp}@post.runi.ac.il`,
+      hoursMatch: `v2-hours-${stamp}@post.runi.ac.il`,
+      courseStacker: `v2-courses-${stamp}@post.runi.ac.il`,
+      neighbour: `v2-neighbour-${stamp}@post.runi.ac.il`,
+    };
+    const v2Ids: Record<string, string> = {};
+    let viewer: SupabaseClient<Database>;
+
+    beforeAll(async () => {
+      const secondOffering = await offeringIdByCode(admin, 'CS-2010', RUNI_CURRENT_TERM_ID);
+      const thirdOffering = await offeringIdByCode(admin, 'CS-2020', RUNI_CURRENT_TERM_ID);
+      const CS_DEGREE = 'de600001-0000-4000-8000-000000000001';
+
+      for (const [key, email] of Object.entries(v2)) {
+        v2Ids[key] = await createStudent(admin, email);
+      }
+
+      /* In-person only, morning, quiet, Tel Aviv, born 2003, year 2. */
+      await completeProfile(v2Ids.viewer, {
+        name: 'V2 Viewer',
+        times: ['morning'],
+        envs: ['quiet'],
+        groups: ['small'],
+        saturday: false,
+        languages: ['he'],
+        formats: ['in_person'],
+        city: 'Tel Aviv',
+        birthYear: 2003,
+        yearOfStudy: 2,
+        degreeId: CS_DEGREE,
+        universityId: RUNI_ID,
+        slots: [[0, '10:00', '12:00']],
+        offerings: [sharedOffering, secondOffering, thirdOffering],
+      });
+
+      /* Identical in every way EXCEPT format: remote only. Must be filtered. */
+      await completeProfile(v2Ids.remoteOnly, {
+        name: 'V2 Remote Only',
+        times: ['morning'],
+        envs: ['quiet'],
+        groups: ['small'],
+        saturday: false,
+        languages: ['he'],
+        formats: ['remote'],
+        universityId: RUNI_ID,
+        slots: [[0, '10:00', '12:00']],
+        offerings: [sharedOffering],
+      });
+
+      /* Exact hours and environment, ONE shared course, nothing else. */
+      await completeProfile(v2Ids.hoursMatch, {
+        name: 'V2 Hours Match',
+        times: ['morning'],
+        envs: ['quiet'],
+        groups: ['large'],
+        saturday: true,
+        languages: ['fr'],
+        formats: ['in_person'],
+        universityId: RUNI_ID,
+        slots: [],
+        offerings: [sharedOffering],
+      });
+
+      /* THREE shared courses, but opposite hours. Must still lose. */
+      await completeProfile(v2Ids.courseStacker, {
+        name: 'V2 Course Stacker',
+        times: ['evening'],
+        envs: ['quiet'],
+        groups: ['small'],
+        saturday: false,
+        languages: ['he'],
+        formats: ['in_person'],
+        universityId: RUNI_ID,
+        slots: [],
+        offerings: [sharedOffering, secondOffering, thirdOffering],
+      });
+
+      /* Same city, same cohort, three-year age gap: every bonus fires. */
+      await completeProfile(v2Ids.neighbour, {
+        name: 'V2 Neighbour',
+        times: ['morning'],
+        envs: ['quiet'],
+        groups: ['small'],
+        saturday: false,
+        languages: ['he'],
+        formats: ['in_person'],
+        city: 'tel aviv  ',
+        birthYear: 2000,
+        yearOfStudy: 2,
+        degreeId: CS_DEGREE,
+        universityId: RUNI_ID,
+        slots: [[0, '10:00', '12:00']],
+        offerings: [sharedOffering],
+      });
+
+      viewer = await signInAs(v2.viewer);
+    }, 90_000);
+
+    /**
+     * Rows for the v2 viewer, folded to one per candidate.
+     *
+     * @returns The best row per candidate id.
+     */
+    async function rowsByName() {
+      const { data, error } = await viewer.rpc('rpc_find_candidates', { p_limit: 100 });
+      expect(error).toBeNull();
+
+      type Row = NonNullable<typeof data>[number];
+      const best = new Map<string, Row>();
+      for (const row of data ?? []) {
+        if (!best.has(row.full_name ?? '')) {
+          best.set(row.full_name ?? '', row);
+        }
+      }
+      return best;
+    }
+
+    it('excludes a remote-only student from an in-person-only viewer', async () => {
+      const rows = await rowsByName();
+
+      // Identical on every scored term; excluded purely on format. This is the
+      // strict filter, not a low score.
+      expect(rows.has('V2 Remote Only')).toBe(false);
+    });
+
+    it('ranks exact hours and environment above stacked shared courses', async () => {
+      const rows = await rowsByName();
+      const hoursMatch = rows.get('V2 Hours Match')!;
+      const stacker = rows.get('V2 Course Stacker')!;
+
+      expect(hoursMatch).toBeDefined();
+      expect(stacker).toBeDefined();
+
+      // The rule this version exists to enforce: one shared course with matching
+      // hours beats three shared courses with opposite hours.
+      expect(Number(hoursMatch.rule_score)).toBeGreaterThan(Number(stacker.rule_score));
+      expect(hoursMatch.hours_exact).toBe(true);
+      expect(hoursMatch.shared_course_count).toBe(1);
+      expect(stacker.shared_course_count).toBe(3);
+    });
+
+    it('awards every bonus when city, age and cohort all align', async () => {
+      const rows = await rowsByName();
+      const neighbour = rows.get('V2 Neighbour')!;
+
+      expect(neighbour.same_city).toBe(true);
+      expect(neighbour.close_in_age).toBe(true);
+      expect(neighbour.same_cohort).toBe(true);
+      expect(Number(neighbour.bonus_points)).toBe(15);
+    });
+
+    it('matches cities case- and whitespace-insensitively', async () => {
+      // The neighbour's city is stored as "tel aviv  " against the viewer's
+      // "Tel Aviv". A student typing their own city should not lose the bonus to
+      // a stray capital.
+      const rows = await rowsByName();
+
+      expect(rows.get('V2 Neighbour')!.same_city).toBe(true);
+    });
+
+    it('awards no bonuses to a candidate who shares none of them', async () => {
+      const rows = await rowsByName();
+      const hoursMatch = rows.get('V2 Hours Match')!;
+
+      expect(hoursMatch.same_city).toBe(false);
+      expect(hoursMatch.close_in_age).toBe(false);
+      expect(Number(hoursMatch.bonus_points)).toBe(0);
+    });
+
+    afterAll(async () => {
+      await deleteStudents(admin, Object.values(v2Ids));
+    });
+
+    it('never exceeds 100 even with every bonus', async () => {
+      const rows = await rowsByName();
+
+      for (const row of rows.values()) {
+        expect(Number(row.rule_score)).toBeLessThanOrEqual(100);
+      }
+    });
+  });
 });

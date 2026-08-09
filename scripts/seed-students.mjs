@@ -33,6 +33,9 @@ const PASSWORD = 'demo-student-1234';
 const RUNI = '11111111-1111-4111-8111-111111111111';
 const TAU = '22222222-2222-4222-8222-222222222222';
 const RUNI_CS_TRACK = '7ac00001-0000-4000-8000-000000000001';
+const RUNI_CS_DEGREE = 'de600001-0000-4000-8000-000000000001';
+const TAU_CS_TRACK = '7ac00101-0000-4000-8000-000000000101';
+const TAU_CS_DEGREE = 'de600101-0000-4000-8000-000000000101';
 
 if (!URL || !SERVICE_KEY) {
   console.error('Missing Supabase config. Run `npm run db:start` and fill .env.local.');
@@ -53,6 +56,9 @@ const db = createClient(URL, SERVICE_KEY, {
 const STUDENTS = [
   {
     name: 'Maya Shalev',
+    city: 'Tel Aviv',
+    birthYear: 2003,
+    formats: ['in_person', 'remote'],
     year: 2,
     times: ['morning'],
     envs: ['quiet'],
@@ -69,6 +75,9 @@ const STUDENTS = [
   },
   {
     name: 'Leo Tavor',
+    city: 'Tel Aviv',
+    birthYear: 2002,
+    formats: ['in_person'],
     year: 3,
     times: ['morning', 'noon'],
     envs: ['quiet', 'discussion'],
@@ -85,6 +94,9 @@ const STUDENTS = [
   },
   {
     name: 'Alex Kaplan',
+    city: 'Haifa',
+    birthYear: 1996,
+    formats: ['remote'],
     year: 2,
     times: ['evening'],
     envs: ['discussion'],
@@ -101,6 +113,9 @@ const STUDENTS = [
   },
   {
     name: 'Sarah Mizrahi',
+    city: 'Tel Aviv',
+    birthYear: 2004,
+    formats: ['in_person', 'remote'],
     year: 1,
     times: ['morning', 'evening'],
     envs: ['quiet'],
@@ -117,6 +132,9 @@ const STUDENTS = [
   },
   {
     name: 'Noam Berger',
+    city: 'Jerusalem',
+    birthYear: 1999,
+    formats: ['in_person'],
     year: 4,
     times: ['noon'],
     envs: ['discussion'],
@@ -132,6 +150,9 @@ const STUDENTS = [
   },
   {
     name: 'Tamar Adler',
+    city: 'Tel Aviv',
+    birthYear: 2003,
+    formats: ['in_person', 'remote'],
     year: 2,
     times: ['morning', 'noon', 'evening'],
     envs: ['quiet', 'discussion'],
@@ -149,6 +170,9 @@ const STUDENTS = [
   },
   {
     name: 'Yonatan Peled',
+    city: 'Herzliya',
+    birthYear: 2001,
+    formats: ['remote'],
     year: 3,
     times: ['evening'],
     envs: ['quiet'],
@@ -166,6 +190,9 @@ const STUDENTS = [
     /* No overlapping availability with the morning cohort at all, so the
        schedule term has a genuine zero to produce. */
     name: 'Dana Rosen',
+    city: 'Herzliya',
+    birthYear: 2005,
+    formats: ['remote'],
     year: 1,
     times: ['evening'],
     envs: ['discussion'],
@@ -181,6 +208,9 @@ const STUDENTS = [
 /** One Tel Aviv student, purely as a cross-tenant control for the tests. */
 const TAU_STUDENT = {
   name: 'Omer Katz',
+  city: 'Tel Aviv',
+  birthYear: 2003,
+  formats: ['in_person'],
   year: 2,
   times: ['morning'],
   envs: ['quiet'],
@@ -218,11 +248,12 @@ async function currentOfferingsByCode(universityId) {
  * @param spec         - The student definition.
  * @param email        - Their address; the domain decides the tenant.
  * @param trackId      - Study track, or null.
+ * @param degreeId     - Degree the course catalog hangs off.
  * @param offerings    - Course code to offering id map.
  * @param existing     - Emails already present, to stay idempotent.
  * @returns 'created' or 'skipped'.
  */
-async function seedStudent(spec, email, trackId, offerings, existing) {
+async function seedStudent(spec, email, trackId, degreeId, offerings, existing) {
   if (existing.has(email)) {
     return 'skipped';
   }
@@ -245,6 +276,8 @@ async function seedStudent(spec, email, trackId, offerings, existing) {
     .update({
       full_name: spec.name,
       study_track_id: trackId,
+      degree_id: degreeId,
+      city: spec.city,
       year_of_study: spec.year,
       is_discoverable: true,
       onboarding_completed_at: new Date().toISOString(),
@@ -259,6 +292,7 @@ async function seedStudent(spec, email, trackId, offerings, existing) {
     profile_id: id,
     preferred_time_blocks: spec.times,
     study_environments: spec.envs,
+    study_formats: spec.formats,
     group_sizes: spec.groups,
     studies_on_saturday: spec.saturday,
     spoken_languages: spec.languages,
@@ -266,6 +300,19 @@ async function seedStudent(spec, email, trackId, offerings, existing) {
 
   if (prefError) {
     throw new Error(`${email} preferences: ${prefError.message}`);
+  }
+
+  /*
+   * Date of birth goes in the private table. It is never readable by a
+   * classmate; matching derives an age GAP from it with definer rights.
+   */
+  const { error: dobError } = await db.from('profile_private').insert({
+    profile_id: id,
+    date_of_birth: `${spec.birthYear}-06-15`,
+  });
+
+  if (dobError) {
+    throw new Error(`${email} date of birth: ${dobError.message}`);
   }
 
   const { error: slotError } = await db.from('availability_slots').insert(
@@ -320,7 +367,14 @@ async function main() {
 
   for (const [index, spec] of STUDENTS.entries()) {
     const email = `demo${index + 1}@post.runi.ac.il`;
-    const result = await seedStudent(spec, email, RUNI_CS_TRACK, runiOfferings, existing);
+    const result = await seedStudent(
+      spec,
+      email,
+      RUNI_CS_TRACK,
+      RUNI_CS_DEGREE,
+      runiOfferings,
+      existing,
+    );
     if (result === 'created') {
       created += 1;
     } else {
@@ -330,7 +384,14 @@ async function main() {
   }
 
   const tauEmail = 'demo-tau@mail.tau.ac.il';
-  const tauResult = await seedStudent(TAU_STUDENT, tauEmail, null, tauOfferings, existing);
+  const tauResult = await seedStudent(
+    TAU_STUDENT,
+    tauEmail,
+    TAU_CS_TRACK,
+    TAU_CS_DEGREE,
+    tauOfferings,
+    existing,
+  );
   if (tauResult === 'created') {
     created += 1;
   } else {

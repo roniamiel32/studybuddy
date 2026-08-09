@@ -72,7 +72,21 @@ export default async function MatchesPage() {
             More potential partners
           </h2>
 
-          <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {/*
+           * items-start is the fix for the expanding-card bug.
+           *
+           * Grid items default to `stretch`, so every card in a row was forced
+           * to the height of the tallest one. Expanding "Why this match?" made
+           * that card taller and dragged its neighbours' backgrounds down with
+           * it, leaving them with empty space and a broken-looking row.
+           *
+           * Aligning to the start lets each card size to its own content, so an
+           * expansion affects exactly one card. Chosen over a CSS masonry
+           * layout because masonry reorders items into columns — which would
+           * scramble the score ranking, and rank order is the whole point of
+           * this screen.
+           */}
+          <ul className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 lg:grid-cols-3">
             {others.map((match) => (
               <MatchCard key={match.candidateId} match={match} />
             ))}

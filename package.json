@@ -1,6 +1,6 @@
 {
   "name": "studybuddy",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "description": "AI-assisted matchmaking that connects university students who share a course, have overlapping free time, and study in compatible ways.",
   "author": "Roni Amiel & Eden Bitran",

@@ -25,14 +25,15 @@ import { emailDomain, institutionNameFromDomain, slugFromDomain } from './academ
 import { signInSchema, signUpSchema } from './schema';
 
 /**
- * Tracks every new institution starts with.
+ * Degrees every new institution starts with.
  *
- * A student must be able to pick a track on step 1, so a freshly provisioned
+ * A student must be able to pick a degree on step 1, so a freshly provisioned
  * university cannot have an empty list. These are generic on purpose — they are
  * a scaffold to be replaced with the institution's real programmes, not a claim
- * about what it teaches.
+ * about what it teaches. Each gets one same-named track, because a track is now
+ * required to belong to a degree.
  */
-const DEFAULT_TRACKS = [
+const DEFAULT_DEGREES = [
   { code: 'CS', name: 'Computer Science' },
   { code: 'ENG', name: 'Engineering' },
   { code: 'BUS', name: 'Business' },
@@ -105,13 +106,34 @@ async function resolveInstitution(email: string): Promise<Institution | null> {
     .from('university_domains')
     .insert({ domain, university_id: university.id, is_student_domain: true });
 
-  await admin.from('study_tracks').insert(
-    DEFAULT_TRACKS.map((track) => ({
-      university_id: university.id,
-      code: track.code,
-      name: track.name,
-    })),
-  );
+  /*
+   * Degrees first, then one track per degree. A track's degree_id is NOT NULL,
+   * so the order matters — and the inserted ids have to be read back rather
+   * than assumed, since they are generated.
+   */
+  const { data: degrees } = await admin
+    .from('degrees')
+    .insert(
+      DEFAULT_DEGREES.map((degree) => ({
+        university_id: university.id,
+        name: degree.name,
+        level: 'bachelors' as const,
+      })),
+    )
+    .select('id, name');
+
+  if (degrees) {
+    await admin.from('study_tracks').insert(
+      degrees.map((degree) => ({
+        university_id: university.id,
+        degree_id: degree.id,
+        code:
+          DEFAULT_DEGREES.find((candidate) => candidate.name === degree.name)?.code ??
+          degree.name.slice(0, 8).toUpperCase(),
+        name: degree.name,
+      })),
+    );
+  }
 
   /*
    * Re-read rather than trusting the row just written. If two students from the

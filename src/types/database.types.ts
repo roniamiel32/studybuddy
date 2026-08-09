@@ -314,30 +314,78 @@ export type Database = {
         Row: {
           code: string
           created_at: string
+          degree_id: string | null
           faculty: string | null
+          generated_at: string | null
           id: string
           name: string
+          source: Database["public"]["Enums"]["course_source"]
           university_id: string
         }
         Insert: {
           code: string
           created_at?: string
+          degree_id?: string | null
           faculty?: string | null
+          generated_at?: string | null
           id?: string
           name: string
+          source?: Database["public"]["Enums"]["course_source"]
           university_id: string
         }
         Update: {
           code?: string
           created_at?: string
+          degree_id?: string | null
           faculty?: string | null
+          generated_at?: string | null
           id?: string
+          name?: string
+          source?: Database["public"]["Enums"]["course_source"]
+          university_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courses_degree_id_fkey"
+            columns: ["degree_id"]
+            isOneToOne: false
+            referencedRelation: "degrees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      degrees: {
+        Row: {
+          created_at: string
+          id: string
+          level: Database["public"]["Enums"]["degree_level"]
+          name: string
+          university_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level: Database["public"]["Enums"]["degree_level"]
+          name: string
+          university_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: Database["public"]["Enums"]["degree_level"]
           name?: string
           university_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "courses_university_id_fkey"
+            foreignKeyName: "degrees_university_id_fkey"
             columns: ["university_id"]
             isOneToOne: false
             referencedRelation: "universities"
@@ -403,6 +451,7 @@ export type Database = {
           spoken_languages: string[]
           studies_on_saturday: boolean
           study_environments: Database["public"]["Enums"]["study_environment"][]
+          study_formats: Database["public"]["Enums"]["study_format"][]
           updated_at: string
         }
         Insert: {
@@ -413,6 +462,7 @@ export type Database = {
           spoken_languages?: string[]
           studies_on_saturday: boolean
           study_environments: Database["public"]["Enums"]["study_environment"][]
+          study_formats?: Database["public"]["Enums"]["study_format"][]
           updated_at?: string
         }
         Update: {
@@ -423,6 +473,7 @@ export type Database = {
           spoken_languages?: string[]
           studies_on_saturday?: boolean
           study_environments?: Database["public"]["Enums"]["study_environment"][]
+          study_formats?: Database["public"]["Enums"]["study_format"][]
           updated_at?: string
         }
         Relationships: [
@@ -534,12 +585,43 @@ export type Database = {
           },
         ]
       }
+      profile_private: {
+        Row: {
+          created_at: string
+          date_of_birth: string | null
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_of_birth?: string | null
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_of_birth?: string | null
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_private_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           availability_mode: Database["public"]["Enums"]["availability_mode"]
           avatar_url: string | null
           bio: string | null
+          city: string | null
           created_at: string
+          degree_id: string | null
           full_name: string | null
           id: string
           is_discoverable: boolean
@@ -553,7 +635,9 @@ export type Database = {
           availability_mode?: Database["public"]["Enums"]["availability_mode"]
           avatar_url?: string | null
           bio?: string | null
+          city?: string | null
           created_at?: string
+          degree_id?: string | null
           full_name?: string | null
           id: string
           is_discoverable?: boolean
@@ -567,7 +651,9 @@ export type Database = {
           availability_mode?: Database["public"]["Enums"]["availability_mode"]
           avatar_url?: string | null
           bio?: string | null
+          city?: string | null
           created_at?: string
+          degree_id?: string | null
           full_name?: string | null
           id?: string
           is_discoverable?: boolean
@@ -578,6 +664,13 @@ export type Database = {
           year_of_study?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_degree_id_fkey"
+            columns: ["degree_id"]
+            isOneToOne: false
+            referencedRelation: "degrees"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_study_track_id_fkey"
             columns: ["study_track_id"]
@@ -598,6 +691,7 @@ export type Database = {
         Row: {
           code: string
           created_at: string
+          degree_id: string
           id: string
           name: string
           university_id: string
@@ -605,6 +699,7 @@ export type Database = {
         Insert: {
           code: string
           created_at?: string
+          degree_id: string
           id?: string
           name: string
           university_id: string
@@ -612,11 +707,19 @@ export type Database = {
         Update: {
           code?: string
           created_at?: string
+          degree_id?: string
           id?: string
           name?: string
           university_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "study_tracks_degree_id_fkey"
+            columns: ["degree_id"]
+            isOneToOne: false
+            referencedRelation: "degrees"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "study_tracks_university_id_fkey"
             columns: ["university_id"]
@@ -728,6 +831,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      app_age_gap_years: {
+        Args: { profile_a: string; profile_b: string }
+        Returns: number
+      }
       app_array_jaccard: { Args: { a: unknown; b: unknown }; Returns: number }
       app_can_see_profile: {
         Args: { target_profile_id: string }
@@ -750,20 +857,30 @@ export type Database = {
         Args: { p_course_offering_id?: string; p_limit?: number }
         Returns: {
           avatar_url: string
+          bonus_points: number
           candidate_id: string
+          city: string
+          close_in_age: boolean
           course_code: string
           course_name: string
           course_offering_id: string
+          degree_level: Database["public"]["Enums"]["degree_level"]
+          degree_name: string
+          environment_exact: boolean
           full_name: string
           group_sizes: Database["public"]["Enums"]["group_size_choice"][]
+          hours_exact: boolean
           intent: Database["public"]["Enums"]["enrollment_intent"]
           overlap_minutes: number
           preferred_time_blocks: Database["public"]["Enums"]["time_block"][]
           rule_score: number
+          same_city: boolean
+          same_cohort: boolean
           shared_course_count: number
           shared_days: number[]
           studies_on_saturday: boolean
           study_environments: Database["public"]["Enums"]["study_environment"][]
+          study_formats: Database["public"]["Enums"]["study_format"][]
           track_name: string
           year_of_study: number
         }[]
@@ -780,9 +897,12 @@ export type Database = {
         | "declined"
         | "cancelled"
         | "expired"
+      course_source: "seed" | "registrar" | "ai_generated"
+      degree_level: "bachelors" | "masters" | "phd"
       enrollment_intent: "need_help" | "want_partner" | "can_tutor"
       group_size_choice: "small" | "large"
       study_environment: "discussion" | "quiet"
+      study_format: "in_person" | "remote"
       time_block: "morning" | "noon" | "evening"
     }
     CompositeTypes: {
@@ -925,9 +1045,12 @@ export const Constants = {
         "cancelled",
         "expired",
       ],
+      course_source: ["seed", "registrar", "ai_generated"],
+      degree_level: ["bachelors", "masters", "phd"],
       enrollment_intent: ["need_help", "want_partner", "can_tutor"],
       group_size_choice: ["small", "large"],
       study_environment: ["discussion", "quiet"],
+      study_format: ["in_person", "remote"],
       time_block: ["morning", "noon", "evening"],
     },
   },

@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.8.0** — students sign up, onboard, and see ranked study partners.
+Version **0.9.0** — ranked matches with strict format filtering and proximity bonuses.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final

@@ -4,6 +4,57 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] — 2026-08-09
+
+Schema for the reworked onboarding, matching algorithm v2, and the dashboard
+grid fix.
+
+### Added
+- **`degrees`** as the parent of `study_tracks`: universities → degrees →
+  tracks. What the schema called a "study track" was really a degree, so those
+  rows were promoted and each keeps a same-named track. Courses now hang off the
+  degree, which is what the course API will fetch on.
+- `profile_private` for **date of birth**. A separate table for the same reason
+  as `profile_contacts`: RLS is table-level, and `profiles` is readable by every
+  discoverable classmate, so a DOB stored there would be visible to all of them.
+  Matching derives an age *gap* from it with definer rights — the date never
+  leaves the database.
+- `profiles.city`, `profiles.degree_id`; `learning_preferences.study_formats`;
+  `courses.degree_id`, `courses.source` and `courses.generated_at` for
+  provenance.
+- Same-university triggers for degree↔track and profile↔degree.
+- 6 integration tests for the v2 rules, and the demo cohort now carries cities,
+  birth years and study formats so every bonus is demonstrable.
+
+### Changed — matching algorithm v2
+- **Study format is a strict filter.** Disjoint formats are an exclusion, not a
+  penalty: someone who will only meet in person and someone who will only meet
+  on Zoom have nothing to arrange. Verified — an in-person-only viewer does not
+  see an otherwise-identical remote-only student.
+- **Disjoint study hours halve the whole core score.** Weights alone could not
+  guarantee the rule you asked for, because enough other terms would let
+  opposite hours still win. The halving makes it hold at any course count:
+  exact hours + environment + one shared course now beats three shared courses
+  with opposite hours, and there is a test asserting exactly that.
+- Core is out of 85 (hours 28, environment 22, schedule overlap 18, shared
+  courses ≤9, language 4, group 2, Saturday 2), bonuses out of 15 (same city 6,
+  age gap ≤3 years 5, same year *and* degree level 4). Capped at 100.
+- `degree_level` lives on `degrees`, not `profiles` — a degree *is* a level, and
+  storing it twice would let a student's stated level disagree with the degree
+  they picked. Step 1 uses it to filter the degree list.
+- City comparison is case- and whitespace-insensitive.
+
+### Fixed
+- **Dashboard grid alignment.** Grid items default to `stretch`, so expanding
+  "Why this match?" dragged its row-mates' cards taller and left them with dead
+  space. `items-start` lets each card size to its own content. Chosen over CSS
+  masonry because masonry reorders items into columns, which would scramble the
+  score ranking — the whole point of the screen. Verified: the expanded card
+  goes 264→371px while its neighbours stay at 264.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 163 tests, production build.
+
 ## [0.8.0] — 2026-08-05
 
 Phase 2 — the matching engine and the matches dashboard. Students now see real
