@@ -4,6 +4,19 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] — 2026-08-05
+
+### Fixed
+- **Avatar uploads over 1 MB failed** with "Body exceeded 1 MB limit". Server
+  actions default to a 1 MB request body, and the photo is posted through the
+  action rather than straight to Storage, so the whole image counted against
+  that limit. `next.config.ts` now sets `serverActions.bodySizeLimit` to 5 MB.
+  Deliberately higher than the bucket's own 2 MB file cap, because this limit
+  applies to the entire multipart body — image plus every other form field plus
+  overhead — so matching it to the file size would reject a valid 2 MB photo.
+  The real size rule stays in the action and the bucket. Verified with a 1.4 MB
+  upload that previously threw.
+
 ## [0.7.0] — 2026-08-05
 
 Onboarding and auth UX fixes, completing Phase 1c.
