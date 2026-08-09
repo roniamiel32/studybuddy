@@ -17,6 +17,7 @@
 
 'use client';
 
+import { useState } from 'react';
 import { Check } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -60,6 +61,26 @@ export function ChoiceGroup({
   defaultValue = [],
   columns = 2,
 }: ChoiceGroupProps) {
+  /*
+   * Controlled, so a failed submit does not clear the answers. React 19 resets
+   * an uncontrolled form once its action returns, error or not, which would
+   * silently wipe every selection on this page and make the student redo the
+   * whole questionnaire to fix one field elsewhere.
+   */
+  const [selected, setSelected] = useState<string[]>([...defaultValue]);
+
+  const toggle = (value: string) => {
+    setSelected((current) => {
+      if (!multiple) {
+        return [value];
+      }
+
+      return current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value];
+    });
+  };
+
   return (
     <fieldset className="min-w-0">
       <legend className="font-heading text-body-lg font-semibold">{legend}</legend>
@@ -93,7 +114,8 @@ export function ChoiceGroup({
               type={multiple ? 'checkbox' : 'radio'}
               name={name}
               value={option.value}
-              defaultChecked={defaultValue.includes(option.value)}
+              checked={selected.includes(option.value)}
+              onChange={() => toggle(option.value)}
               className="peer sr-only"
             />
 

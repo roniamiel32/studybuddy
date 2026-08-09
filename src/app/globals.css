@@ -24,13 +24,14 @@
   /* ---------------------------------------------------------------------
    * Typography
    *
-   * Be Vietnam Pro carries the headlines: geometric, confident, and it holds
-   * up at the heavy weights the display scale asks for. Plus Jakarta Sans
-   * runs everything else — its soft terminals are what keep a dense match
-   * card feeling approachable rather than administrative.
+   * Nunito carries the headlines. Its rounded terminals belong with the
+   * claymorphic surfaces — the source design's geometric display face was
+   * working against the soft shapes rather than with them. Plus Jakarta Sans
+   * runs everything else; its own soft terminals keep a dense match card
+   * feeling approachable rather than administrative.
    * ------------------------------------------------------------------- */
   --font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-be-vietnam), var(--font-plus-jakarta), sans-serif;
+  --font-heading: var(--font-heading-family), var(--font-plus-jakarta), sans-serif;
 
   --text-headline-xl: 3rem; /* 48px */
   --text-headline-xl--line-height: 3.5rem;

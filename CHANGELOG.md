@@ -4,6 +4,66 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-08-05
+
+Onboarding and auth UX fixes, completing Phase 1c.
+
+### Fixed
+- **Forms no longer lose what you typed.** React 19 resets an uncontrolled form
+  once its action returns — including when it returned an error — so a mistyped
+  password wiped a perfectly good email address too. Text inputs, selects and
+  the preference choice groups are now controlled, so their values come from
+  React state and the reset cannot reach them. The password field stays
+  uncontrolled and is therefore cleared, which is the one field that should be
+  retyped. Covered by an e2e test.
+
+### Added
+- **Any `.ac.il` or `.edu` address may register.** An unknown domain provisions
+  its institution on first sight, with a default track list, so signup no
+  longer depends on a domain being seeded. Addresses are trimmed and lowercased
+  before anything else, so stray spaces or capitals cannot fork an account.
+- **Profile photos.** Optional upload on step 1 with a live preview, stored in
+  a Supabase Storage bucket under a folder named after the owner's uuid — which
+  is what the storage policy checks, so one student cannot overwrite another's.
+  Shown top-left in the app header, with an initial as fallback.
+- Name pre-filled by parsing the email prefix, and still editable.
+  `roni.amiel2024@…` becomes "Roni Amiel"; an opaque handle like `ra4839@…`
+  yields nothing rather than the nonsense "Ra".
+- Eight more study tracks, including two joint degrees that share the Computer
+  Science core — another case the many-to-many `course_tracks` exists for.
+- 9 more unit tests and 4 more e2e tests.
+
+### Changed
+- **"Other" removed from the study-hours question**, and from the `time_block`
+  enum. It was a non-answer: it told the matching engine nothing it could
+  overlap against, and every scoring rule needed a special case for a value
+  that could never match meaningfully. Choosing all three blocks is how a
+  student says "any time".
+- **Nunito replaces Be Vietnam Pro for headings**, overriding the Stitch
+  design. Rounded terminals suit the claymorphic surfaces; the geometric
+  display face was working against them.
+- Email placeholder is now the generic `student@university.edu`.
+- "Pick at least one course" is enforced in the action rather than the schema,
+  because the rule is conditional — it must not apply to the first student at
+  an institution whose catalog has not been loaded yet, who would otherwise be
+  trapped on step 2.
+- Roadmap versions after this shift up one minor; Phase 2 is now `0.8.0`.
+
+### Notes
+- Email confirmations remain **off**, as requested, so mock accounts stay easy
+  to create. This still must be switched on before any real deployment.
+- Provisioning has caveats worth reading before launch — a plausible typo
+  inside a valid academic suffix creates a private empty institution, and
+  derived names like "Harvard" are guesses from a domain. Both are recorded in
+  design doc §9.6, along with the recommendation to replace this with a domain
+  allow-list for real users.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 133 tests, production build.
+`npm run test:e2e` passes 18 tests across Chromium and mobile Safari. Avatar
+upload, storage round-trip and the heading font were also confirmed in a real
+browser.
+
 ## [0.6.0] — 2026-08-05
 
 Phase 1c — authentication and onboarding. A new student can now sign up and

@@ -36,6 +36,72 @@ function multi(formData: FormData, name: string): string[] {
   return formData.getAll(name).map(String).filter(Boolean);
 }
 
+/** Mirrors the storage bucket's own limit, so an oversize file fails early. */
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+/**
+ * Uploads a profile photo and returns its public URL.
+ *
+ * Written to a folder named after the student's own uuid, which is exactly what
+ * the storage policy checks — a student cannot write outside their own folder,
+ * so one photo can never overwrite another's.
+ *
+ * @param supabase - The request-scoped client, so the upload runs as the student.
+ * @param userId   - The owner's id, used as the folder name.
+ * @param file     - The uploaded file.
+ * @returns The public URL, or null when there is nothing valid to upload.
+ */
+async function uploadAvatar(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  file: File | null,
+): Promise<string | null> {
+  if (!file || file.size === 0) {
+    return null;
+  }
+
+  if (!ALLOWED_AVATAR_TYPES.includes(file.type) || file.size > MAX_AVATAR_BYTES) {
+    return null;
+  }
+
+  const extension = file.type.split('/')[1].replace('jpeg', 'jpg');
+  /* Timestamped so a replacement gets a fresh URL rather than a cached old image. */
+  const path = `${userId}/avatar-${Date.now()}.${extension}`;
+
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(path, file, { contentType: file.type, upsert: true });
+
+  if (error) {
+    return null;
+  }
+
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/**
+ * Counts course offerings visible to the caller in the current term.
+ *
+ * Used to decide whether picking a course can be required. A newly provisioned
+ * institution has no catalog yet, and insisting on a course nobody has entered
+ * would trap its first student on step 2 with nothing to choose.
+ *
+ * @param supabase - The request-scoped client.
+ * @returns The number of offerings in the current term.
+ */
+async function currentTermOfferingCount(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<number> {
+  const { count } = await supabase
+    .from('course_offerings')
+    .select('id, terms!inner(is_current)', { count: 'exact', head: true })
+    .eq('terms.is_current', true);
+
+  return count ?? 0;
+}
+
 /**
  * Step 1 — name, study track and year.
  *
@@ -56,12 +122,26 @@ export async function saveBasics(
     });
 
     const supabase = await createClient();
+
+    const avatarFile = formData.get('avatar');
+    const avatarUrl = await uploadAvatar(
+      supabase,
+      user.id,
+      avatarFile instanceof File ? avatarFile : null,
+    );
+
     const { error } = await supabase
       .from('profiles')
       .update({
         full_name: input.fullName,
         study_track_id: input.studyTrackId,
         year_of_study: input.yearOfStudy,
+        /*
+         * Only overwritten when a new photo was actually uploaded. Spreading
+         * conditionally keeps an existing avatar when the student edits their
+         * name and leaves the file input alone.
+         */
+        ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       })
       .eq('id', user.id);
 
@@ -102,9 +182,24 @@ export async function saveCourses(
 ): Promise<ActionResult<void>> {
   try {
     const user = await requireUser();
-    const input = coursesSchema.parse({ offeringIds: multi(formData, 'offeringIds') });
-
     const supabase = await createClient();
+
+    const selected = multi(formData, 'offeringIds');
+
+    /*
+     * Requiring a course is right whenever there are courses to require. It is
+     * not right for the first student at an institution whose catalog has not
+     * been loaded yet — for them the rule would be a dead end, not a guardrail.
+     */
+    if (selected.length === 0 && (await currentTermOfferingCount(supabase)) > 0) {
+      return fail(
+        ERROR_CODES.VALIDATION_FAILED,
+        'Pick at least one course so we have something to match you on.',
+        'offeringIds',
+      );
+    }
+
+    const input = coursesSchema.parse({ offeringIds: selected });
 
     const { error: clearError } = await supabase
       .from('enrollments')
@@ -235,7 +330,7 @@ export async function saveAvailabilityAndFinish(
       .eq('profile_id', user.id)
       .maybeSingle();
 
-    if (!enrolledCount) {
+    if (!enrolledCount && (await currentTermOfferingCount(supabase)) > 0) {
       return fail(
         ERROR_CODES.ONBOARDING_INCOMPLETE,
         'Pick at least one course before finishing.',

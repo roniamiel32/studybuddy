@@ -756,7 +756,7 @@ export type Database = {
       enrollment_intent: "need_help" | "want_partner" | "can_tutor"
       group_size_choice: "small" | "large"
       study_environment: "discussion" | "quiet"
-      time_block: "morning" | "noon" | "evening" | "other"
+      time_block: "morning" | "noon" | "evening"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -901,7 +901,7 @@ export const Constants = {
       enrollment_intent: ["need_help", "want_partner", "can_tutor"],
       group_size_choice: ["small", "large"],
       study_environment: ["discussion", "quiet"],
-      time_block: ["morning", "noon", "evening", "other"],
+      time_block: ["morning", "noon", "evening"],
     },
   },
 } as const

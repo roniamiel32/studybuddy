@@ -13,9 +13,11 @@
 
 import Link from 'next/link';
 
+import { ProfileBadge } from '@/components/layout/profile-badge';
 import { Wordmark } from '@/components/marketing/wordmark';
 import { Button } from '@/components/ui/button';
 import { signOut } from '@/features/auth/actions';
+import { getOnboardingProfile } from '@/features/onboarding/queries';
 
 /**
  * Wraps every signed-in page.
@@ -23,16 +25,19 @@ import { signOut } from '@/features/auth/actions';
  * @param children - The page being rendered.
  * @returns The layout element.
  */
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const profile = await getOnboardingProfile();
+
   return (
     <div className="bg-dotted flex min-h-full flex-1 flex-col">
       <header className="glass border-outline-variant/30 sticky top-0 z-10 border-b">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-5 py-4">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-5 py-4">
           <Link
             href="/dashboard"
-            className="focus-visible:ring-brand/35 rounded-md focus-visible:ring-4 focus-visible:outline-none"
+            className="focus-visible:ring-brand/35 flex items-center gap-3 rounded-md focus-visible:ring-4 focus-visible:outline-none"
           >
-            <Wordmark />
+            <ProfileBadge fullName={profile.fullName} avatarUrl={profile.avatarUrl} />
+            <Wordmark className="text-body-lg" />
           </Link>
 
           <form action={signOut}>

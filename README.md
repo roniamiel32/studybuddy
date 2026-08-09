@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.6.0** — students can sign up, onboard and reach a dashboard.
+Version **0.7.0** — students can sign up, onboard and reach a dashboard.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final
@@ -19,7 +19,7 @@ project for the Full-Stack course at Reichman University.
 | 1a | Database schema | ✅ 14 tables, seeds, helper functions, 20 integration tests |
 | 1.5 | Design system | ✅ "Kinetic Learning" tokens, claymorphic primitives, landing page |
 | 1b | Row Level Security | ✅ 33 policies, 2 immutability triggers, 35 adversarial tests |
-| 1c | Auth & onboarding | ✅ Email+password, route guards, 4-step onboarding, dashboard |
+| 1c | Auth & onboarding | ✅ Email+password, route guards, 4-step onboarding, avatars, dashboard |
 | 2 | Rule-based matching | ⬜ Not started |
 | 3 | AI re-rank & icebreaker | ⬜ Not started |
 | 4a | WhatsApp handoff | ⬜ Not started |
@@ -56,9 +56,11 @@ Then run the app:
 npm run dev
 ```
 
-The landing page is at http://localhost:3000. Sign up with an address on a
-seeded student domain — `@post.runi.ac.il` or `@mail.tau.ac.il` — since the
-domain is what decides which institution you belong to.
+The landing page is at http://localhost:3000. Sign up with **any university
+address ending in `.ac.il` or `.edu`** — the domain decides which institution
+you belong to. Use `@post.runi.ac.il` to land in the seeded Reichman catalog;
+an unseeded domain creates its own institution with a default track list and an
+empty course catalog.
 
 The landing page renders without Supabase configured, but everything behind
 sign-in needs the local stack, and the integration tests skip with a warning if

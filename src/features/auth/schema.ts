@@ -5,13 +5,17 @@
  *              and the server action, so the rules cannot drift apart — the
  *              client copy is for fast feedback, the server copy is the one
  *              that is actually enforced.
- * Version:     0.6.0
+ * Version:     0.6.1
  *
  * Modifications:
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
+ *     0.6.1 - 2026-08-05 - Accept any .ac.il or .edu address, not only seeded
+ *                          domains
  */
 
 import { z } from 'zod';
+
+import { ACADEMIC_SUFFIXES, isAcademicEmail, normaliseEmail } from './academic-email';
 
 /**
  * Minimum password length.
@@ -22,12 +26,20 @@ import { z } from 'zod';
  */
 export const MIN_PASSWORD_LENGTH = 8;
 
+/** Human-readable list for error messages: ".ac.il or .edu". */
+const SUFFIX_LIST = ACADEMIC_SUFFIXES.join(' or ');
+
+/**
+ * A university address.
+ *
+ * Normalisation happens before the format check, so trailing spaces and stray
+ * capitals never reach the domain comparison.
+ */
 export const emailSchema = z
   .string()
-  .trim()
-  .toLowerCase()
-  .min(5, 'Enter your university email address.')
-  .pipe(z.email('That does not look like an email address.'));
+  .transform(normaliseEmail)
+  .pipe(z.email('That does not look like an email address.'))
+  .refine(isAcademicEmail, `Use your university address — one ending in ${SUFFIX_LIST}.`);
 
 export const signUpSchema = z.object({
   email: emailSchema,
@@ -38,7 +50,12 @@ export const signUpSchema = z.object({
 });
 
 export const signInSchema = z.object({
-  email: emailSchema,
+  /*
+   * Sign-in normalises but does not require an academic suffix. Someone with an
+   * existing account should be able to get back in even if the rules about
+   * which addresses may register have changed since.
+   */
+  email: z.string().transform(normaliseEmail).pipe(z.email('That does not look like an email address.')),
   /*
    * No length rule on sign-in. Validating an existing password's format tells
    * an attacker which rules were in force when the account was created, and
@@ -50,12 +67,4 @@ export const signInSchema = z.object({
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
 
-/**
- * Extracts the domain from an email address.
- *
- * @param email - A validated address.
- * @returns The lowercase domain, or an empty string when there is no '@'.
- */
-export function emailDomain(email: string): string {
-  return email.trim().toLowerCase().split('@')[1] ?? '';
-}
+export { emailDomain, isAcademicEmail, nameFromEmail, normaliseEmail } from './academic-email';

@@ -142,6 +142,66 @@ test.describe('signup and onboarding', () => {
     await expect(page.getByText('4h')).toBeVisible();
   });
 
+  test('keeps the email when only the password is rejected', async ({ page }) => {
+    const email = newStudentEmail();
+
+    await page.goto('/signup');
+    await page.getByLabel('University email').fill(email);
+    await page.getByLabel('Password').fill('short');
+    await page.getByRole('button', { name: 'Create account' }).click();
+
+    await expect(page.locator('#form-error')).toContainText('at least 8');
+
+    // The whole point of the fix: React 19 resets an uncontrolled form once its
+    // action returns, so a rejected password used to wipe a perfectly good
+    // address too. The email is controlled and survives; the password is not,
+    // and is cleared for retyping.
+    await expect(page.getByLabel('University email')).toHaveValue(email);
+    await expect(page.getByLabel('Password')).toHaveValue('');
+  });
+
+  test('accepts any academic address, provisioning the institution on first sight', async ({
+    page,
+  }) => {
+    // A .edu domain nobody has used before: it is not in the seed, so signing
+    // up has to create the institution and its default tracks or step 1 would
+    // have an empty dropdown.
+    const unique = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const email = `e2e-${unique}@newcollege.edu`;
+    created.push(email);
+
+    await page.goto('/signup');
+    await page.getByLabel('University email').fill(email);
+    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByRole('button', { name: 'Create account' }).click();
+
+    await expect(page).toHaveURL(/\/onboarding$/);
+    // The institution name is derived from the domain.
+    await expect(page.getByText('Newcollege')).toBeVisible();
+
+    const trackOptions = page.getByLabel('Study track').locator('option');
+    expect(await trackOptions.count()).toBeGreaterThan(1);
+  });
+
+  test('pre-fills the name from the email, and lets it be edited', async ({ page }) => {
+    // Numeric suffix, which also exercises the trailing-digit strip: an
+    // enrolment number on the end of a name is not part of the name.
+    const email = `dana.levi${Date.now()}@post.runi.ac.il`;
+    created.push(email);
+
+    await page.goto('/signup');
+    await page.getByLabel('University email').fill(email);
+    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByRole('button', { name: 'Create account' }).click();
+
+    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(page.getByLabel('Your name')).toHaveValue('Dana Levi');
+
+    // A guess, not a decision — it must remain editable.
+    await page.getByLabel('Your name').fill('Dana L.');
+    await expect(page.getByLabel('Your name')).toHaveValue('Dana L.');
+  });
+
   test('rejects an address that is not a university one', async ({ page }) => {
     await page.goto('/signup');
     await page.getByLabel('University email').fill('someone@gmail.com');
@@ -150,7 +210,7 @@ test.describe('signup and onboarding', () => {
 
     // Scoped to the form's own error element: Next renders a live-region route
     // announcer that also has role="alert", so the role alone is ambiguous.
-    await expect(page.locator('#form-error')).toContainText('participating universities');
+    await expect(page.locator('#form-error')).toContainText('.ac.il or .edu');
     await expect(page).toHaveURL(/\/signup$/);
   });
 

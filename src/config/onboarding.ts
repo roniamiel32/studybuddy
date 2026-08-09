@@ -28,11 +28,16 @@ export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
  * throw away the half of their availability that happened to lose the coin
  * toss.
  */
+/*
+ * "Other" was removed deliberately. It is a non-answer: a student picking it
+ * tells the matching engine nothing it can overlap against, and every scoring
+ * rule needed a special case for a value that could never match meaningfully.
+ * Three concrete blocks cover the day, and picking all three says "any time".
+ */
 export const TIME_BLOCK_OPTIONS = [
   { value: 'morning', label: 'Morning', hint: 'Before 12:00', icon: '☀️' },
   { value: 'noon', label: 'Noon', hint: '12:00 – 17:00', icon: '🌤️' },
   { value: 'evening', label: 'Evening', hint: 'After 17:00', icon: '🌙' },
-  { value: 'other', label: 'Other', hint: 'Late nights, odd hours', icon: '🦉' },
 ] as const;
 
 export const ENVIRONMENT_OPTIONS = [

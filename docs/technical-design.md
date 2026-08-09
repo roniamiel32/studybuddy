@@ -6,9 +6,13 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.4.0
+Version:     0.4.1
 
 Modifications:
+    0.4.1 - 2026-08-05 - Phase 1c UX fixes: decisions D12-D14 (institution
+                         provisioning from any academic domain, avatars in
+                         Storage, Nunito headings), and the removal of the
+                         'other' time block
     0.4.0 - 2026-08-05 - Phase 1c as built (section 9): decisions D8-D11,
                          study tracks, the reworked preference questionnaire,
                          route guarding, and the revised match scoring model
@@ -1044,12 +1048,13 @@ updated, no known regressions.
 | ~~**1.5** Design system~~ **done** | `0.4.0` | `feature/design-system` | Kinetic Learning tokens, restyled primitives, Chip, landing page rebuilt to the Stitch design | ✅ verify green; landing matches the reference at desktop and mobile |
 | ~~**1b** RLS~~ **done** | `0.5.0` | `feature/rls-policies` | 33 policies across 14 tables, `app_can_see_profile`, two immutability triggers, 35 adversarial tests run as real signed-in students | ✅ 78 tests pass; suite verified to fail when a policy is deliberately weakened |
 | ~~**1c** Auth + onboarding~~ **done** | `0.6.0` | `feature/auth-onboarding` | Email+password auth, domain gate, route guards, study tracks, 4-step onboarding, dashboard | ✅ e2e proves a new student signs up and reaches the dashboard, on desktop and mobile |
-| **2** Rule matching | `0.7.0` | `feature/matching-engine` | `rpc_find_candidates`, course dashboard, `MatchCard`, filters | Two seeded students with overlapping slots see each other, correctly scored |
-| **3a** Requests | `0.8.0` | `feature/connection-requests` | Request send/accept/decline/cancel, requests page, unordered-pair constraint | Full request lifecycle works; duplicate request rejected by the DB, not just the UI |
-| **3b** AI re-rank | `0.9.0` | `feature/ai-rerank` | `/api/ai/rerank`, `match_scores` cache, structured output validation, rate limit, graceful degradation | Matches show AI reasons; with the API key removed the page still renders rule-ranked results |
-| **3c** AI icebreaker | `0.10.0` | `feature/ai-icebreaker` | `/api/ai/icebreaker`, `IcebreakerDialog`, prompt-injection sanitisation | Generated opener is course- and preference-specific, ≤600 chars |
-| **4a** WhatsApp handoff | `0.11.0` | `feature/whatsapp-handoff` | `getWhatsAppHandoff`, partners page, consent notices, `blocked_users` | Accepted partner opens WhatsApp with the text prefilled on a real phone |
-| **4c** Calendar sync (D7) | `0.12.0` | `feature/calendar-sync` | `calendar_connections` migration, OAuth flow, free/busy → slot inversion, `AvailabilitySourceChooser`, resync + disconnect | A student connects a calendar, their grid fills from real busy times, and disconnecting deletes both the tokens and the synced slots |
+| ~~**1c.1** Onboarding UX~~ **done** | `0.7.0` | `feature/onboarding-ux-fixes` | Form-state preservation, any academic address, avatar upload, expanded tracks, name autofill, Nunito headings | ✅ 133 unit/integration and 18 e2e tests pass |
+| **2** Rule matching | `0.8.0` | `feature/matching-engine` | `rpc_find_candidates`, course dashboard, `MatchCard`, filters | Two seeded students with overlapping slots see each other, correctly scored |
+| **3a** Requests | `0.9.0` | `feature/connection-requests` | Request send/accept/decline/cancel, requests page, unordered-pair constraint | Full request lifecycle works; duplicate request rejected by the DB, not just the UI |
+| **3b** AI re-rank | `0.10.0` | `feature/ai-rerank` | `/api/ai/rerank`, `match_scores` cache, structured output validation, rate limit, graceful degradation | Matches show AI reasons; with the API key removed the page still renders rule-ranked results |
+| **3c** AI icebreaker | `0.11.0` | `feature/ai-icebreaker` | `/api/ai/icebreaker`, `IcebreakerDialog`, prompt-injection sanitisation | Generated opener is course- and preference-specific, ≤600 chars |
+| **4a** WhatsApp handoff | `0.12.0` | `feature/whatsapp-handoff` | `getWhatsAppHandoff`, partners page, consent notices, `blocked_users` | Accepted partner opens WhatsApp with the text prefilled on a real phone |
+| **4c** Calendar sync (D7) | `0.13.0` | `feature/calendar-sync` | `calendar_connections` migration, OAuth flow, free/busy → slot inversion, `AvailabilitySourceChooser`, resync + disconnect | A student connects a calendar, their grid fills from real busy times, and disconnecting deletes both the tokens and the synced slots |
 | **4b** Polish | `1.0.0` | `feature/polish-and-hardening` | Responsive pass, loading/error/empty states, a11y, E2E suite, Vercel deploy, README with setup + architecture | E2E green; deployed URL works; ready to submit |
 
 Suggested order of attack if time gets tight: 0.5 → 1a → 1b → 1c → 2 → 3a →
@@ -1397,3 +1402,44 @@ could be bypassed and the queries behind it would still return nothing.
 
 Still open: C4, C5, C7, C8, C9 — study groups, session scheduling, presence,
 course meeting times, and sections.
+
+
+### 9.6 UX fixes after the first pass (v0.7.0)
+
+| # | Decision | Consequence |
+|---|----------|-------------|
+| D12 | **Any `.ac.il` or `.edu` address may register.** An unknown domain provisions its institution on first sight, with a default track list | Signup no longer depends on a domain being seeded, which is what makes mock accounts easy to create. See the caveats below. |
+| D13 | **Avatars live in Supabase Storage**, in a public bucket, under a folder named after the owner's uuid | Postgres is a poor CDN and images in a row make every profile query heavier. The folder name is what the storage policy checks, so one student cannot overwrite another's photo. |
+| D14 | **Nunito replaces Be Vietnam Pro** for headings | Overrides the Stitch design deliberately: rounded terminals suit the claymorphic surfaces, where a geometric display face was working against them. |
+
+**"Other" is gone from the study-hours question.** It was a non-answer — a
+student choosing it told the matching engine nothing it could overlap against,
+and every scoring rule needed a special case for a value that could never match
+meaningfully. Three concrete blocks cover the day, and choosing all three is how
+a student says "any time". The enum was rebuilt rather than left with a dead
+value.
+
+**Forms preserve what you typed.** React 19 resets an uncontrolled form once its
+action returns — including when it returned an error — so a mistyped password
+used to wipe a perfectly good email address as well. Text inputs, selects and
+the preference choice groups are now controlled, so their values come from React
+state and the reset cannot reach them. The password field is deliberately left
+uncontrolled, so it *is* cleared: an incorrect secret is exactly the field that
+should be retyped.
+
+#### Caveats of provisioning (D12), worth knowing before launch
+
+- **A typo creates an institution.** `post.runi.ac.il` mistyped as
+  `post.runi.ac.li` fails the academic-suffix check, but a plausible typo inside
+  a valid suffix would create a private, empty university. The student would see
+  an empty catalog rather than a wrong one, so it is visible rather than silent,
+  but a domain allow-list should replace this before real users arrive.
+- **The catalog starts empty.** A new institution has tracks but no courses, so
+  step 2 has nothing to offer. Requiring a course is therefore conditional: it
+  applies whenever the institution has a catalog and is skipped when it does
+  not, because otherwise the first student at a new university would be trapped
+  on step 2 forever.
+- **Derived names are placeholders.** `harvard.edu` becomes "Harvard", which is
+  a guess from a domain, not the institution's registered name.
+- Tenancy is unaffected: each provisioned domain is its own tenant, and the
+  existing RLS tests cover the isolation.

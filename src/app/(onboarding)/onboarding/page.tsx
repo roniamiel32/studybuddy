@@ -11,6 +11,7 @@
 import type { Metadata } from 'next';
 
 import { BasicsForm } from '@/components/onboarding/basics-form';
+import { nameFromEmail } from '@/features/auth/academic-email';
 import { getOnboardingProfile, getStudyTracks } from '@/features/onboarding/queries';
 
 export const metadata: Metadata = { title: 'About you' };
@@ -36,10 +37,12 @@ export default async function OnboardingBasicsPage() {
       <BasicsForm
         tracks={tracks}
         universityName={profile.universityName}
+        suggestedName={nameFromEmail(profile.email)}
         defaults={{
           fullName: profile.fullName,
           studyTrackId: profile.studyTrackId,
           yearOfStudy: profile.yearOfStudy,
+          avatarUrl: profile.avatarUrl,
         }}
       />
     </>

@@ -34,8 +34,11 @@ export interface OnboardingProfile {
   fullName: string | null;
   studyTrackId: string | null;
   yearOfStudy: number | null;
+  avatarUrl: string | null;
   universityName: string;
   onboardingCompletedAt: string | null;
+  /** The signed-in address, used to suggest a display name on step 1. */
+  email: string;
 }
 
 /**
@@ -50,7 +53,9 @@ export async function getOnboardingProfile(): Promise<OnboardingProfile> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('full_name, study_track_id, year_of_study, onboarding_completed_at, universities(name)')
+    .select(
+      'full_name, study_track_id, year_of_study, avatar_url, onboarding_completed_at, universities(name)',
+    )
     .eq('id', user.id)
     .single();
 
@@ -62,8 +67,10 @@ export async function getOnboardingProfile(): Promise<OnboardingProfile> {
     fullName: data.full_name,
     studyTrackId: data.study_track_id,
     yearOfStudy: data.year_of_study,
+    avatarUrl: data.avatar_url,
     universityName: data.universities?.name ?? 'your university',
     onboardingCompletedAt: data.onboarding_completed_at,
+    email: user.email ?? '',
   };
 }
 

@@ -13,7 +13,7 @@
 
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import Link from 'next/link';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
@@ -41,6 +41,22 @@ export interface CredentialFormProps {
 export function CredentialForm({ mode, action }: CredentialFormProps) {
   const [state, formAction, pending] = useActionState(action, null);
 
+  /*
+   * The email field is CONTROLLED, and that is the whole fix for losing your
+   * typing on a failed submit.
+   *
+   * React 19 resets an uncontrolled form after its action completes, including
+   * when the action returned an error. So a student who mistyped their password
+   * would find their address wiped too, and have to enter both again. A
+   * controlled value comes from React state rather than the DOM, so the reset
+   * cannot touch it.
+   *
+   * The password is deliberately left uncontrolled, so it IS cleared: an
+   * incorrect secret is exactly the field that should be retyped, and echoing
+   * one back into the markup is not worth doing.
+   */
+  const [email, setEmail] = useState('');
+
   const isSignUp = mode === 'signup';
   const error = state && !state.ok ? state.error : null;
 
@@ -54,14 +70,16 @@ export function CredentialForm({ mode, action }: CredentialFormProps) {
           type="email"
           autoComplete="email"
           required
-          placeholder="you@post.runi.ac.il"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="student@university.edu"
           aria-invalid={error?.field === 'email' || undefined}
           aria-describedby={error?.field === 'email' ? 'form-error' : undefined}
         />
         {isSignUp ? (
           <p className="text-outline text-label-sm font-normal">
-            Your university decides which courses and classmates you see, so it
-            has to be your student address.
+            Any university address ending in .ac.il or .edu. Your institution
+            decides which courses and classmates you see.
           </p>
         ) : null}
       </div>

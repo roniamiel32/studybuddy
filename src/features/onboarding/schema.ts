@@ -28,13 +28,16 @@ export const basicsSchema = z.object({
 });
 
 /**
- * Step 2. At least one course, because a student with none has nothing to be
- * matched on — every match in this product is anchored to a shared course.
+ * Step 2.
+ *
+ * "At least one course" is enforced in the action rather than here, because the
+ * rule is conditional: it holds whenever the institution has a catalog, and
+ * must not hold for the first student at an institution whose catalog has not
+ * been loaded yet. A schema cannot see that context; the action can.
  */
 export const coursesSchema = z.object({
   offeringIds: z
     .array(z.uuid())
-    .min(1, 'Pick at least one course so we have something to match you on.')
     .max(12, 'Twelve courses is the most we can match on at once.')
     /* Two identical ids would violate the unique constraint on enrollments. */
     .transform((ids) => [...new Set(ids)]),
@@ -43,7 +46,7 @@ export const coursesSchema = z.object({
 /** Step 3. Three multi-selects and one yes/no, exactly as specified. */
 export const preferencesSchema = z.object({
   preferredTimeBlocks: z
-    .array(z.enum(['morning', 'noon', 'evening', 'other']))
+    .array(z.enum(['morning', 'noon', 'evening']))
     .min(1, 'Choose at least one time of day.')
     .transform((values) => [...new Set(values)]),
   studyEnvironments: z

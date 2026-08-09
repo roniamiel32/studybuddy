@@ -1,14 +1,16 @@
 /**
  * File:        src/features/auth/actions.ts
  * Authors:     Roni Amiel & Eden Bitran
- * Description: Email + password authentication. The university email domain is
- *              the enrolment check: it decides which institution a student
- *              belongs to and whether they may sign up at all, which is why it
- *              is verified here rather than only in the database trigger.
- * Version:     0.6.0
+ * Description: Email + password authentication. Any academic address is
+ *              accepted; the domain decides which institution the student
+ *              belongs to, and an institution is created on first sight if it
+ *              is not already known.
+ * Version:     0.6.1
  *
  * Modifications:
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
+ *     0.6.1 - 2026-08-05 - Accept any .ac.il / .edu address, provisioning the
+ *                          institution when the domain is new
  */
 
 'use server';
@@ -19,44 +21,121 @@ import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/e
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-import { emailDomain, signInSchema, signUpSchema } from './schema';
+import { emailDomain, institutionNameFromDomain, slugFromDomain } from './academic-email';
+import { signInSchema, signUpSchema } from './schema';
 
 /**
- * Checks whether an email domain belongs to a participating institution.
+ * Tracks every new institution starts with.
  *
- * Uses the admin client because the caller is, by definition, not yet signed in
- * and so cannot read `university_domains` under RLS. It returns only a boolean
- * and the institution's name, never anything about other students.
- *
- * @param email - The address being used to sign up.
- * @returns The institution's name when the domain is a recognised student
- *          domain, otherwise null.
+ * A student must be able to pick a track on step 1, so a freshly provisioned
+ * university cannot have an empty list. These are generic on purpose — they are
+ * a scaffold to be replaced with the institution's real programmes, not a claim
+ * about what it teaches.
  */
-async function institutionForEmail(email: string): Promise<string | null> {
-  const domain = emailDomain(email);
-  if (!domain) {
-    return null;
-  }
+const DEFAULT_TRACKS = [
+  { code: 'CS', name: 'Computer Science' },
+  { code: 'ENG', name: 'Engineering' },
+  { code: 'BUS', name: 'Business' },
+  { code: 'ECON', name: 'Economics' },
+  { code: 'LAW', name: 'Law' },
+  { code: 'SCI', name: 'Natural Sciences' },
+  { code: 'SSCI', name: 'Social Sciences' },
+  { code: 'HUM', name: 'Humanities' },
+  { code: 'MED', name: 'Medicine & Health' },
+  { code: 'ART', name: 'Arts & Design' },
+  { code: 'OTHER', name: 'Other' },
+] as const;
 
-  const admin = createAdminClient();
-
-  const { data } = await admin
-    .from('university_domains')
-    .select('is_student_domain, universities(name)')
-    .eq('domain', domain)
-    .eq('is_student_domain', true)
-    .maybeSingle();
-
-  return data?.universities?.name ?? null;
+interface Institution {
+  universityId: string;
+  name: string;
 }
 
 /**
- * Creates an account for a student at a participating institution.
+ * Finds the institution for an address, creating it if the domain is new.
  *
- * The profile row itself is created by the `handle_new_user` database trigger,
- * which resolves the university from the same domain. This function's job is to
- * refuse an unrecognised domain with a message a person can act on, rather than
- * letting the trigger raise a database error at them.
+ * Uses the admin client because the caller is not yet signed in and cannot read
+ * `university_domains` under RLS. It returns only the institution's identity —
+ * never anything about other students.
+ *
+ * @param email - The validated, normalised address.
+ * @returns The institution, or null when the domain is registered but marked as
+ *          staff-only.
+ */
+async function resolveInstitution(email: string): Promise<Institution | null> {
+  const domain = emailDomain(email);
+  const admin = createAdminClient();
+
+  const { data: known } = await admin
+    .from('university_domains')
+    .select('university_id, is_student_domain, universities(name)')
+    .eq('domain', domain)
+    .maybeSingle();
+
+  if (known) {
+    /*
+     * An explicit is_student_domain = false outranks the general "any academic
+     * address" rule. Some institutions publish a staff domain alongside the
+     * student one, and a deliberate exclusion should not be undone by a
+     * broader default.
+     */
+    if (!known.is_student_domain) {
+      return null;
+    }
+
+    return {
+      universityId: known.university_id,
+      name: known.universities?.name ?? institutionNameFromDomain(domain),
+    };
+  }
+
+  const name = institutionNameFromDomain(domain);
+
+  const { data: university } = await admin
+    .from('universities')
+    .insert({ name, slug: slugFromDomain(domain) })
+    .select('id')
+    .single();
+
+  if (!university) {
+    return null;
+  }
+
+  await admin
+    .from('university_domains')
+    .insert({ domain, university_id: university.id, is_student_domain: true });
+
+  await admin.from('study_tracks').insert(
+    DEFAULT_TRACKS.map((track) => ({
+      university_id: university.id,
+      code: track.code,
+      name: track.name,
+    })),
+  );
+
+  /*
+   * Re-read rather than trusting the row just written. If two students from the
+   * same new domain sign up at the same moment, both reach this point and only
+   * one insert wins; reading back means both end up in the same institution
+   * instead of two parallel ones.
+   */
+  const { data: settled } = await admin
+    .from('university_domains')
+    .select('university_id, universities(name)')
+    .eq('domain', domain)
+    .maybeSingle();
+
+  return settled
+    ? { universityId: settled.university_id, name: settled.universities?.name ?? name }
+    : { universityId: university.id, name };
+}
+
+/**
+ * Creates an account for a student at an academic institution.
+ *
+ * The institution must exist before `signUp` is called, because the
+ * `handle_new_user` database trigger resolves the university from the same
+ * domain the instant the auth user is created.
  *
  * @param _previous - Previous form state, supplied by useActionState.
  * @param formData  - The submitted form.
@@ -74,12 +153,12 @@ export async function signUp(
       password: formData.get('password'),
     });
 
-    const institution = await institutionForEmail(parsed.email);
+    const institution = await resolveInstitution(parsed.email);
 
     if (!institution) {
       return fail(
         ERROR_CODES.FORBIDDEN,
-        'StudyBuddy is only open to participating universities. Use your university email address.',
+        'That address cannot be used to register. If it is a staff address, use your student one.',
         'email',
       );
     }
@@ -92,10 +171,8 @@ export async function signUp(
 
     if (error) {
       /*
-       * Supabase reports an existing address as a generic failure to avoid
-       * confirming which addresses are registered. Keep that property: a
-       * message naming the account would turn this form into a way to test
-       * whether a given student has signed up.
+       * Supabase reports an existing address as a generic failure so the form
+       * cannot be used to discover who has an account. Keep that property.
        */
       return fail(
         ERROR_CODES.VALIDATION_FAILED,

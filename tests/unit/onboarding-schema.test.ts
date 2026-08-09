@@ -81,8 +81,11 @@ describe('basicsSchema', () => {
 });
 
 describe('coursesSchema', () => {
-  it('requires at least one course, since every match is anchored to one', () => {
-    expect(() => coursesSchema.parse({ offeringIds: [] })).toThrow();
+  it('allows an empty selection at the schema level', () => {
+    // "At least one course" is conditional — it holds when the institution has
+    // a catalog and must not when it does not — so the action enforces it,
+    // where that context is available.
+    expect(() => coursesSchema.parse({ offeringIds: [] })).not.toThrow();
   });
 
   it('removes duplicates, which would violate the unique constraint on enrollments', () => {
@@ -118,6 +121,21 @@ describe('preferencesSchema', () => {
     expect(() =>
       preferencesSchema.parse({ ...valid, preferredTimeBlocks: ['midnight'] }),
     ).toThrow();
+  });
+
+  it('no longer accepts "other", which was removed as a non-answer', () => {
+    expect(() =>
+      preferencesSchema.parse({ ...valid, preferredTimeBlocks: ['other'] }),
+    ).toThrow();
+  });
+
+  it('accepts all three blocks, which is how a student says "any time"', () => {
+    const parsed = preferencesSchema.parse({
+      ...valid,
+      preferredTimeBlocks: ['morning', 'noon', 'evening'],
+    });
+
+    expect(parsed.preferredTimeBlocks).toHaveLength(3);
   });
 
   it('deduplicates repeated selections', () => {

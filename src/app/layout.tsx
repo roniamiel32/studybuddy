@@ -12,7 +12,7 @@
  */
 
 import type { Metadata } from 'next';
-import { Be_Vietnam_Pro, Plus_Jakarta_Sans } from 'next/font/google';
+import { Nunito, Plus_Jakarta_Sans } from 'next/font/google';
 
 import './globals.css';
 
@@ -21,14 +21,17 @@ import './globals.css';
  * in sync with the `@theme` block in globals.css — a mismatch is silent, and
  * the page just falls back to the browser's default serif.
  *
- * Only the weights the type scale actually uses are loaded: headlines at 600
- * and 700, body at 400/600/700. Shipping the full families would cost several
- * hundred kilobytes for weights nothing renders.
+ * Nunito replaces the source design's Be Vietnam Pro for headings. Its rounded
+ * terminals match the claymorphic surfaces far better: the soft shapes and a
+ * geometric, squared-off display face were pulling in opposite directions.
+ *
+ * Only the weights the type scale actually uses are loaded. Shipping the full
+ * families would cost several hundred kilobytes for weights nothing renders.
  */
-const beVietnamPro = Be_Vietnam_Pro({
-  variable: '--font-be-vietnam',
+const headingFont = Nunito({
+  variable: '--font-heading-family',
   subsets: ['latin'],
-  weight: ['600', '700'],
+  weight: ['600', '700', '800'],
   display: 'swap',
 });
 
@@ -62,7 +65,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${beVietnamPro.variable} ${plusJakartaSans.variable} h-full antialiased`}
+      className={`${headingFont.variable} ${plusJakartaSans.variable} h-full antialiased`}
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
         {children}
