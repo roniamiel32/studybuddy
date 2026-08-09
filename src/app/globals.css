@@ -239,6 +239,62 @@
     background-size: 40px 40px;
   }
 
+  /*
+   * The template's named classes, rebuilt from the theme tokens above rather
+   * than copied with their literal rgba values. That is the whole point of
+   * extracting them: `.clay-card` and `shadow-clay` now cannot disagree, and
+   * changing the brand purple updates both.
+   */
+  .clay-card {
+    background-color: var(--color-surface-container-lowest);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-clay);
+  }
+
+  .clay-btn-primary {
+    background-image: linear-gradient(
+      135deg,
+      var(--color-brand-bright) 0%,
+      var(--color-brand) 100%
+    );
+    color: #fff;
+    border: none;
+    box-shadow: var(--shadow-clay-btn);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  }
+
+  .clay-btn-primary:active {
+    transform: translateY(2px);
+    box-shadow: var(--shadow-clay-btn-pressed);
+  }
+
+  .clay-btn-secondary {
+    background-color: var(--color-surface-container-lowest);
+    border: 1.5px solid var(--color-brand);
+    color: var(--color-brand);
+    box-shadow: var(--shadow-clay-soft);
+    transition: background-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .clay-btn-secondary:hover {
+    background-color: var(--color-grape-fixed);
+  }
+
+  .clay-btn-secondary:active {
+    transform: translateY(2px);
+  }
+
+  /*
+   * The dotted field, at the template's 30px spacing. Kept distinct from
+   * `.bg-dotted`, which is the finer 40px grid the onboarding and marketing
+   * pages use.
+   */
+  .bg-pattern {
+    background-color: var(--color-surface);
+    background-image: radial-gradient(var(--color-brand-fixed) 2px, transparent 2px);
+    background-size: 30px 30px;
+  }
+
   /* Sticky headers and the bottom nav, per the design system's glass spec. */
   .glass {
     background-color: rgb(255 255 255 / 0.7);

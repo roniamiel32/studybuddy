@@ -728,6 +728,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      app_array_jaccard: { Args: { a: unknown; b: unknown }; Returns: number }
       app_can_see_profile: {
         Args: { target_profile_id: string }
         Returns: boolean
@@ -740,6 +741,32 @@ export type Database = {
       app_overlap_minutes: {
         Args: { profile_a: string; profile_b: string }
         Returns: number
+      }
+      app_shared_days: {
+        Args: { profile_a: string; profile_b: string }
+        Returns: number[]
+      }
+      rpc_find_candidates: {
+        Args: { p_course_offering_id?: string; p_limit?: number }
+        Returns: {
+          avatar_url: string
+          candidate_id: string
+          course_code: string
+          course_name: string
+          course_offering_id: string
+          full_name: string
+          group_sizes: Database["public"]["Enums"]["group_size_choice"][]
+          intent: Database["public"]["Enums"]["enrollment_intent"]
+          overlap_minutes: number
+          preferred_time_blocks: Database["public"]["Enums"]["time_block"][]
+          rule_score: number
+          shared_course_count: number
+          shared_days: number[]
+          studies_on_saturday: boolean
+          study_environments: Database["public"]["Enums"]["study_environment"][]
+          track_name: string
+          year_of_study: number
+        }[]
       }
     }
     Enums: {

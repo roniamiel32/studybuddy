@@ -4,6 +4,61 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] — 2026-08-05
+
+Phase 2 — the matching engine and the matches dashboard. Students now see real
+classmates, ranked.
+
+### Added
+- **`rpc_find_candidates`** — scores classmates out of 100 and returns them
+  ranked. One function serves both the cross-course matches view and a future
+  per-course dashboard.
+- The 100-point model from design §1.7, implemented: schedule overlap (0–40),
+  time-of-day Jaccard (0–20), environment (0–15), group size (0–8), language
+  (0–7), Saturday (0–5), intent complementarity (2–5).
+- `app_array_jaccard` and `app_shared_days` helpers, neither exposed to clients.
+- **Matches dashboard** at `/dashboard`: top-match bento card and a grid, wired
+  to real Supabase data, with an empty state that names the specific reason
+  there is nothing to show.
+- Primary navigation — desktop top bar and mobile bottom bar, four
+  destinations.
+- `npm run seed:students` — a demo cohort varied across every scoring term,
+  plus a Tel Aviv student as a cross-tenant control. This is the §6.1
+  cold-start mitigation: a matching engine with one user looks broken.
+- `.clay-card`, `.clay-btn-primary`, `.clay-btn-secondary`, `.bg-pattern` as
+  named classes, **derived from the theme tokens** rather than copied with
+  literal rgba values, so they cannot drift from `shadow-clay`.
+- 24 tests: 12 adversarial integration tests against the RPC, 12 unit tests for
+  the presentation helpers, and 3 e2e tests that create their own students.
+
+### Changed
+- `/dashboard` replaces the Phase 1c "you are all set" placeholder.
+- Titled "Your matches", not the template's "AI-Powered Matches": the ranking is
+  entirely rule based at this phase, and the AI re-rank is 3b.
+
+### Notes
+- **`rpc_find_candidates` is SECURITY DEFINER, deliberately.** It must exclude a
+  candidate who blocked the caller, and `blocked_users` is readable in one
+  direction only, so under invoker rights that block is invisible. Definer
+  rights mean every RLS rule is restated in its WHERE clause — and each one is
+  attacked by a test, including a Tel Aviv student getting nothing from
+  Reichman.
+- Template deviations, all in design §10.5: lucide instead of a second icon
+  font; a disabled icebreaker button rather than one that silently does nothing;
+  "View profile" became an in-place "Why this match?" disclosure since no
+  profile route exists yet.
+- The course dashboard template is **not** built: it depends on course meeting
+  times, rooms and sections (conflicts C8 and C9), which are still unresolved.
+  The RPC already accepts the offering id it will need.
+- One webkit timing flake was seen in the form-preservation e2e during a full
+  run; it passes in isolation and on re-run.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 157 tests, production build.
+`npm run test:e2e` passes 24 tests across Chromium and mobile Safari. The
+dashboard was also loaded in a browser as a seeded student and checked at
+desktop and mobile widths.
+
 ## [0.7.1] — 2026-08-05
 
 ### Fixed

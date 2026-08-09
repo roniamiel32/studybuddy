@@ -1,120 +1,152 @@
 /**
  * File:        src/app/(app)/dashboard/page.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: Where a student lands after onboarding. Deliberately a
- *              placeholder: matching is Phase 2, so this confirms setup worked
- *              and shows what was saved rather than pretending to have results.
- *              An empty state that explains itself beats a fake one.
- * Version:     0.6.0
+ * Description: The matches dashboard — every classmate across the student's
+ *              courses, ranked by the deterministic score in
+ *              `rpc_find_candidates`.
+ *
+ *              Titled "Your matches" rather than the design's "AI-Powered
+ *              Matches", because at this phase the ranking is entirely rule
+ *              based. The AI re-rank is Phase 3b, and claiming it before it
+ *              exists would be a promise the screen cannot keep.
+ * Version:     0.8.0
  *
  * Modifications:
- *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
+ *     0.6.0 - 2026-08-05 - Placeholder after onboarding (Phase 1c)
+ *     0.8.0 - 2026-08-05 - Replaced with the ranked matches dashboard (Phase 2)
  */
 
 import type { Metadata } from 'next';
-import { BookOpen, Clock, Sparkles } from 'lucide-react';
+import Link from 'next/link';
+import { CalendarPlus, Compass, Users } from 'lucide-react';
 
-import { Chip } from '@/components/ui/chip';
+import { MatchCard } from '@/components/matching/match-card';
+import { TopMatchCard } from '@/components/matching/top-match-card';
+import { buttonVariants } from '@/components/ui/button';
+import { getMatches } from '@/features/matching/queries';
 import {
   getMyAvailability,
   getMyEnrolledOfferingIds,
   getOnboardingProfile,
 } from '@/features/onboarding/queries';
-import { createClient } from '@/lib/supabase/server';
 
-export const metadata: Metadata = { title: 'Dashboard' };
+export const metadata: Metadata = { title: 'Your matches' };
 
 /**
- * Renders the dashboard.
+ * Renders the matches dashboard.
  *
  * @returns The page element.
  */
-export default async function DashboardPage() {
-  const supabase = await createClient();
-
-  const [profile, enrolledIds, slots] = await Promise.all([
+export default async function MatchesPage() {
+  const [profile, matches, enrolledIds, slots] = await Promise.all([
     getOnboardingProfile(),
+    getMatches({ limit: 24 }),
     getMyEnrolledOfferingIds(),
     getMyAvailability(),
   ]);
 
-  const { data: courses } = await supabase
-    .from('course_offerings')
-    .select('id, courses!inner(code, name)')
-    .in('id', enrolledIds.length > 0 ? enrolledIds : ['00000000-0000-0000-0000-000000000000']);
-
-  const weeklyHours = slots.reduce((total, slot) => {
-    const [startHour] = slot.starts_at.split(':').map(Number);
-    const [endHour] = slot.ends_at.split(':').map(Number);
-    return total + (endHour - startHour);
-  }, 0);
-
   const firstName = profile.fullName?.split(' ')[0] ?? 'there';
+  const [topMatch, ...others] = matches;
 
   return (
     <>
-      <h1 className="font-heading text-headline-lg text-balance">
-        You are all set, {firstName}.
-      </h1>
-      <p className="text-on-surface-variant mt-2 text-body-lg text-pretty">
-        Your profile is ready. Matching goes live next — here is what we will use
-        to find your partners.
-      </p>
-
-      <div className="mt-10 grid gap-4 sm:grid-cols-2">
-        <section className="border-outline-variant/30 shadow-clay rounded-xl border bg-white p-6">
-          <h2 className="font-heading flex items-center gap-2 text-body-lg font-semibold">
-            <BookOpen className="text-brand size-5" aria-hidden="true" />
-            Your courses
-          </h2>
-
-          {courses && courses.length > 0 ? (
-            <ul className="mt-4 flex flex-wrap gap-2">
-              {courses.map((offering) => (
-                <li key={offering.id}>
-                  <Chip tone="brand">{offering.courses.code}</Chip>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-on-surface-variant mt-3 text-body-md">
-              No courses yet.
-            </p>
-          )}
-
-          <p className="text-outline mt-4 text-label-sm font-normal">
-            Each of these will get its own page of study partners.
-          </p>
-        </section>
-
-        <section className="border-outline-variant/30 shadow-clay rounded-xl border bg-white p-6">
-          <h2 className="font-heading flex items-center gap-2 text-body-lg font-semibold">
-            <Clock className="text-sunset-deep size-5" aria-hidden="true" />
-            Your free time
-          </h2>
-
-          <p className="font-heading mt-4 text-headline-lg">{weeklyHours}h</p>
-          <p className="text-on-surface-variant text-body-md">marked as free each week</p>
-
-          <p className="text-outline mt-4 text-label-sm font-normal">
-            {weeklyHours === 0
-              ? 'Add some free time and we can match you on overlapping hours.'
-              : 'We match you with people whose free hours overlap yours.'}
-          </p>
-        </section>
+      <div className="mb-8">
+        <h1 className="font-heading text-[28px] leading-9 text-balance sm:text-headline-lg">
+          Your matches, {firstName}
+        </h1>
+        <p className="text-on-surface-variant mt-2 text-body-md text-pretty">
+          {matches.length > 0
+            ? 'Classmates in your courses, ranked by when you are both free and how you each like to study.'
+            : 'We rank classmates in your courses by shared free time and study style.'}
+        </p>
       </div>
 
-      <section className="border-brand/30 bg-brand-fixed/40 mt-4 flex items-start gap-3 rounded-xl border border-dashed p-6">
-        <Sparkles className="text-brand mt-0.5 size-5 shrink-0" aria-hidden="true" />
-        <div>
-          <h2 className="font-heading text-body-lg font-semibold">Matching is next</h2>
-          <p className="text-on-surface-variant mt-1 text-body-md text-pretty">
-            Once it is switched on, open any course to see classmates ranked by
-            shared hours and study style — then send a request with an opener
-            already written for you.
-          </p>
-        </div>
-      </section>
+      {topMatch ? <TopMatchCard match={topMatch} /> : null}
+
+      {others.length > 0 ? (
+        <section aria-labelledby="more-matches-heading" className="mt-12">
+          <h2
+            id="more-matches-heading"
+            className="text-on-surface-variant mb-4 text-label-md tracking-wider uppercase"
+          >
+            More potential partners
+          </h2>
+
+          <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {others.map((match) => (
+              <MatchCard key={match.candidateId} match={match} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {matches.length === 0 ? (
+        <EmptyMatches
+          hasCourses={enrolledIds.length > 0}
+          hasAvailability={slots.length > 0}
+        />
+      ) : null}
     </>
+  );
+}
+
+/**
+ * Explains why there is nothing to show, and what to do about it.
+ *
+ * An empty screen is the moment a student decides whether the product works, so
+ * it names the specific reason rather than shrugging. The two fixable causes —
+ * no courses, no availability — are distinguished, because the advice differs.
+ *
+ * @param hasCourses      - Whether the student is enrolled in anything.
+ * @param hasAvailability - Whether they have marked any free time.
+ * @returns The empty state element.
+ */
+function EmptyMatches({
+  hasCourses,
+  hasAvailability,
+}: {
+  hasCourses: boolean;
+  hasAvailability: boolean;
+}) {
+  return (
+    <div className="clay-card flex flex-col items-center p-8 text-center sm:p-12">
+      <span className="bg-brand-fixed text-brand mb-4 flex size-14 items-center justify-center rounded-full">
+        <Compass className="size-7" aria-hidden="true" />
+      </span>
+
+      <h2 className="font-heading text-headline-md">No matches yet</h2>
+
+      {!hasCourses ? (
+        <>
+          <p className="text-on-surface-variant mt-2 max-w-md text-body-md text-pretty">
+            You are not enrolled in any courses this semester, and every match is
+            anchored to a course you share.
+          </p>
+          <Link href="/onboarding/courses" className={`${buttonVariants({ size: 'lg' })} mt-6`}>
+            <Users />
+            Add your courses
+          </Link>
+        </>
+      ) : !hasAvailability ? (
+        <>
+          <p className="text-on-surface-variant mt-2 max-w-md text-body-md text-pretty">
+            You share courses with classmates, but you have not marked when you
+            are free — overlapping hours are the biggest part of a good match.
+          </p>
+          <Link
+            href="/onboarding/availability"
+            className={`${buttonVariants({ size: 'lg' })} mt-6`}
+          >
+            <CalendarPlus />
+            Add your free time
+          </Link>
+        </>
+      ) : (
+        <p className="text-on-surface-variant mt-2 max-w-md text-body-md text-pretty">
+          Nobody else has joined your courses yet. You are early — check back
+          once more of your class has signed up.
+        </p>
+      )}
+    </div>
   );
 }

@@ -6,9 +6,13 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.4.1
+Version:     0.5.0
 
 Modifications:
+    0.5.0 - 2026-08-05 - Added section 10: the matching engine as built, why
+                         rpc_find_candidates is SECURITY DEFINER and what that
+                         obliges, the implemented score, cold-start seeding, and
+                         the deviations from the supplied template
     0.4.1 - 2026-08-05 - Phase 1c UX fixes: decisions D12-D14 (institution
                          provisioning from any academic domain, avatars in
                          Storage, Nunito headings), and the removal of the
@@ -1049,7 +1053,7 @@ updated, no known regressions.
 | ~~**1b** RLS~~ **done** | `0.5.0` | `feature/rls-policies` | 33 policies across 14 tables, `app_can_see_profile`, two immutability triggers, 35 adversarial tests run as real signed-in students | ✅ 78 tests pass; suite verified to fail when a policy is deliberately weakened |
 | ~~**1c** Auth + onboarding~~ **done** | `0.6.0` | `feature/auth-onboarding` | Email+password auth, domain gate, route guards, study tracks, 4-step onboarding, dashboard | ✅ e2e proves a new student signs up and reaches the dashboard, on desktop and mobile |
 | ~~**1c.1** Onboarding UX~~ **done** | `0.7.0` | `feature/onboarding-ux-fixes` | Form-state preservation, any academic address, avatar upload, expanded tracks, name autofill, Nunito headings | ✅ 133 unit/integration and 18 e2e tests pass |
-| **2** Rule matching | `0.8.0` | `feature/matching-engine` | `rpc_find_candidates`, course dashboard, `MatchCard`, filters | Two seeded students with overlapping slots see each other, correctly scored |
+| ~~**2** Rule matching~~ **done** | `0.8.0` | `feature/matching-engine` | `rpc_find_candidates`, matches dashboard, `MatchCard`, demo seed | ✅ 157 unit/integration and 24 e2e tests; a seeded pair sees each other, correctly scored. Course dashboard deferred pending C8/C9 |
 | **3a** Requests | `0.9.0` | `feature/connection-requests` | Request send/accept/decline/cancel, requests page, unordered-pair constraint | Full request lifecycle works; duplicate request rejected by the DB, not just the UI |
 | **3b** AI re-rank | `0.10.0` | `feature/ai-rerank` | `/api/ai/rerank`, `match_scores` cache, structured output validation, rate limit, graceful degradation | Matches show AI reasons; with the API key removed the page still renders rule-ranked results |
 | **3c** AI icebreaker | `0.11.0` | `feature/ai-icebreaker` | `/api/ai/icebreaker`, `IcebreakerDialog`, prompt-injection sanitisation | Generated opener is course- and preference-specific, ≤600 chars |
@@ -1443,3 +1447,88 @@ should be retyped.
   a guess from a domain, not the institution's registered name.
 - Tenancy is unaffected: each provisioned domain is its own tenant, and the
   existing RLS tests cover the isolation.
+
+---
+
+## 10. Phase 2 as built — the matching engine
+
+### 10.1 One function, both screens
+
+`rpc_find_candidates(p_course_offering_id, p_limit)` scores classmates out of
+100 and returns them ranked. Pass an offering for a course dashboard; omit it
+for the cross-course matches view. Two functions sharing one scoring model would
+have drifted apart within a phase.
+
+It returns **one row per shared course**, which is what a course dashboard needs.
+The matches view folds those rows per person in TypeScript
+(`features/matching/queries.ts`), keeping each candidate's best-scoring course
+and collecting the rest. Folding in SQL would have made the scoring function
+serve two shapes.
+
+### 10.2 Why it is SECURITY DEFINER
+
+This is the one function in the project that deliberately steps outside RLS, so
+the reason is worth stating plainly.
+
+A candidate who has **blocked the caller** must not appear. But `blocked_users`
+is readable in one direction only — you see the blocks you made, never the ones
+naming you, because being able to detect that you have been blocked defeats the
+point. Under invoker rights the reverse block is invisible, and the person who
+blocked you keeps showing up in your matches.
+
+Definer rights solve that and create an obligation: **every rule RLS would have
+enforced is restated in the function's WHERE clause** — same university,
+discoverable, onboarding complete, not the caller, no block in either direction,
+no live request already. `tests/integration/matching.test.ts` attacks each one,
+including a Tel Aviv student calling the function and getting nothing from
+Reichman.
+
+### 10.3 The score, as implemented
+
+| Term | Points | How |
+|---|---|---|
+| Schedule overlap | 0–40 | `least(minutes, 480) / 480 × 40`. Weighted highest because it is the only term that can make studying together *impossible* rather than merely worse. Saturates at 8h/week. |
+| Time-of-day overlap | 0–20 | Jaccard of `preferred_time_blocks` via `app_array_jaccard` |
+| Environment | 0–15 | Sets intersect → 15, else 0 |
+| Group size | 0–8 | Sets intersect → 8, else 0 |
+| Language | 0–7 | Sets intersect → 7, else 0. No shared language means no shared session |
+| Saturday | 0–5 | Equal → 5 |
+| Intent | 2–5 | `can_tutor`↔`need_help` → 5; both `want_partner` → 4; both `need_help` → 2; else 3 |
+
+Observed on the seeded cohort: 71 for a well-matched pair with 6h of shared
+time, down to 10 for a classmate who shares only the course. The spread is the
+point — a model where everyone scores 80 ranks nothing.
+
+`app_array_jaccard` and `app_shared_days` are **not** granted to
+`authenticated`. The RPC runs as definer and therefore as the owner, so it can
+call them regardless, and exposing them would widen the surface for no gain.
+
+### 10.4 Cold start, addressed
+
+`npm run seed:students` creates a demo cohort through the admin API — varied
+across every scoring term, so the ranking has something to distinguish, plus one
+Tel Aviv student as a cross-tenant control. This is the mitigation §6.1 promised:
+a matching engine with one user in the database looks broken and cannot be
+demonstrated.
+
+### 10.5 Deviations from the supplied template
+
+| Template | What was built | Why |
+|---|---|---|
+| Material Symbols icon font | lucide-react, already a dependency | A second icon font is ~100 KB and a render-blocking request for glyphs we already have |
+| Hardcoded external avatar images | `profiles.avatar_url`, with an initial on a tinted disc as fallback | Real students mostly have no photo, so the fallback has to look deliberate |
+| "Send Smart Icebreaker" | Rendered, **disabled**, with a note | Requests are Phase 3a and the icebreaker Phase 3c. A control that silently does nothing is worse than one that says why it is off |
+| "View Profile" button | Expands the card in place to show *why* this match | There is no profile route yet, and "why this match" is the question a student actually has at that moment |
+| Title "AI-Powered Matches" | "Your matches" | The ranking is entirely rule based at this phase. The AI re-rank is 3b; claiming it now would be a promise the screen cannot keep |
+| "Chat" nav tab | "Requests" | Design conflict C2, resolved earlier |
+| Tailwind config block, `.clay-*` CSS | Rebuilt as `@layer components` classes **derived from the theme tokens** | Copying the literal rgba values would let `.clay-card` and `shadow-clay` disagree. Now changing the brand purple updates both |
+
+### 10.6 Still open
+
+- **C4, C5, C7, C8, C9** remain unresolved: study groups, session scheduling,
+  presence, course meeting times and rooms, and sections. The course dashboard
+  template depends on C8 and C9, which is why that screen is not built yet —
+  `rpc_find_candidates` already accepts the offering id it will need.
+- The e2e suite showed one webkit timing flake in the form-preservation test
+  during a full run; it passes in isolation and on re-run. Worth watching rather
+  than declaring stable.

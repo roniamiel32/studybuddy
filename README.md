@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.7.0** — students can sign up, onboard and reach a dashboard.
+Version **0.8.0** — students sign up, onboard, and see ranked study partners.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final
@@ -20,7 +20,7 @@ project for the Full-Stack course at Reichman University.
 | 1.5 | Design system | ✅ "Kinetic Learning" tokens, claymorphic primitives, landing page |
 | 1b | Row Level Security | ✅ 33 policies, 2 immutability triggers, 35 adversarial tests |
 | 1c | Auth & onboarding | ✅ Email+password, route guards, 4-step onboarding, avatars, dashboard |
-| 2 | Rule-based matching | ⬜ Not started |
+| 2 | Rule-based matching | ✅ Scoring RPC, matches dashboard, demo seed |
 | 3 | AI re-rank & icebreaker | ⬜ Not started |
 | 4a | WhatsApp handoff | ⬜ Not started |
 | 4c | Calendar sync (D7) | ⬜ Not started — stretch goal |
@@ -62,6 +62,15 @@ you belong to. Use `@post.runi.ac.il` to land in the seeded Reichman catalog;
 an unseeded domain creates its own institution with a default track list and an
 empty course catalog.
 
+Then create some classmates, or the matching screens will be empty:
+
+```bash
+npm run seed:students
+```
+
+They all share the password `demo-student-1234`, so you can sign in as any of
+them — `demo1@post.runi.ac.il` has the most overlap with the others.
+
 The landing page renders without Supabase configured, but everything behind
 sign-in needs the local stack, and the integration tests skip with a warning if
 it is not running.
@@ -92,6 +101,7 @@ itself, so that one file is the only change needed.
 | `npm run db:start` / `db:stop` | Local Supabase stack |
 | `npm run db:reset` | Drop, re-run all migrations, re-seed |
 | `npm run gen:types` | Regenerate `src/types/database.types.ts` from the live schema |
+| `npm run seed:students` | Create a demo cohort so the matching screens have people to rank |
 
 Run `npm run verify` before every commit — it is the definition of "done" for
 this project.

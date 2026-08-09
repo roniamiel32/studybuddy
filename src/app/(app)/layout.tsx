@@ -1,18 +1,19 @@
 /**
  * File:        src/app/(app)/layout.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: Shell for the signed-in application. The nav is four items, per
- *              design conflict C2: the Stitch design's "Chat" tab is replaced
- *              by Requests, which the accept/decline flow needs and the design
- *              had nowhere to put.
- * Version:     0.6.0
+ * Description: Shell for the signed-in application: a glass top bar with the
+ *              student's photo and navigation, and a bottom bar on mobile.
+ * Version:     0.8.0
  *
  * Modifications:
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
+ *     0.6.1 - 2026-08-05 - Avatar in the header
+ *     0.8.0 - 2026-08-05 - Primary navigation (Phase 2)
  */
 
 import Link from 'next/link';
 
+import { DesktopNav, MobileNav } from '@/components/layout/app-nav';
 import { ProfileBadge } from '@/components/layout/profile-badge';
 import { Wordmark } from '@/components/marketing/wordmark';
 import { Button } from '@/components/ui/button';
@@ -29,16 +30,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const profile = await getOnboardingProfile();
 
   return (
-    <div className="bg-dotted flex min-h-full flex-1 flex-col">
-      <header className="glass border-outline-variant/30 sticky top-0 z-10 border-b">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-5 py-4">
+    <div className="bg-pattern flex min-h-full flex-1 flex-col">
+      <header className="glass border-outline-variant/30 sticky top-0 z-40 border-b">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3">
           <Link
             href="/dashboard"
-            className="focus-visible:ring-brand/35 flex items-center gap-3 rounded-md focus-visible:ring-4 focus-visible:outline-none"
+            className="focus-visible:ring-brand/35 flex shrink-0 items-center gap-3 rounded-md focus-visible:ring-4 focus-visible:outline-none"
           >
             <ProfileBadge fullName={profile.fullName} avatarUrl={profile.avatarUrl} />
             <Wordmark className="text-body-lg" />
           </Link>
+
+          <DesktopNav />
 
           <form action={signOut}>
             <Button type="submit" variant="ghost" size="sm">
@@ -48,7 +51,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 sm:py-12">{children}</main>
+      {/* Bottom padding clears the mobile nav, which is fixed over the content. */}
+      <main className="mx-auto w-full max-w-6xl flex-1 px-5 pt-6 pb-28 sm:pt-10 md:pb-12">
+        {children}
+      </main>
+
+      <MobileNav />
     </div>
   );
 }
