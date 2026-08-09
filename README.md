@@ -138,4 +138,4 @@ one place that does not carry our file-header convention.
 ## Versioning
 
 Semantic versioning (`X.Y.Z`), tracked in `package.json`. `1.0.0` marks the
-submitted project
+submitted project.
