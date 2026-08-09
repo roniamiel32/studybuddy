@@ -1,0 +1,94 @@
+/**
+ * File:        src/components/onboarding/step-form.tsx
+ * Authors:     Roni Amiel & Eden Bitran
+ * Description: Shared wrapper for every onboarding step — owns the action
+ *              state, renders server-side errors, and provides the back and
+ *              continue controls. Each step then contains only its own
+ *              questions.
+ * Version:     0.6.0
+ *
+ * Modifications:
+ *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
+ */
+
+'use client';
+
+import { useActionState } from 'react';
+import Link from 'next/link';
+import { AlertCircle, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
+
+import { Button, buttonVariants } from '@/components/ui/button';
+import type { ActionResult } from '@/lib/errors';
+
+export interface StepFormProps {
+  action: (
+    previous: ActionResult<void> | null,
+    formData: FormData,
+  ) => Promise<ActionResult<void>>;
+  submitLabel: string;
+  /** Previous step's path. Omitted on step 1, which has nowhere to go back to. */
+  backHref?: string;
+  variant?: 'default' | 'sunset';
+  children: React.ReactNode;
+}
+
+/**
+ * Renders an onboarding step form.
+ *
+ * @param action      - The server action for this step.
+ * @param submitLabel - Text on the continue button.
+ * @param backHref    - Previous step, if any.
+ * @param variant     - Button variant; the final step uses the sunset accent.
+ * @param children    - The step's questions.
+ * @returns The form element.
+ */
+export function StepForm({
+  action,
+  submitLabel,
+  backHref,
+  variant = 'default',
+  children,
+}: StepFormProps) {
+  const [state, formAction, pending] = useActionState(action, null);
+  const error = state && !state.ok ? state.error : null;
+
+  return (
+    <form action={formAction} className="flex flex-col gap-8" noValidate>
+      {children}
+
+      {error ? (
+        <p
+          role="alert"
+          className="text-destructive bg-destructive/10 flex items-start gap-2 rounded-md p-3 text-label-md"
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          {error.message}
+        </p>
+      ) : null}
+
+      <div className="flex items-center gap-3">
+        {backHref ? (
+          <Link
+            href={backHref}
+            className={buttonVariants({ variant: 'ghost', size: 'lg' })}
+          >
+            <ArrowLeft />
+            Back
+          </Link>
+        ) : null}
+
+        <Button
+          type="submit"
+          size="lg"
+          variant={variant}
+          disabled={pending}
+          className="ml-auto"
+        >
+          {pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
+          {submitLabel}
+          {pending ? null : <ArrowRight />}
+        </Button>
+      </div>
+    </form>
+  );
+}

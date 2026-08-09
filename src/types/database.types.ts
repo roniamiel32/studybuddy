@@ -277,6 +277,39 @@ export type Database = {
           },
         ]
       }
+      course_tracks: {
+        Row: {
+          course_id: string
+          created_at: string
+          track_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          track_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          track_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_tracks_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_tracks_track_id_fkey"
+            columns: ["track_id"]
+            isOneToOne: false
+            referencedRelation: "study_tracks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           code: string
@@ -364,41 +397,32 @@ export type Database = {
       learning_preferences: {
         Row: {
           created_at: string
-          goal: Database["public"]["Enums"]["study_goal"]
-          group_size_preference: Database["public"]["Enums"]["group_size"]
-          noise_preference: Database["public"]["Enums"]["noise_preference"]
-          notes: string | null
-          pace: Database["public"]["Enums"]["study_pace"]
-          place_preference: Database["public"]["Enums"]["place_preference"]
+          group_sizes: Database["public"]["Enums"]["group_size_choice"][]
+          preferred_time_blocks: Database["public"]["Enums"]["time_block"][]
           profile_id: string
           spoken_languages: string[]
-          study_style: Database["public"]["Enums"]["study_style"]
+          studies_on_saturday: boolean
+          study_environments: Database["public"]["Enums"]["study_environment"][]
           updated_at: string
         }
         Insert: {
           created_at?: string
-          goal: Database["public"]["Enums"]["study_goal"]
-          group_size_preference: Database["public"]["Enums"]["group_size"]
-          noise_preference: Database["public"]["Enums"]["noise_preference"]
-          notes?: string | null
-          pace: Database["public"]["Enums"]["study_pace"]
-          place_preference: Database["public"]["Enums"]["place_preference"]
+          group_sizes: Database["public"]["Enums"]["group_size_choice"][]
+          preferred_time_blocks: Database["public"]["Enums"]["time_block"][]
           profile_id: string
           spoken_languages?: string[]
-          study_style: Database["public"]["Enums"]["study_style"]
+          studies_on_saturday: boolean
+          study_environments: Database["public"]["Enums"]["study_environment"][]
           updated_at?: string
         }
         Update: {
           created_at?: string
-          goal?: Database["public"]["Enums"]["study_goal"]
-          group_size_preference?: Database["public"]["Enums"]["group_size"]
-          noise_preference?: Database["public"]["Enums"]["noise_preference"]
-          notes?: string | null
-          pace?: Database["public"]["Enums"]["study_pace"]
-          place_preference?: Database["public"]["Enums"]["place_preference"]
+          group_sizes?: Database["public"]["Enums"]["group_size_choice"][]
+          preferred_time_blocks?: Database["public"]["Enums"]["time_block"][]
           profile_id?: string
           spoken_languages?: string[]
-          study_style?: Database["public"]["Enums"]["study_style"]
+          studies_on_saturday?: boolean
+          study_environments?: Database["public"]["Enums"]["study_environment"][]
           updated_at?: string
         }
         Relationships: [
@@ -516,11 +540,11 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           created_at: string
-          degree_program: string | null
           full_name: string | null
           id: string
           is_discoverable: boolean
           onboarding_completed_at: string | null
+          study_track_id: string | null
           university_id: string
           updated_at: string
           year_of_study: number | null
@@ -530,11 +554,11 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
-          degree_program?: string | null
           full_name?: string | null
           id: string
           is_discoverable?: boolean
           onboarding_completed_at?: string | null
+          study_track_id?: string | null
           university_id: string
           updated_at?: string
           year_of_study?: number | null
@@ -544,18 +568,57 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
-          degree_program?: string | null
           full_name?: string | null
           id?: string
           is_discoverable?: boolean
           onboarding_completed_at?: string | null
+          study_track_id?: string | null
           university_id?: string
           updated_at?: string
           year_of_study?: number | null
         }
         Relationships: [
           {
+            foreignKeyName: "profiles_study_track_id_fkey"
+            columns: ["study_track_id"]
+            isOneToOne: false
+            referencedRelation: "study_tracks"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "profiles_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_tracks: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string
+          university_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          university_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          university_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_tracks_university_id_fkey"
             columns: ["university_id"]
             isOneToOne: false
             referencedRelation: "universities"
@@ -665,6 +728,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      app_can_see_profile: {
+        Args: { target_profile_id: string }
+        Returns: boolean
+      }
       app_current_university_id: { Args: never; Returns: string }
       app_is_connected_to: {
         Args: { other_profile_id: string }
@@ -687,21 +754,9 @@ export type Database = {
         | "cancelled"
         | "expired"
       enrollment_intent: "need_help" | "want_partner" | "can_tutor"
-      group_size: "pair" | "small_group" | "either"
-      noise_preference: "silent" | "low_hum" | "lively"
-      place_preference:
-        | "campus_library"
-        | "campus_open"
-        | "cafe"
-        | "online"
-        | "home"
-      study_goal: "pass" | "high_grade" | "deep_understanding"
-      study_pace: "ahead_of_syllabus" | "on_track" | "catching_up"
-      study_style:
-        | "solo_parallel"
-        | "discussion"
-        | "teaching"
-        | "problem_drilling"
+      group_size_choice: "small" | "large"
+      study_environment: "discussion" | "quiet"
+      time_block: "morning" | "noon" | "evening" | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -844,23 +899,9 @@ export const Constants = {
         "expired",
       ],
       enrollment_intent: ["need_help", "want_partner", "can_tutor"],
-      group_size: ["pair", "small_group", "either"],
-      noise_preference: ["silent", "low_hum", "lively"],
-      place_preference: [
-        "campus_library",
-        "campus_open",
-        "cafe",
-        "online",
-        "home",
-      ],
-      study_goal: ["pass", "high_grade", "deep_understanding"],
-      study_pace: ["ahead_of_syllabus", "on_track", "catching_up"],
-      study_style: [
-        "solo_parallel",
-        "discussion",
-        "teaching",
-        "problem_drilling",
-      ],
+      group_size_choice: ["small", "large"],
+      study_environment: ["discussion", "quiet"],
+      time_block: ["morning", "noon", "evening", "other"],
     },
   },
 } as const

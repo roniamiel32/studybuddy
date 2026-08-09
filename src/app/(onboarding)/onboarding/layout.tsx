@@ -1,0 +1,52 @@
+/**
+ * File:        src/app/(onboarding)/onboarding/layout.tsx
+ * Authors:     Roni Amiel & Eden Bitran
+ * Description: Shell for the four-step flow: wordmark, a way out, the progress
+ *              bar, and the current step in a clay card.
+ * Version:     0.6.0
+ *
+ * Modifications:
+ *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
+ */
+
+import { X } from 'lucide-react';
+
+import { Wordmark } from '@/components/marketing/wordmark';
+import { OnboardingStepper } from '@/components/onboarding/stepper';
+import { Button } from '@/components/ui/button';
+import { signOut } from '@/features/auth/actions';
+
+/**
+ * Wraps every onboarding step.
+ *
+ * @param children - The step being rendered.
+ * @returns The layout element.
+ */
+export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-dotted flex min-h-full flex-1 flex-col">
+      <header className="mx-auto flex w-full max-w-2xl items-center justify-between px-5 py-5">
+        <Wordmark />
+        {/*
+         * A deliberate exit. Without one, a student who wants to stop is stuck
+         * on a form with no visible way out, since the middleware sends them
+         * straight back here.
+         */}
+        <form action={signOut}>
+          <Button type="submit" variant="ghost" size="sm">
+            Exit setup
+            <X />
+          </Button>
+        </form>
+      </header>
+
+      <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-20">
+        <OnboardingStepper />
+
+        <div className="border-outline-variant/30 shadow-clay mt-8 rounded-xl border bg-white p-6 sm:p-8">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}

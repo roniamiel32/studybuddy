@@ -4,6 +4,73 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-08-05
+
+Phase 1c — authentication and onboarding. A new student can now sign up and
+reach a working dashboard.
+
+### Added
+- **Email + password auth** (D8). The university email domain is the enrolment
+  check: an unrecognised domain is refused with a message a person can act on,
+  rather than a database error. Sign-in and sign-up both return a single
+  generic failure message so neither form can be used to discover who has an
+  account.
+- **`src/proxy.ts`** — session refresh and route guarding. Signed out goes to
+  `/login?next=…`; signed in but unfinished goes to `/onboarding`; finished
+  students are kept out of it. The landing page is excluded from the matcher,
+  so the marketing site still renders with no Supabase configured.
+- **Study tracks** (D9): `study_tracks` and `course_tracks`, the latter
+  many-to-many because Linear Algebra genuinely belongs to Computer Science,
+  Data Science and Economics — duplicating it per track would split the very
+  matching pool the product exists to create.
+- **Four-step onboarding**: basics, course picker, preferences, availability.
+- Dashboard placeholder showing what was saved.
+- 23 unit tests for the validation schemas and 4 end-to-end tests, including a
+  full signup-to-dashboard run that passes on both desktop Chromium and mobile
+  Safari.
+
+### Changed
+- `profiles.degree_program` (free text) replaced by `profiles.study_track_id`.
+- **`learning_preferences` reworked to multi-select** — three enum arrays plus
+  Saturday and languages. The old single-value enums could not express
+  "mornings and evenings", which is a normal answer.
+- Dropped `study_style`, `noise_preference`, `place_preference`,
+  `group_size_preference`, `pace`, `goal`, `notes` and their enum types.
+  Destructive on purpose: the app has never been deployed, so a compatibility
+  shim would be dead weight.
+- **Match scoring model revised** in the design doc. Every preference term is
+  now a set overlap rather than a value comparison, so two students who both
+  answer "mornings and evenings" score full marks where the old model might
+  have counted them a mismatch.
+- The course picker is **never filtered by year of study** (D10). Students
+  extend degrees and take courses out of sequence.
+- Migrated `middleware.ts` to `proxy.ts`, the convention Next 16 renamed it to.
+
+### Fixed
+- A preference row in the RLS suite was being inserted with the old column
+  names and failing silently, which made "cannot read another tenant's
+  preferences" a **vacuous pass** — the row it claimed to be denied never
+  existed. Vitest does not typecheck, so only `tsc` caught it. The seed is now
+  checked, and the test asserts the row exists before asserting it cannot be
+  read.
+- Duplicate heading on the course step.
+
+### Notes
+- **Phone numbers are not collected during onboarding** (D11). They are asked
+  for at the first connection request instead, where the consent notice
+  actually means something. Phase 4a cannot ship the WhatsApp handoff without
+  building that prompt.
+- Local Supabase has `enable_confirmations = false`, so signup returns a
+  session immediately. **Turn confirmations on before any real deployment** —
+  without them, anyone can register using someone else's university address.
+- The e2e suite now runs with a single worker. Parallel workers all block on
+  the same Turbopack build against the dev server and time out, which looks
+  like a broken redirect but is only a cold cache.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 101 tests, production build.
+`npm run test:e2e` passes 12 tests across Chromium and mobile Safari.
+
 ## [0.5.0] — 2026-08-05
 
 Phase 1b — Row Level Security. The schema was fully inaccessible to clients

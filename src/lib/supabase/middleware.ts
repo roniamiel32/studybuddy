@@ -26,8 +26,9 @@ import type { Database } from '@/types/database.types';
  * the refreshed cookies and signs the user out.
  *
  * @param request - The incoming middleware request.
- * @returns The response to return from middleware, plus the current user
- *          (null when not signed in) so the caller can decide on redirects.
+ * @returns The response to return from middleware, the current user (null when
+ *          not signed in), and the client itself so the caller can ask a
+ *          follow-up question without building a second one.
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -66,5 +67,5 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { response, user };
+  return { response, user, supabase };
 }

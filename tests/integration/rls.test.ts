@@ -93,17 +93,22 @@ describeDb('Row Level Security', () => {
       { profile_id: ids.tau, day_of_week: 0, starts_at: '10:00', ends_at: '12:00' },
     ]);
 
-    await admin.from('learning_preferences').insert([
+    // Checked, not fire-and-forget. An insert that fails silently here turns
+    // "cannot read another tenant's preferences" into a vacuous pass — the row
+    // it claims to be denied would simply never have existed.
+    const seededPreferences = await admin.from('learning_preferences').insert([
       {
         profile_id: ids.tau,
-        study_style: 'discussion',
-        noise_preference: 'lively',
-        place_preference: 'cafe',
-        group_size_preference: 'pair',
-        pace: 'on_track',
-        goal: 'high_grade',
+        preferred_time_blocks: ['evening'],
+        study_environments: ['discussion'],
+        group_sizes: ['small'],
+        studies_on_saturday: false,
+        spoken_languages: ['he'],
       },
     ]);
+    if (seededPreferences.error) {
+      throw new Error(`preference seed failed: ${seededPreferences.error.message}`);
+    }
 
     runiOfferingId = await offeringIdByCode(admin, 'CS-3040', RUNI_CURRENT_TERM_ID);
 
@@ -180,6 +185,14 @@ describeDb('Row Level Security', () => {
     });
 
     it('cannot read a Tel Aviv student learning preferences', async () => {
+      // Prove the row exists before asserting it cannot be read, so this test
+      // cannot pass by the row being absent.
+      const { data: exists } = await admin
+        .from('learning_preferences')
+        .select('profile_id')
+        .eq('profile_id', ids.tau);
+      expect(exists).toHaveLength(1);
+
       const { data } = await self
         .from('learning_preferences')
         .select('profile_id')
@@ -224,6 +237,46 @@ describeDb('Row Level Security', () => {
 
       expect(error).not.toBeNull();
       expect(error!.message).toMatch(/cannot move between institutions/i);
+    });
+
+    it('cannot see another university study tracks', async () => {
+      const { data } = await self.from('study_tracks').select('id, university_id');
+
+      expect(data!.length).toBeGreaterThan(0);
+      expect(data!.every((track) => track.university_id === RUNI_ID)).toBe(true);
+    });
+
+    it('cannot put itself on another university study track', async () => {
+      const { data: tauTrack } = await admin
+        .from('study_tracks')
+        .select('id')
+        .eq('university_id', TAU_ID)
+        .limit(1)
+        .single();
+
+      const { error } = await self
+        .from('profiles')
+        .update({ study_track_id: tauTrack!.id })
+        .eq('id', ids.runiSelf);
+
+      expect(error).not.toBeNull();
+      expect(error!.message).toMatch(/must belong to the student's own university/i);
+    });
+
+    it('cannot see course-track links belonging to another university', async () => {
+      const { data: tauCourse } = await admin
+        .from('courses')
+        .select('id')
+        .eq('university_id', TAU_ID)
+        .limit(1)
+        .single();
+
+      const { data } = await self
+        .from('course_tracks')
+        .select('course_id')
+        .eq('course_id', tauCourse!.id);
+
+      expect(data).toEqual([]);
     });
 
     it('an unenumerable listing does not leak Tel Aviv rows either', async () => {

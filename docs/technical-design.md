@@ -6,9 +6,13 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.3.1
+Version:     0.4.0
 
 Modifications:
+    0.4.0 - 2026-08-05 - Phase 1c as built (section 9): decisions D8-D11,
+                         study tracks, the reworked preference questionnaire,
+                         route guarding, and the revised match scoring model
+                         now that every preference term is a set overlap
     0.3.1 - 2026-08-05 - Recorded the RLS policies as built (Phase 1b):
                          app_can_see_profile, split request-update policies,
                          two immutability triggers, one-directional block
@@ -460,13 +464,26 @@ the deterministic prefilter. Returns candidates ordered by `rule_score` desc.
 
 Scoring model, total 100:
 
+**Revised in Phase 1c.** The questionnaire is now four multi-select questions
+plus languages, so every preference term is an **overlap between two sets**
+rather than a comparison of two single values. That changes the arithmetic: two
+students who both answer "mornings and evenings" now score full marks, where the
+old single-value model would have forced each to pick one and might have scored
+them as a mismatch.
+
 | Signal | Points | Rule |
 |---|---|---|
 | Schedule overlap | 0–40 | `least(overlap_minutes, 480) / 480 * 40` — 8h/week of overlap saturates |
-| Style compatibility | 0–30 | `study_style` equal → 30; complementary (`teaching`↔`need_help`) → 22; `discussion`↔`problem_drilling` → 15; else 8 |
-| Environment fit | 0–15 | `noise_preference` equal → 8, adjacent → 4; `place_preference` equal → 7, either is `online` → 3 |
-| Intent complementarity | 0–10 | `can_tutor`↔`need_help` → 10; `want_partner`↔`want_partner` → 8; `need_help`↔`need_help` → 4 |
-| Other shared courses | 0–5 | `least(count, 3) / 3 * 5` |
+| Time-of-day overlap | 0–20 | Jaccard overlap of `preferred_time_blocks`, scaled. Any shared block is worth something; identical sets score full |
+| Environment overlap | 0–15 | Sets intersect → 15; disjoint (`quiet` vs `discussion` only) → 0. This is the one preference where a mismatch genuinely spoils a session |
+| Group size overlap | 0–8 | Sets intersect → 8, else 0 |
+| Language overlap | 0–7 | Sets intersect → 7, else 0. A pair with no shared language cannot study together whatever else lines up |
+| Saturday agreement | 0–5 | `studies_on_saturday` equal → 5 |
+| Intent complementarity | 0–5 | `can_tutor`↔`need_help` → 5; `want_partner`↔`want_partner` → 4; `need_help`↔`need_help` → 2 |
+
+Shared-course count is no longer scored separately: the candidate list is
+already scoped to one course, and a second shared course is weak evidence
+compared with any of the terms above.
 
 Hard filters applied before scoring — these are the correctness-critical part:
 
@@ -1026,7 +1043,7 @@ updated, no known regressions.
 | ~~**1a** Schema~~ **done** | `0.3.0` | `feature/db-schema` | 9 migrations (§1.1–1.8 plus grants), two-tenant seed with a past and a current term, generated `database.types.ts`, 20 schema integration tests | ✅ `supabase db reset` clean; 43 tests pass; `npm run verify` green |
 | ~~**1.5** Design system~~ **done** | `0.4.0` | `feature/design-system` | Kinetic Learning tokens, restyled primitives, Chip, landing page rebuilt to the Stitch design | ✅ verify green; landing matches the reference at desktop and mobile |
 | ~~**1b** RLS~~ **done** | `0.5.0` | `feature/rls-policies` | 33 policies across 14 tables, `app_can_see_profile`, two immutability triggers, 35 adversarial tests run as real signed-in students | ✅ 78 tests pass; suite verified to fail when a policy is deliberately weakened |
-| **1c** Auth + onboarding | `0.6.0` | `feature/auth-onboarding` | Login, callback, domain gate, 4-step onboarding, profile/prefs/availability/enrollment CRUD | A new student can sign up and reach an empty dashboard |
+| ~~**1c** Auth + onboarding~~ **done** | `0.6.0` | `feature/auth-onboarding` | Email+password auth, domain gate, route guards, study tracks, 4-step onboarding, dashboard | ✅ e2e proves a new student signs up and reaches the dashboard, on desktop and mobile |
 | **2** Rule matching | `0.7.0` | `feature/matching-engine` | `rpc_find_candidates`, course dashboard, `MatchCard`, filters | Two seeded students with overlapping slots see each other, correctly scored |
 | **3a** Requests | `0.8.0` | `feature/connection-requests` | Request send/accept/decline/cancel, requests page, unordered-pair constraint | Full request lifecycle works; duplicate request rejected by the DB, not just the UI |
 | **3b** AI re-rank | `0.9.0` | `feature/ai-rerank` | `/api/ai/rerank`, `match_scores` cache, structured output validation, rate limit, graceful degradation | Matches show AI reasons; with the API key removed the page still renders rule-ranked results |
@@ -1316,3 +1333,67 @@ is a good sign the hybrid availability decision matches how students think.
 | `ai_powered_matching` | `/dashboard` | 2 |
 | `course_dashboard` | `/courses/[offeringId]` | 2 |
 | `smart_interaction` | `/partners` — icebreaker card + WhatsApp handoff, **not** a chat (C1) | 4a |
+
+---
+
+## 9. Phase 1c as built — auth, tracks and onboarding
+
+### 9.1 Decisions taken in this phase
+
+| # | Decision | Consequence |
+|---|----------|-------------|
+| D8 | **Email + password** authentication, no magic link and no SMS OTP | The university email domain is the only enrolment check. Local Supabase has `enable_confirmations = false`, so signup returns a session immediately; **turn confirmations on before any real deployment**, or anyone can register with someone else's address. |
+| D9 | **Study track is structural**, not free text | New `study_tracks` and `course_tracks` tables; `profiles.degree_program` (text) replaced by `profiles.study_track_id`. |
+| D10 | The course picker is **never filtered by year of study** | Students extend degrees and take courses out of sequence. The picker lists the whole track, and search reaches the entire current-term catalog for off-track courses. |
+| D11 | Phone number is collected **at the first connection request**, not during onboarding | Asking a stranger for their phone number before showing any value is the classic drop-off point, and the consent notice lands better at the moment the number is about to be used. **Phase 4a owns this**; the WhatsApp handoff cannot ship without it. |
+
+### 9.2 Why `course_tracks` is many-to-many
+
+Linear Algebra genuinely belongs to Computer Science, Data Science and
+Economics. Duplicating it per track would split the matching pool for that
+course three ways — the exact opposite of what the product exists to do. The
+seed deliberately maps shared maths courses to several tracks so this case is
+exercised rather than theoretical.
+
+### 9.3 Preference questions, as specified
+
+Three multi-selects and a yes/no, plus languages:
+
+| Question | Column | Type |
+|---|---|---|
+| Preferred study hours | `preferred_time_blocks` | `time_block[]` — morning / noon / evening / other |
+| Study environment | `study_environments` | `study_environment[]` — discussion / quiet |
+| Group size | `group_sizes` | `group_size_choice[]` — small / large |
+| Study on Saturday? | `studies_on_saturday` | `boolean` |
+| Languages | `spoken_languages` | `text[]` |
+
+Dropped, because they are not asked: `study_style`, `noise_preference`,
+`place_preference`, `group_size_preference`, `pace`, `goal`, `notes`, and their
+enum types. Destructive on purpose — the application has never been deployed,
+so a compatibility shim would be dead weight.
+
+These are **profile defaults**. Per-course overrides are a planned extension,
+which is why the row is keyed on the profile alone.
+
+### 9.4 Route guarding
+
+`src/proxy.ts` (Next 16 renamed the `middleware` convention to `proxy`) refreshes
+the session and routes by state: signed out → `/login?next=…`; signed in but
+unfinished → `/onboarding`; finished → out of `/onboarding`. The landing page is
+excluded from the matcher, so the marketing site still renders with no Supabase
+configured — which is also what lets the landing e2e tests run without a
+database.
+
+This is convenience, **not** the security boundary. RLS is. Every guard here
+could be bypassed and the queries behind it would still return nothing.
+
+### 9.5 Design conflicts resolved
+
+- **C6 resolved.** The Stitch onboarding shows "Sync Courses" from a "Reichman
+  University Portal". There is no such integration and building one needs the
+  university's cooperation, so the step is the course picker instead. Promising
+  a sync we cannot deliver was the worst of the options.
+- **C2 applied.** The app shell's navigation omits the design's "Chat" tab.
+
+Still open: C4, C5, C7, C8, C9 — study groups, session scheduling, presence,
+course meeting times, and sections.
