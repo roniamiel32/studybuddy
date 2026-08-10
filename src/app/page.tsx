@@ -56,7 +56,7 @@ const FEATURES = [
  */
 export default function LandingPage() {
   return (
-    <div className="bg-dotted flex min-h-full flex-col">
+    <div className=" flex min-h-full flex-col">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         <Logo />
         <Link href="/login" className={buttonVariants({ variant: 'outline', size: 'sm', pill: true })}>

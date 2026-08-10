@@ -229,7 +229,7 @@
    * The dotted field the app screens sit on. Faint enough to read as texture
    * rather than pattern — it gives the flat pastel surface something to be,
    * without competing with content.
-   */
+     */
   .bg-dotted {
     background-image: radial-gradient(
       circle at 1px 1px,
@@ -238,6 +238,8 @@
     );
     background-size: 40px 40px;
   }
+ 
+
 
   /*
    * The template's named classes, rebuilt from the theme tokens above rather
@@ -288,12 +290,12 @@
    * The dotted field, at the template's 30px spacing. Kept distinct from
    * `.bg-dotted`, which is the finer 40px grid the onboarding and marketing
    * pages use.
-   */
   .bg-pattern {
     background-color: var(--color-surface);
     background-image: radial-gradient(var(--color-brand-fixed) 2px, transparent 2px);
     background-size: 30px 30px;
   }
+   */
 
   /* Sticky headers and the bottom nav, per the design system's glass spec. */
   .glass {
