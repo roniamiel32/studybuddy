@@ -13,10 +13,9 @@
  */
 
 import Link from 'next/link';
-
+import { Logo } from '@/components/ui/logo';
 import { DesktopNav, MobileNav } from '@/components/layout/app-nav';
 import { ProfileBadge } from '@/components/layout/profile-badge';
-import { Wordmark } from '@/components/marketing/wordmark';
 import { Button } from '@/components/ui/button';
 import { getUnreadCount } from '@/features/chat/queries';
 import { signOut } from '@/features/auth/actions';
@@ -40,12 +39,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="bg-pattern flex min-h-full flex-1 flex-col">
       <header className="glass border-outline-variant/30 sticky top-0 z-40 border-b">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3">
-          <Link
-            href="/dashboard"
-            className="focus-visible:ring-brand/35 flex shrink-0 items-center gap-3 rounded-md focus-visible:ring-4 focus-visible:outline-none"
-          >
+          <Link href="/dashboard"
+            className="focus-visible:ring-brand/35 flex shrink-0 items-center gap-3 rounded-md focus-visible:ring-4 focus-visible:outline-none">
             <ProfileBadge fullName={profile.fullName} avatarUrl={profile.avatarUrl} />
-            <Wordmark className="text-body-lg" />
+            <Logo />
           </Link>
 
           <DesktopNav unreadCount={unreadCount} viewerId={user.id} />

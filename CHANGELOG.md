@@ -4,6 +4,32 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] — 2026-08-10
+
+Header logo, and brand-only course banners.
+
+### Changed
+- The app header carries a logo image and wordmark (`src/components/ui/logo.tsx`)
+  in place of the text-only `Wordmark`, and the profile badge is now the avatar
+  alone — the name it used to show is repeated by the logo beside it.
+- Course-card banners use purple and orange only, dropping the green, teal and
+  maroon gradients that did not belong to the brand.
+
+### Fixed
+- **`public/logo.PNG` renamed to `public/logo.png`.** The component requests
+  `/logo.png`, and macOS resolves that case-insensitively while Linux does not —
+  so the logo worked locally and would have 404'd on Vercel. The kind of bug that
+  only appears once it is deployed.
+
+### Note
+The banner gradients and the wordmark use literal hex values rather than the
+theme tokens (`brand-bright`, `grape-bright`, `sunset`). Everything else in the
+app derives its colour from `@theme`, which is what keeps a palette change in one
+place — worth converting when convenient. See design section 8.3.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 266 tests, production build.
+
 ## [0.14.0] — 2026-08-10
 
 Phase 4 — the Profile and Courses tabs, and per-course preference overrides.

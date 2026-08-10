@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.14.0** — a profile, a course grid, and preferences that can differ per course.
+Version **0.14.1** — a profile, a course grid, and preferences that can differ per course.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final

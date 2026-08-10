@@ -31,12 +31,12 @@ import { cn } from '@/lib/utils';
  * being decoration.
  */
 const BANNERS = [
-  'from-brand to-brand-bright',
-  'from-grape to-grape-bright',
-  'from-sunset to-sunset-deep',
-  'from-[#297a35] to-[#3f9c4d]',
-  'from-[#296b7a] to-[#3f8b9c]',
-  'from-[#7a2952] to-[#9c3f6b]',
+  'from-[#635BFF] to-[#AF52DE]',
+  'from-[#AF52DE] to-[#635BFF]',
+  'from-[#AF52DE] to-[#FF8A50]',
+  'from-[#FF8A50] to-[#AF52DE]',
+  'from-[#635BFF] to-[#FF8A50]',
+  'from-[#FF8A50] to-[#635BFF]',
 ] as const;
 
 /**
