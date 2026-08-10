@@ -6,9 +6,14 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.8.0
+Version:     0.9.0
 
 Modifications:
+    0.9.0 - 2026-08-10 - Added section 13: Phase 4 as built — per-course
+                         preference overrides, decisions D26-D29, why the
+                         overrides live on `enrollments`, the two places the
+                         resolution rule is implemented, and the deviations from
+                         the course-dashboard design
     0.8.0 - 2026-08-10 - Added section 12: Phase 3 as built — conversations and
                          messages, decisions D21-D25, why the participation rule
                          is stricter than tenancy, what Realtime does and does
@@ -1863,3 +1868,105 @@ that is the change to make.
   leaves no way to ask for a different opening line.
 - **C4, C5, C8, C9** remain unresolved: study groups, session scheduling, course
   meeting times and sections. The per-course dashboard still waits on C8 and C9.
+
+---
+
+## 13. Phase 4 as built — Profile, Courses, and per-course preferences
+
+### 13.1 Decisions taken in this phase
+
+| # | Decision | Consequence |
+|---|----------|-------------|
+| D26 | **Per-course overrides live on `enrollments`** | Four nullable columns on a table already keyed by `(profile_id, course_offering_id)`. No new table, no new policies, no extra join in the matching query. |
+| D27 | **NULL means inherit** | Not "no preference" — the global columns forbid that anyway. This is why the columns are nullable arrays rather than empty ones: an empty array would be a third state with no meaning, and a CHECK constraint rejects it. |
+| D28 | **An override equal to the global answer is stored as NULL** | `normaliseOverride` nulls any field that matches. Otherwise a later change to a global preference would silently skip that course. |
+| D29 | **The last course cannot be dropped** | Matching is anchored to a shared course, so a student with none is unmatchable. The same rule step 2 of onboarding enforces, and the control is hidden rather than offered and refused. |
+
+### 13.2 Why the overrides are not their own table
+
+The obvious shape is `course_preferences (profile_id, course_offering_id, …)`. It
+was rejected: that is the primary key `enrollments` already has. A separate table
+would duplicate the key, need its own four RLS policies, and add a join to the
+matching function — in exchange for nothing the existing row cannot hold.
+`enrollments` already carries a per-course *answer* in `intent`, so this is the
+second thing of that kind, not the first.
+
+The Phase 1a comment on `learning_preferences` called this out in advance:
+*"Per-course overrides are a planned extension; nothing here assumes these are
+global forever."* This is that extension, and it landed where that comment
+pointed.
+
+What the placement decides is **visibility**. `enrollments` is readable by you and
+by visible classmates, because that is how shared courses are computed — so the
+override columns are readable too. That is not a new disclosure:
+`learning_preferences` carries the identical policy, and a candidate's preferences
+are already shown on their match card as trait chips. A student's study style is
+not a secret in this product; their phone number and date of birth are, and both
+live in separate tables for exactly that reason. There is a test asserting that
+the two policies agree, so if preferences ever do become private it will fail and
+name both places that have to change.
+
+### 13.3 The resolution rule exists twice, and that is the risk worth naming
+
+`coalesce(override, global)` is implemented in SQL, in the matching function, to
+decide **who is shown**. It is implemented again in TypeScript,
+`resolveCoursePreferences`, to decide **what the screen says is in force**. Two
+implementations of one rule is a standing hazard: a screen that claims one thing
+while the ranking does another is worse than no screen at all.
+
+Three things hold them together:
+
+- The SQL resolves each side's preferences **once**, in an `effective` CTE, and
+  everything downstream reads only those columns. Inlining the coalesce at each
+  comparison would have meant repeating it a dozen times, and one missed
+  repetition would silently score a course against the global answer.
+- The unit tests pin the TypeScript half to exactly the SQL's behaviour, including
+  a round-trip property: normalise then resolve returns what the student
+  submitted, whether it was stored as a value or as null.
+- The integration tests assert the SQL half through the RPC — an in-person
+  override on one course removes a remote-only classmate from that course and
+  leaves them on every other.
+
+**v3 is behaviour-preserving with no overrides set.** All 18 Phase 2 matching
+tests passed unchanged after the rewrite, which is the evidence that the
+restructuring did not quietly alter the score.
+
+### 13.4 The matching function's return values now describe the course
+
+`preferred_time_blocks`, `study_environments`, `study_formats` and `group_sizes`
+on a returned row are the candidate's preferences **as they apply to that
+course**, not their global ones. A course page that showed a classmate's global
+answer while ranking them on their override would be explaining the wrong thing.
+
+### 13.5 Deviations from the course-dashboard design
+
+| Design | What was built | Why |
+|---|---|---|
+| "Mon, Wed, Fri 10:00–11:30", "Turing Hall, Room 402", "Prof. Alan Smith", "View Syllabus" | Code, faculty, classmate count | The schema has no columns for meeting times, rooms, lecturers or syllabus links — conflicts **C8** and **C9**, still open. Inventing a room for a course whose *name* may itself be unverified would compound one guess with three more |
+| "Study Groups — Join Next Session, Thu 6:00 PM" | Not built | Study groups are **C4**, session scheduling **C5**. A prominent CTA that does nothing is worse than its absence |
+| "All Students / Same Section / Project Partners / Filters" chips | Not built | Sections are **C9**. `intent` could power a project-partners filter today, but a row of four chips where one works reads as broken |
+| "High Match" badge; `Message` and `Connect` buttons | The existing score badge and "Send message" | Both already exist from Phases 2 and 3. A second visual language for the same two actions is precisely the drift this project keeps avoiding |
+| Material Symbols, the design's own palette, Plus Jakarta + Be Vietnam Pro | lucide-react, Kinetic Learning tokens | The *layout* is reproduced — breadcrumb, title block, sidebar beside a two-column student grid, card shapes and hover lift. The literal palette was not copied, for the reason given in §8.3 |
+| Moodle-style course cards with a coloured banner | Built, colour **derived from the course code** | A colour column would be one more thing to seed, migrate and keep distinct. Hashing the code gives a stable colour per course, identical on every student's screen, for free |
+
+### 13.6 Still open after this phase
+
+- **Saturday and spoken languages are not overridable.** Neither is a property of
+  a course: a student who does not study on Saturday does not study on Saturday
+  for Linear Algebra either, and the language you can work in does not change by
+  subject. Four more nullable columns nobody would set differently would be four
+  more states to reason about in the scoring function.
+- **An override cannot be set from the grid**, only from a course page. The grid
+  marks which courses carry one.
+- **Availability is still edited through the onboarding step**, which the Profile
+  tab links to rather than duplicating the grid.
+- **C4, C5, C8, C9 remain open**, and this phase is where their absence is most
+  visible: the course page has a sidebar shaped like the design's and can only
+  fill half of it.
+- **The Vitest suites now run serially.** Every integration suite creates real auth
+  users in one local Supabase, and a fourth suite was enough to make `createUser`
+  exceed the default 5s timeout — a failure that reads as a broken schema and is
+  really contention. Playwright already ran with a single worker for the same
+  reason. It costs wall-clock time on the unit tests, which is the right trade: a
+  suite that fails for reasons unrelated to the code teaches people to re-run
+  instead of read.

@@ -423,25 +423,53 @@ export type Database = {
         Row: {
           course_offering_id: string
           created_at: string
+          group_sizes: Database["public"]["Enums"]["group_size_choice"][] | null
           id: string
           intent: Database["public"]["Enums"]["enrollment_intent"]
+          preferred_time_blocks:
+            | Database["public"]["Enums"]["time_block"][]
+            | null
           profile_id: string
+          study_environments:
+            | Database["public"]["Enums"]["study_environment"][]
+            | null
+          study_formats: Database["public"]["Enums"]["study_format"][] | null
           university_id: string
         }
         Insert: {
           course_offering_id: string
           created_at?: string
+          group_sizes?:
+            | Database["public"]["Enums"]["group_size_choice"][]
+            | null
           id?: string
           intent?: Database["public"]["Enums"]["enrollment_intent"]
+          preferred_time_blocks?:
+            | Database["public"]["Enums"]["time_block"][]
+            | null
           profile_id: string
+          study_environments?:
+            | Database["public"]["Enums"]["study_environment"][]
+            | null
+          study_formats?: Database["public"]["Enums"]["study_format"][] | null
           university_id: string
         }
         Update: {
           course_offering_id?: string
           created_at?: string
+          group_sizes?:
+            | Database["public"]["Enums"]["group_size_choice"][]
+            | null
           id?: string
           intent?: Database["public"]["Enums"]["enrollment_intent"]
+          preferred_time_blocks?:
+            | Database["public"]["Enums"]["time_block"][]
+            | null
           profile_id?: string
+          study_environments?:
+            | Database["public"]["Enums"]["study_environment"][]
+            | null
+          study_formats?: Database["public"]["Enums"]["study_format"][] | null
           university_id?: string
         }
         Relationships: [

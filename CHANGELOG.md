@@ -4,6 +4,91 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] — 2026-08-10
+
+Phase 4 — the Profile and Courses tabs, and per-course preference overrides.
+
+### Added
+- **Per-course preference overrides**, on `enrollments`. That table is already
+  keyed by exactly `(profile_id, course_offering_id)`, already holds a per-course
+  answer in `intent`, and already has owner-scoped insert/update/delete policies —
+  so the four nullable columns needed no new policy and no new join. **NULL means
+  inherit**, not "no preference", which is why they are nullable arrays rather
+  than empty ones.
+- **`rpc_find_candidates` v3**, which resolves preferences PER COURSE. This is what
+  makes the feature real rather than decorative: a student who sets "in person" for
+  one class is filtered against that class on that basis, while every other course
+  keeps using the global answer. An `effective` CTE resolves each side's
+  preferences once, so the coalesce cannot be forgotten at one of a dozen
+  comparison sites.
+- **The Profile tab** (`/settings`): photo upload to Supabase Storage that updates
+  the header and every match card in the same navigation, personal details, and
+  the global study preferences. Three independent forms, so a rejected photo does
+  not discard preference edits made in the same visit.
+- **The Courses tab** (`/courses`): a Moodle-style grid of course cards with a
+  colour banner derived from the course code — stable per course, on every
+  student's screen, with no colour column to seed or migrate. Add a course from a
+  degree-scoped picker; drop one behind a two-press confirmation.
+- **The per-course page** (`/courses/[offeringId]`): course facts, the preferences
+  in force, and matches scoped to that course alone — `rpc_find_candidates` has
+  accepted an offering id since Phase 2 precisely so this screen could exist.
+- **"Edit preferences for this course"**, a native `<dialog>` so focus trapping,
+  Escape and the backdrop come from the platform. Every question shows the global
+  answer beneath it, and there is a one-press way back to inheriting.
+- 38 tests: 10 integration proving an override changes who is matched for that
+  course and nothing else, 19 unit for the resolution rules, and 9 e2e across the
+  three screens.
+
+### Changed
+- The last course cannot be dropped. Matching is anchored to a shared course, so a
+  student with none is unmatchable — the same rule step 2 of onboarding enforces.
+  The control is hidden rather than offered and then refused.
+- An override equal to the global answer is stored as **NULL, not a copy**.
+  Otherwise a later change to the global preference would silently skip that
+  course and the student would have no way to find out why.
+- Changing global preferences does **not** overwrite a course that has its own
+  answers, and the Profile tab says so. Without that line a student changes a
+  default, sees one course not move, and concludes the save is broken.
+- `uploadAvatar` moved to `src/features/profile/avatar.ts`, shared by onboarding
+  and the Profile tab rather than duplicated. Two copies of an upload that fails
+  *silently* on a rejected file would be two places for that behaviour to drift,
+  invisibly.
+- `getOnboardingProfile` additionally returns `isDiscoverable` and `degreeName`.
+- Vitest now runs **one test file at a time** with a 90s hook timeout. Every
+  integration suite creates real auth users in the same local Supabase, and a
+  fourth suite was enough to make `createUser` blow the default 5s timeout — a
+  failure that looks like a broken schema and is really contention. Same reason
+  Playwright already runs with a single worker.
+
+### Deviations from the supplied design
+| Design | What was built | Why |
+|---|---|---|
+| Meeting times, room, lecturer, "View syllabus" | Code, faculty, classmate count | The schema has no columns for any of it — design conflicts C8 and C9. Inventing a room for a course whose *name* is already unverified would compound one guess with three more |
+| "Study Groups — join the next session" | Not built | Study groups are conflict C4 and session scheduling C5. A CTA that does nothing is worse than its absence |
+| "Same Section" / "Project Partners" filter chips | Not built | Sections are C9. `intent` exists and could power a "project partners" filter, but a row of chips where one works and three are dead reads as broken |
+| "High Match" badge, `Connect` button | The existing score badge and "Send message" | Both already exist from Phases 2 and 3; a second visual language for the same two actions would be the drift this project has been avoiding |
+| Material Symbols, its own palette and fonts | lucide-react and the Kinetic Learning tokens | The layout is reproduced — breadcrumb, title, sidebar-plus-grid, card shapes. Copying the palette would give the app two colour systems that disagree the first time either changes |
+
+### Known limitations
+- **Saturday and spoken languages are not overridable.** Neither is a property of
+  a course: a student who does not study on Saturday does not study on Saturday
+  for Linear Algebra either.
+- **The override cannot be set from the Courses grid**, only from a course page.
+  The grid marks which courses carry one.
+- **Availability is still edited through the onboarding step.** The Profile tab
+  links to it rather than duplicating the grid.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 266 tests, production build — twice in a
+row, to confirm the parallelism fix. Playwright: 54 e2e tests across chromium and
+mobile-safari.
+
+The override was verified end to end rather than assumed: the integration suite
+sets "in person" on one course and asserts the remote-only classmate disappears
+from that course and stays visible on the other, and the e2e suite does the same
+thing through the modal, checks the grid's "Custom here" badge, then clears it and
+watches the classmate come back.
+
 ## [0.13.0] — 2026-08-10
 
 Renamed the Requests tab to Messages.

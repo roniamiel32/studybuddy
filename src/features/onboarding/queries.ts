@@ -4,9 +4,10 @@
  * Description: Reads backing the onboarding flow. Every query here runs as the
  *              signed-in student, so RLS has already scoped the results to
  *              their university before this code sees a row.
- * Version:     0.11.0
+ * Version:     0.14.0
  *
  * Modifications:
+ *     0.14.0 - 2026-08-10 - isDiscoverable and degreeName for the Profile tab
  *     0.11.0 - 2026-08-09 - CourseSource shared with the courses feature
  *     0.10.0 - 2026-08-09 - getDegreeOfferings replaces the university-wide read
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
@@ -45,6 +46,10 @@ export interface OnboardingProfile {
   onboardingCompletedAt: string | null;
   /** The signed-in address, used to suggest a display name on step 1. */
   email: string;
+  /** Whether classmates can see them at all. Editable from the Profile tab. */
+  isDiscoverable: boolean;
+  /** Shown read-only on the Profile tab; the degree decides the course catalog. */
+  degreeName: string | null;
 }
 
 /**
@@ -60,7 +65,7 @@ export async function getOnboardingProfile(): Promise<OnboardingProfile> {
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'full_name, degree_id, city, year_of_study, avatar_url, onboarding_completed_at, universities(name)',
+      'full_name, degree_id, city, year_of_study, avatar_url, onboarding_completed_at, is_discoverable, universities(name), degrees(name)',
     )
     .eq('id', user.id)
     .single();
@@ -86,6 +91,8 @@ export async function getOnboardingProfile(): Promise<OnboardingProfile> {
     universityName: data.universities?.name ?? 'your university',
     onboardingCompletedAt: data.onboarding_completed_at,
     email: user.email ?? '',
+    isDiscoverable: data.is_discoverable,
+    degreeName: data.degrees?.name ?? null,
   };
 }
 
