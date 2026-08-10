@@ -7,9 +7,10 @@
  *              profile route yet. Rather than ship a control that goes nowhere,
  *              it expands the card in place to show why this person was matched
  *              — which is the question a student actually has at that moment.
- * Version:     0.8.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Study track no longer shown
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
  */
 
@@ -59,7 +60,7 @@ export function MatchCard({ match }: MatchCardProps) {
 
       <h3 className="text-label-md text-lg">{match.fullName}</h3>
       <p className="text-outline mb-3 text-label-sm font-normal">
-        {match.trackName ?? 'Classmate'}
+        {match.degreeName ?? 'Classmate'}
       </p>
 
       <ul className="mb-4 flex flex-wrap justify-center gap-1.5">

@@ -5,9 +5,10 @@
  *              and options. Keeping it here rather than inline in each page
  *              means the stepper, the pages and the validation schemas cannot
  *              disagree about how many steps there are or what they are called.
- * Version:     0.6.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Study format options; track copy removed
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  */
 
@@ -58,6 +59,22 @@ export const ENVIRONMENT_OPTIONS = [
 export const GROUP_SIZE_OPTIONS = [
   { value: 'small', label: 'Small', hint: 'Two or three people', icon: '👥' },
   { value: 'large', label: 'Large', hint: 'A proper study group', icon: '👨‍👩‍👧‍👦' },
+] as const;
+
+export const STUDY_FORMAT_OPTIONS = [
+  {
+    value: 'in_person',
+    label: 'In person',
+    hint: 'On campus, a cafe, someone\u2019s place',
+    icon: '\ud83c\udfeb',
+  },
+  { value: 'remote', label: 'Remote', hint: 'Zoom, Meet, a shared screen', icon: '\ud83d\udcbb' },
+] as const;
+
+export const DEGREE_LEVEL_OPTIONS = [
+  { value: 'bachelors', label: "Bachelor's" },
+  { value: 'masters', label: "Master's" },
+  { value: 'phd', label: 'PhD' },
 ] as const;
 
 export const LANGUAGE_OPTIONS = [

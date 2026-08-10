@@ -8,9 +8,11 @@
  *              middleware guards, server actions, RLS, the database triggers
  *              and the UI. Everything else tests a layer; this tests that the
  *              layers fit together.
- * Version:     0.6.0
+ * Version:     0.11.0
  *
  * Modifications:
+ *     0.11.0 - 2026-08-09 - Placeholder catalog and the course requirement
+ *     0.10.0 - 2026-08-09 - Law-degree course filtering regression test
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  */
 
@@ -81,26 +83,48 @@ test.describe('signup and onboarding', () => {
     await expect(page).toHaveURL(/\/onboarding$/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('about you');
 
-    // The university was never asked for — it is derived from the email domain.
-    await expect(page.getByText('Reichman University')).toBeVisible();
+    // Shown, but read-only: derived from the email domain, never chosen.
+    const university = page.getByLabel('University');
+    await expect(university).toHaveValue('Reichman University');
+    await expect(university).toHaveAttribute('readonly', '');
 
-    // ---- Step 1: basics ----------------------------------------------------
+    // ---- Step 1: academic and personal profile -----------------------------
     await page.getByLabel('Your name').fill('Test Student');
-    await page.getByLabel('Study track').selectOption({ label: 'Computer Science' });
+    await page.getByLabel('Degree level').selectOption('bachelors');
+    await page.getByLabel('Degree', { exact: true }).selectOption({ label: 'Computer Science' });
+    // Study track was removed: degree level and degree are the only academic
+    // classification now.
+    await expect(page.getByLabel('Study track')).toHaveCount(0);
     await page.getByLabel('Year of study').selectOption('2');
+    await page.getByLabel('City').fill('Tel Aviv');
+    await page.getByLabel('Date of birth').fill('2003-06-15');
     await page.getByRole('button', { name: 'Continue' }).click();
 
     // ---- Step 2: courses ---------------------------------------------------
     await expect(page).toHaveURL(/\/onboarding\/courses$/);
 
-    // Every course on the track is listed, not just those for year 2.
+    /*
+     * The Computer Science catalog, and only it. A Law student seeing these was
+     * the filtering bug; the heading naming the degree is what proves the list is
+     * scoped rather than the whole university.
+     */
+    await expect(page.getByRole('heading', { name: 'Computer Science' })).toBeVisible();
     const courseButtons = page.locator('button[aria-pressed]');
     await expect(courseButtons.first()).toBeVisible();
     expect(await courseButtons.count()).toBeGreaterThan(5);
 
+    /*
+     * Nothing chosen yet, so Continue is closed. Matching runs on shared
+     * courses, so a student who leaves this step with none is unmatchable and
+     * the three steps after it cannot help them.
+     */
+    await expect(page.getByRole('button', { name: 'Continue' })).toBeDisabled();
+    await expect(page.getByText(/Choose a course first/)).toBeVisible();
+
     await courseButtons.nth(0).click();
     await courseButtons.nth(1).click();
     await expect(page.getByText('2 selected')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continue' })).toBeEnabled();
 
     await page.getByRole('button', { name: 'Continue' }).click();
 
@@ -119,6 +143,16 @@ test.describe('signup and onboarding', () => {
 
     // Multi-select: two times of day at once, which the old single-value schema
     // could not have expressed at all.
+    /*
+     * "In person" is pre-selected, so clicking it would UNCHECK it. Adding
+     * "Remote" instead exercises the multi-select and leaves both chosen — which
+     * is also the answer that matches the widest set of classmates.
+     */
+    await expect(
+      question('How do you want to meet?').getByRole('checkbox', { name: /In person/ }),
+    ).toBeChecked();
+    await choose('How do you want to meet?', 'Remote');
+
     await choose('When do you prefer to study?', 'Morning');
     await choose('When do you prefer to study?', 'Evening');
     await choose('How do you like to work?', 'Quiet study');
@@ -177,10 +211,11 @@ test.describe('signup and onboarding', () => {
 
     await expect(page).toHaveURL(/\/onboarding$/);
     // The institution name is derived from the domain.
-    await expect(page.getByText('Newcollege')).toBeVisible();
+    await expect(page.getByLabel('University')).toHaveValue('Newcollege');
 
-    const trackOptions = page.getByLabel('Study track').locator('option');
-    expect(await trackOptions.count()).toBeGreaterThan(1);
+    // Provisioning must create degrees, or step 1 would have an empty dropdown.
+    const degreeOptions = page.getByLabel('Degree', { exact: true }).locator('option');
+    expect(await degreeOptions.count()).toBeGreaterThan(1);
   });
 
   test('pre-fills the name from the email, and lets it be edited', async ({ page }) => {
@@ -200,6 +235,53 @@ test.describe('signup and onboarding', () => {
     // A guess, not a decision — it must remain editable.
     await page.getByLabel('Your name').fill('Dana L.');
     await expect(page.getByLabel('Your name')).toHaveValue('Dana L.');
+  });
+
+  test('offers the chosen degree its own courses, and only those', async ({ page }) => {
+    const email = newStudentEmail();
+
+    await page.goto('/signup');
+    await page.getByLabel('University email').fill(email);
+    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await expect(page).toHaveURL(/\/onboarding$/);
+
+    await page.getByLabel('Your name').fill('Law Student');
+    await page.getByLabel('Degree level').selectOption('bachelors');
+    await page.getByLabel('Degree', { exact: true }).selectOption({ label: 'Law' });
+    await page.getByLabel('Year of study').selectOption('1');
+    await page.getByLabel('City').fill('Tel Aviv');
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    await expect(page).toHaveURL(/\/onboarding\/courses$/);
+
+    /*
+     * Law has no seeded catalog, so this exercises the fallback end to end: the
+     * page renders empty, the picker asks /api/courses, and the API stores and
+     * returns the stock Law curriculum. An empty list here would be a dead end,
+     * since a student with no courses cannot be matched on anything.
+     */
+    await expect(page.getByRole('button', { name: /Introduction to Law/ })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByRole('button', { name: /Constitutional Law/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Contract Law/ })).toBeVisible();
+
+    /* The original bug: another degree's courses appearing under Law. */
+    await expect(page.getByRole('button', { name: /Computer Science/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Discrete Mathematics/ })).toHaveCount(0);
+
+    /* Provenance is stated: this is not the university's real syllabus. */
+    await expect(page.getByText(/standard course list for Law/i)).toBeVisible();
+
+    /* And the requirement holds on a generated catalog too. */
+    await expect(page.getByRole('button', { name: 'Continue' })).toBeDisabled();
+
+    await page.getByRole('button', { name: /Constitutional Law/ }).click();
+    await expect(page.getByRole('button', { name: 'Continue' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    await expect(page).toHaveURL(/\/onboarding\/preferences$/);
   });
 
   test('rejects an address that is not a university one', async ({ page }) => {

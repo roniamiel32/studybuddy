@@ -6,9 +6,18 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.5.0
+Version:     0.7.0
 
 Modifications:
+    0.7.0 - 2026-08-09 - Section 11.7: why the API never returns an empty
+                         catalog, decisions D18-D20 (the placeholder curriculum,
+                         its own provenance value, and the course requirement on
+                         step 2), and the limits of all three
+    0.6.0 - 2026-08-09 - Added section 11: the Smart Course API and decisions
+                         D15-D17, why the Law course-filtering bug was a
+                         read-path bug rather than an API one, the tenancy and
+                         cost controls on model-backed generation, step 1 as
+                         respecified, and the removal of study tracks
     0.5.0 - 2026-08-05 - Added section 10: the matching engine as built, why
                          rpc_find_candidates is SECURITY DEFINER and what that
                          obliges, the implemented score, cold-start seeding, and
@@ -1352,17 +1361,28 @@ is a good sign the hybrid availability decision matches how students think.
 | # | Decision | Consequence |
 |---|----------|-------------|
 | D8 | **Email + password** authentication, no magic link and no SMS OTP | The university email domain is the only enrolment check. Local Supabase has `enable_confirmations = false`, so signup returns a session immediately; **turn confirmations on before any real deployment**, or anyone can register with someone else's address. |
-| D9 | **Study track is structural**, not free text | New `study_tracks` and `course_tracks` tables; `profiles.degree_program` (text) replaced by `profiles.study_track_id`. |
-| D10 | The course picker is **never filtered by year of study** | Students extend degrees and take courses out of sequence. The picker lists the whole track, and search reaches the entire current-term catalog for off-track courses. |
+| D9 | ~~**Study track is structural**, not free text~~ — **superseded by D17 (§11.2)** | Introduced `study_tracks` and `course_tracks`, replacing `profiles.degree_program` (text) with `profiles.study_track_id`. The structural half was right and survives in `degrees`; the extra level did not, and was removed in v0.10.0. |
+| D10 | The course picker is **never filtered by year of study** | Students extend degrees and take courses out of sequence. The picker lists the whole **degree** ("track" as written here; see D17), and search narrows that degree-scoped list — deliberately not the whole university, which was the Law/CS bug fixed in v0.10.0 (§11.3). |
 | D11 | Phone number is collected **at the first connection request**, not during onboarding | Asking a stranger for their phone number before showing any value is the classic drop-off point, and the consent notice lands better at the moment the number is about to be used. **Phase 4a owns this**; the WhatsApp handoff cannot ship without it. |
 
-### 9.2 Why `course_tracks` is many-to-many
+### 9.2 Why `course_tracks` was many-to-many
+
+> **Superseded in v0.10.0.** `course_tracks` was dropped with the rest of the
+> track level (D17, §11.6); a course now has one `degree_id`. Kept here because
+> the problem it solved has not gone away — see the note below.
 
 Linear Algebra genuinely belongs to Computer Science, Data Science and
 Economics. Duplicating it per track would split the matching pool for that
-course three ways — the exact opposite of what the product exists to do. The
-seed deliberately maps shared maths courses to several tracks so this case is
-exercised rather than theoretical.
+course three ways — the exact opposite of what the product exists to do.
+
+**This is now a known limitation, not a solved problem.** `courses.degree_id` is
+single-valued, so a course shared between degrees has to be duplicated, and two
+students taking the same Linear Algebra from different degrees will not match on
+it. The honest trade was accepting that in exchange for removing a level that
+carried no information — and the fix, when it is needed, is a
+`course_degrees` join table, which reintroduces the many-to-many at the level
+that actually exists. Not done now because no degree other than the two seeded
+Computer Science ones has a hand-written catalog to share.
 
 ### 9.3 Preference questions, as specified
 
@@ -1532,3 +1552,171 @@ demonstrated.
 - The e2e suite showed one webkit timing flake in the form-preservation test
   during a full run; it passes in isolation and on re-run. Worth watching rather
   than declaring stable.
+
+---
+
+## 11. The Smart Course API, and the removal of study tracks (v0.10.0)
+
+### 11.1 The problem this phase solves
+
+Step 2 can only work if the institution's catalog exists. It does for the two
+seeded universities; for every other degree, and for every university the app
+provisions on first sight of an academic domain (D12), the catalog is empty and
+the student has nothing to pick. Asking them to type course names free-form
+would produce unmatched strings — two students in the same course entering
+"Intro to CS" and "Introduction to Computer Science" would never match, which
+defeats the primary matching signal.
+
+### 11.2 Decisions taken in this phase
+
+**D15 — the course catalog is generated on demand, per degree, and persisted as
+real rows.** `POST /api/courses { degreeId }` checks the database first; only on
+a miss does it ask a model for the degree's typical syllabus, then writes the
+courses and current-term offerings as ordinary FK-linked rows. The generated
+courses are not a separate "AI" kind of course: enrollments, matching and the
+course dashboard all treat them identically. What makes them distinguishable is
+`courses.source = 'ai_generated'` and `generated_at`.
+
+**D16 — generated catalogs are labelled in the UI, every time.** A model's guess
+at a university's syllabus is plausible, not authoritative; it may name courses
+that do not exist. The picker shows a standing notice that the list was suggested
+automatically and is unverified. This is the same principle as D14's refusal to
+draw invented university crests — the app must not assert something false about
+a real institution.
+
+**D17 — study tracks are removed; `degrees` is the only academic
+classification.** Tracks were introduced in Phase 1c as the thing a student
+picks, and §9.2 built `course_tracks` as many-to-many so a course could belong to
+several. In practice every track had exactly one same-named degree above it
+(v0.9.0 created them by promotion), so the level carried no information and gave
+two fields that could disagree. Degree level lives on `degrees`, so
+`degree_level` + `degree_id` fully classify a student.
+
+### 11.3 Why the Law bug was a read-path bug, not an API bug
+
+Reported: choosing Law in step 1 still listed Computer Science courses. It is
+worth recording that `/api/courses` was already filtering on `degree_id`
+correctly and was never the cause.
+
+The step 2 page read the catalog with `getCurrentTermOfferings()`, which filtered
+only on `terms.is_current` — so it returned the **whole university** catalog
+regardless of degree. Two consequences, one visible and one not:
+
+1. A Law student saw Computer Science courses.
+2. That list was non-empty, so the picker's `offerings.length === 0` guard was
+   false and `/api/courses` was **never called**. The generator looked broken
+   because the bug was hiding the condition that triggers it.
+
+The fix is `getDegreeOfferings(degreeId)`, which joins `courses` and constrains
+`courses.degree_id`. Client-side search narrows that same degree-scoped list and
+deliberately does not reach across degrees, which would reintroduce the bug in a
+subtler form. There is now an e2e test that signs up, picks Law, and asserts both
+that no CS course appears and that the student can still continue — the escape
+hatch matters, because a degree with no catalog must not trap anyone on step 2.
+
+### 11.4 Tenancy and cost, which are the two ways this endpoint could go wrong
+
+- **Tenancy:** the degree is read through the *caller's* Supabase client, so RLS
+  is the authorisation check rather than a hand-written `university_id`
+  comparison. A student cannot generate — or read — into another university's
+  degree. Writes then use elevated rights, since students have no insert
+  privilege on `courses`.
+- **Cost and abuse:** requests are recorded in `ai_generation_log` with
+  `task: 'course_generation'` and rate-limited per user from that table, so a
+  loop in a client cannot bill the project for an unbounded number of model
+  calls. Upserts use `onConflict: 'university_id,code'`, making a repeat request
+  idempotent instead of duplicating a catalog.
+- **Bad output:** the model's JSON is parsed against a zod schema (≤40 courses,
+  deduplicated by code) and discarded **whole** if any entry is invalid. A
+  partially-written catalog is worse than none, because the empty state is what
+  triggers a retry.
+- **No provider configured:** returns an empty catalog and a plain explanation,
+  never an error page. Onboarding must complete without an API key — a marker
+  requirement, since the graders will run this without our credentials.
+
+### 11.5 Step 1, as respecified
+
+Now: University (read-only, derived from the domain), Degree level, Degree, Year
+of study, City, Date of birth. Degree level filters the degree list. City and DOB
+feed the v0.9.0 proximity and age-gap bonuses; DOB is written to
+`profile_private`, so the date itself is never readable by classmates.
+
+The name field's placeholder is generic ("Jane Doe"). It had been a real name
+from testing, which reads to any other student as though the app expected them
+to be someone else.
+
+### 11.6 What removing tracks required
+
+Migration `20260809130000_remove_study_tracks.sql`, in order: a `do $$` guard
+that **refuses to run** while any course still derives its degree through
+`course_tracks` (dropping it first would orphan those courses); the three
+track-related triggers and their functions; `profiles.study_track_id`;
+`course_tracks`, then `study_tracks`; and a rebuild of `rpc_find_candidates`
+without `track_name`. `create or replace function` cannot change a return type,
+so the drop is explicit.
+
+`03_study_tracks.sql` became `03_degrees.sql` — 14 degrees, one of them a
+master's. Only Computer Science (Reichman) and the TAU degree carry courses; the
+rest are deliberately left empty, so the Smart Course API is exercised by the
+normal path rather than only in tests.
+
+### 11.7 Never an empty step 2 (v0.11.0)
+
+The Smart Course API could still hand a student an empty list — when no API key
+was configured, when the model failed, or when the daily cap was spent. The UI
+said so politely ("automatic course lookup is not switched on yet") and that was
+the end of the road.
+
+That is not a neutral outcome. Every downstream feature is built on shared
+courses: the score, the ranking, the reason printed on a match card. A student
+who leaves step 2 with no courses is unmatchable, and steps 3 and 4 cannot
+recover it. An empty catalog is a dead end dressed as a message.
+
+**D18 — when there is no model, store the stock curriculum for the degree.**
+`placeholderCatalog()` matches the degree name against a table of subjects and
+returns up to twelve conventional courses for it. Handwritten rather than
+generated on purpose: a fixed list costs nothing, is identical on every machine,
+is inspectable in review, and lets the whole flow be demonstrated and tested
+without an API key — which the graders will not have.
+
+**D19 — a placeholder is its own provenance value, not a kind of AI output.**
+`course_source` gained `'placeholder'` alongside `'ai_generated'`. Both are
+unverified and both are labelled in the UI, but they are different claims: a
+generated list is a model's attempt at *this* institution's syllabus, while a
+placeholder list is a generic curriculum that was never about this institution.
+Collapsing them would make it impossible to find and replace the placeholders
+later, once a key is configured, and would put the wrong sentence in front of the
+student. The picker words the two warnings differently.
+
+Three details worth recording, because each is a way this could have gone wrong:
+
+- **Codes are prefixed per degree** (`LAW-101`, `BCS-101`). `courses` is unique on
+  `(university_id, code)` and a row has one `degree_id`, so a code shared between
+  two degrees would be inserted once and then be silently missing from the second
+  degree's list. A test asserts uniqueness across every degree the app offers,
+  not just within one.
+- **The model is not called when no key is configured.** Previously every such
+  request still wrote a `not_configured` row to `ai_generation_log`, and the daily
+  cap counted it — an unconfigured deployment was rationing a student for calls
+  that never happened.
+- **The degree's own name is not always usable in a course title.** 'Other' is in
+  the default list a new institution is provisioned with, and the generic
+  template would have produced "Introduction to Other".
+
+**Also D20 — at least one course is required to leave step 2.** The server action
+already refused an empty selection whenever the degree had a catalog; the button
+now reflects it, disabled with the reason beside it and referenced by
+`aria-describedby`. The one exception is a catalog that is genuinely empty, which
+is now only reachable if the placeholder store itself fails: the requirement
+exists to keep a student matchable, and turning it into an unsatisfiable
+condition would trap them on step 2 with no action available. Client and server
+draw that line in the same place.
+
+**What is still true and unfixed.** A placeholder catalog is not the real
+syllabus. Two students at the same university on the same degree will match on
+these courses, which is the behaviour the product needs, but the names may not be
+what their registrar calls them. The path to correctness is a real syllabus
+import, and until then the warning has to stay on the screen. The placeholder
+path is also unrate-limited — it costs nothing, its upserts are idempotent, and
+it is reachable only while a degree's catalog is empty, which stops being true
+after the first call.

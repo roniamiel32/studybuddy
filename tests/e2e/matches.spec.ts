@@ -7,9 +7,10 @@
  *              Creates its own pair of students rather than relying on
  *              `npm run seed:students`, so the test passes on a freshly reset
  *              database and cannot silently depend on demo data.
- * Version:     0.8.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Assertions updated for degrees
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
  */
 
@@ -21,7 +22,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const PASSWORD = 'matches-e2e-1234';
 
 const RUNI = '11111111-1111-4111-8111-111111111111';
-const RUNI_CS_TRACK = '7ac00001-0000-4000-8000-000000000001';
+const RUNI_CS_DEGREE = 'de600001-0000-4000-8000-000000000001';
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -57,7 +58,7 @@ async function makeStudent(email: string, name: string): Promise<string> {
     .from('profiles')
     .update({
       full_name: name,
-      study_track_id: RUNI_CS_TRACK,
+      degree_id: RUNI_CS_DEGREE,
       year_of_study: 2,
       is_discoverable: true,
       onboarding_completed_at: new Date().toISOString(),

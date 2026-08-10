@@ -5,9 +5,10 @@
  *              accepted; the domain decides which institution the student
  *              belongs to, and an institution is created on first sight if it
  *              is not already known.
- * Version:     0.6.1
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Provisioning creates degrees, not tracks
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  *     0.6.1 - 2026-08-05 - Accept any .ac.il / .edu address, provisioning the
  *                          institution when the domain is new
@@ -106,34 +107,13 @@ async function resolveInstitution(email: string): Promise<Institution | null> {
     .from('university_domains')
     .insert({ domain, university_id: university.id, is_student_domain: true });
 
-  /*
-   * Degrees first, then one track per degree. A track's degree_id is NOT NULL,
-   * so the order matters — and the inserted ids have to be read back rather
-   * than assumed, since they are generated.
-   */
-  const { data: degrees } = await admin
-    .from('degrees')
-    .insert(
-      DEFAULT_DEGREES.map((degree) => ({
-        university_id: university.id,
-        name: degree.name,
-        level: 'bachelors' as const,
-      })),
-    )
-    .select('id, name');
-
-  if (degrees) {
-    await admin.from('study_tracks').insert(
-      degrees.map((degree) => ({
-        university_id: university.id,
-        degree_id: degree.id,
-        code:
-          DEFAULT_DEGREES.find((candidate) => candidate.name === degree.name)?.code ??
-          degree.name.slice(0, 8).toUpperCase(),
-        name: degree.name,
-      })),
-    );
-  }
+  await admin.from('degrees').insert(
+    DEFAULT_DEGREES.map((degree) => ({
+      university_id: university.id,
+      name: degree.name,
+      level: 'bachelors' as const,
+    })),
+  );
 
   /*
    * Re-read rather than trusting the row just written. If two students from the

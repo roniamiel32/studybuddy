@@ -4,6 +4,124 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-08-09
+
+Step 2 always has courses to pick, and now requires one.
+
+### Added
+- **A placeholder catalog per degree**, so `/api/courses` never returns an empty
+  list for a degree it recognises. With no API key — the state the graders will
+  run in — it stores the stock curriculum for the subject instead: Law gets
+  Introduction to Law, Constitutional Law, Contract Law and nine more. Keyword
+  matching covers every seeded degree and every degree a new institution is
+  provisioned with; a combined degree ("Economics & Computer Science") draws from
+  both subjects, because those students really do sit in both sets of lectures.
+- `course_source` value **`placeholder`**, distinct from `ai_generated`. Both are
+  unverified, but they are different claims: a generated list is a model's
+  attempt at *this* university's syllabus, a placeholder list is a generic
+  curriculum that was never about this university at all. Keeping them apart is
+  what makes it possible to find and replace the placeholders once a key is
+  configured. The picker words the warning differently for each.
+- 13 unit tests for the catalog, written as invariants over every degree the app
+  can offer: never empty, always passes the same schema a model's reply must
+  pass, and codes unique *across* degrees — `courses` is unique on
+  `(university_id, code)` with one `degree_id` per row, so a shared code would be
+  inserted once and silently missing from the second degree's list.
+
+### Changed
+- **Continue on step 2 is disabled until a course is selected**, with the reason
+  beside it ("Choose a course first — we match you on the courses you share")
+  and wired to the button through `aria-describedby`, so a disabled control is
+  never a dead end with no explanation. The server action already enforced the
+  same rule; this makes it visible before it is broken.
+- The unverified warning is now read off the courses themselves rather than the
+  API response, so a catalog rendered from the database on a later visit still
+  carries it.
+- The model is no longer called when no key is configured, so an unconfigured
+  deployment stops writing `not_configured` rows to `ai_generation_log` — which
+  had been consuming the student's daily generation cap for calls that never
+  happened.
+- Course buttons carry an explicit `aria-label` ("Constitutional Law (LAW-102)").
+  The name and code sit in adjacent spans and were announced run together.
+- `generate.ts` split: the schema moved to `catalog-schema.ts`, which has no
+  `server-only` marker, so the placeholder catalog and its tests can use it.
+
+### Removed
+- The "Automatic course lookup is not switched on yet" dead end.
+
+### Known limitation
+- The placeholder path is not rate-limited, since it costs nothing and its
+  upserts are idempotent. It is reachable only when a degree's catalog is empty,
+  which stops being true after the first call.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 180 tests, production build.
+Playwright: 26 e2e tests pass across chromium and mobile-safari, including a run
+from a deliberately emptied Law catalog that proves the fallback stores and
+returns a list rather than leaving the student stuck.
+
+## [0.10.0] — 2026-08-09
+
+The Smart Course API, the respecified step 1, and the removal of study tracks.
+
+### Added
+- **`POST /api/courses` — the Smart Course API.** Checks the database for the
+  chosen degree's catalog and, only on a miss, asks a model for that degree's
+  typical syllabus, then saves the result as ordinary FK-linked `courses` and
+  current-term `course_offerings`. Step 2 shows "Fetching syllabus…" while it
+  runs. Generated courses carry `source = 'ai_generated'`, and the picker states
+  plainly that the list is unverified — a model's guess at a university's
+  syllabus is plausible, not authoritative.
+- Guards on that endpoint, because an LLM call behind a public route is where
+  this could go wrong: the degree is read through the **caller's** client so RLS
+  is the tenancy check; requests are rate-limited per user from
+  `ai_generation_log`; the model's JSON is validated with zod (≤40 courses,
+  deduplicated by code) and discarded whole if any entry is invalid; upserts use
+  `onConflict: 'university_id,code'` so a repeat request is idempotent. With no
+  provider key configured the endpoint returns an empty catalog and an
+  explanation — onboarding still completes.
+- An e2e regression test that signs up, picks Law, and asserts no Computer
+  Science course appears *and* that the student can still continue.
+
+### Changed
+- **Step 1 is now** University (read-only, from the email domain), Degree level,
+  Degree, Year of study, City, Date of birth. Choosing a degree is what triggers
+  the course fetch.
+- Section 11 of the design doc records decisions D15–D17.
+
+### Removed
+- **Study tracks, completely** — UI, React form state, schema. Every track had
+  exactly one same-named degree above it, so the level carried no information
+  while giving two fields that could disagree; `degree_level` + `degree_id`
+  classify a student on their own. Migration
+  `20260809130000_remove_study_tracks.sql` drops the three track triggers,
+  `profiles.study_track_id`, `course_tracks` and `study_tracks`, and rebuilds
+  `rpc_find_candidates` without `track_name`. It refuses to run while any course
+  still derives its degree through `course_tracks`, which would orphan those
+  courses. `03_study_tracks.sql` became `03_degrees.sql`.
+
+### Fixed
+- **Course filtering (critical).** Choosing Law listed Computer Science courses.
+  `/api/courses` was already filtering on `degree_id` correctly and was not the
+  cause: the page read the catalog with `getCurrentTermOfferings()`, which
+  filtered only on `terms.is_current` and so returned the whole university
+  catalog. Because that list was non-empty, the picker's `offerings.length === 0`
+  guard was false and the course API was **never called** — the bug was hiding
+  the condition that triggers the generator. Replaced with
+  `getDegreeOfferings(degreeId)`, which constrains `courses.degree_id`; search
+  narrows that degree-scoped list rather than reaching across degrees.
+- The requirement to pick at least one course is now counted per **degree**, so a
+  Law student with an empty catalog is not forced to enroll in a CS course to
+  leave step 2.
+- Name placeholder was a real name from testing; now a generic "Jane Doe".
+- Two misleading strings in the empty state: the picker no longer offers "search
+  instead" when there is nothing to search, nor asks for a pick when the catalog
+  is empty.
+
+### Verification
+`npm run verify` passes: lint, typecheck, unit and integration tests, production
+build. Playwright: 26 e2e tests pass across chromium and mobile-safari.
+
 ## [0.9.0] — 2026-08-09
 
 Schema for the reworked onboarding, matching algorithm v2, and the dashboard

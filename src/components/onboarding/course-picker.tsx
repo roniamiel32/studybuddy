@@ -3,83 +3,162 @@
  * Authors:     Roni Amiel & Eden Bitran
  * Description: Step 2 — choosing courses.
  *
- *              The product requirement is explicit: show EVERY course in the
- *              student's track, never filtered by year of study or by where the
- *              course sits in the curriculum. Students extend degrees and take
- *              courses out of sequence, and a picker that hides a course
- *              because "you should have taken it last year" is wrong about a
- *              real person.
+ *              Shows every course on the student's DEGREE this semester, never
+ *              filtered by year of study — students extend degrees and take
+ *              courses out of sequence, and hiding a course because "you should
+ *              have taken it last year" is wrong about a real person.
  *
- *              Off-track courses stay reachable through search, which covers
- *              the whole current-term catalog rather than just the track.
- * Version:     0.6.0
+ *              Scoped to the degree, which is the fix for a Law student being
+ *              shown the Computer Science catalog. When the degree has no courses
+ *              yet, the Smart Course API is asked to build one.
+ *
+ *              At least one course is required to leave this step. Everything
+ *              downstream — the score, the ranking, the reason shown on a match
+ *              card — is built on shared courses, so a student who picks none is
+ *              unmatchable and the next three steps cannot help them.
+ * Version:     0.11.0
  *
  * Modifications:
- *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
+ *     0.6.0  - 2026-08-05 - Initial implementation (Phase 1c)
+ *     0.10.0 - 2026-08-09 - Degree-scoped; Smart Course API; tracks removed
+ *     0.11.0 - 2026-08-09 - Placeholder catalogs; Continue requires a course
  */
 
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Check, Search } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, Loader2, Search, TriangleAlert } from 'lucide-react';
 
 import { StepForm } from '@/components/onboarding/step-form';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
+import type { CourseApiResponse } from '@/app/api/courses/route';
+import { UNVERIFIED_SOURCES } from '@/features/courses/catalog-schema';
 import { saveCourses } from '@/features/onboarding/actions';
 import type { OfferingOption } from '@/features/onboarding/queries';
 import { cn } from '@/lib/utils';
 
 export interface CoursePickerProps {
+  /** Already scoped to the student's degree by the page. */
   offerings: OfferingOption[];
-  studyTrackId: string | null;
-  trackName: string;
+  /** Drives the Smart Course API lookup. */
+  degreeId: string | null;
+  degreeName: string;
   defaultSelected: string[];
 }
 
 /**
  * Renders the course picker.
  *
- * @param offerings       - Every current-term offering at this university.
- * @param studyTrackId    - The student's track, used for the default list.
- * @param trackName       - Track name, for the section heading.
+ * @param offerings       - The degree's current-term offerings, from the server.
+ * @param degreeId        - Drives the Smart Course API lookup.
+ * @param degreeName      - Shown as the section heading.
  * @param defaultSelected - Offerings already enrolled in.
  * @returns The form element.
  */
 export function CoursePicker({
   offerings,
-  studyTrackId,
-  trackName,
+  degreeId,
+  degreeName,
   defaultSelected,
 }: CoursePickerProps) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string[]>(defaultSelected);
+  const [catalog, setCatalog] = useState<OfferingOption[]>(offerings);
+  const [fetching, setFetching] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  /*
+   * Ask the Smart Course API for this degree's syllabus.
+   *
+   * Only when the server-rendered catalog is empty. If courses already exist
+   * there is nothing to fetch, and calling anyway would risk a model request
+   * (and its cost) on every visit to step 2.
+   */
+  useEffect(() => {
+    if (!degreeId || offerings.length > 0) {
+      return;
+    }
+
+    const abort = new AbortController();
+
+    void (async () => {
+      /*
+       * Inside the async body, not the effect body: setting state synchronously
+       * while an effect runs triggers an extra render pass, which the lint rule
+       * flags for good reason.
+       */
+      setFetching(true);
+
+      try {
+        const response = await fetch('/api/courses', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ degreeId }),
+          signal: abort.signal,
+        });
+
+        const payload = (await response.json()) as CourseApiResponse;
+
+        setCatalog(
+          payload.courses.map((course) => ({
+            offeringId: course.offeringId,
+            courseId: course.courseId,
+            code: course.code,
+            name: course.name,
+            faculty: course.faculty,
+            source: course.source,
+          })),
+        );
+        setNotice(payload.message ?? null);
+      } catch {
+        if (!abort.signal.aborted) {
+          setNotice(
+            'We could not load a course list. Go back and pick your degree again, or try reloading.',
+          );
+        }
+      } finally {
+        if (!abort.signal.aborted) {
+          setFetching(false);
+        }
+      }
+    })();
+
+    return () => abort.abort();
+  }, [degreeId, offerings.length]);
 
   const trimmed = query.trim().toLowerCase();
 
   /*
-   * Filtering happens here rather than on the server: the whole current-term
-   * catalog arrives in one request, so typing filters instantly instead of
-   * firing a query per keystroke. A catalog of thousands would need this
-   * pushed back into SQL.
+   * Read off the courses themselves rather than the response, so a catalog that
+   * was rendered from the database on a later visit still carries its warning.
+   * Two kinds of unverified, worded differently because they are different
+   * claims: a generated list is a guess at THIS university's syllabus, while a
+   * placeholder list is a standard curriculum that was never about this
+   * university at all.
    */
-  const { trackCourses, otherCourses } = useMemo(() => {
-    const matches = (offering: OfferingOption) =>
-      !trimmed ||
-      offering.name.toLowerCase().includes(trimmed) ||
-      offering.code.toLowerCase().includes(trimmed);
+  const unverified = useMemo(
+    () => catalog.filter((offering) => UNVERIFIED_SOURCES.includes(offering.source)),
+    [catalog],
+  );
+  const hasPlaceholders = unverified.some((offering) => offering.source === 'placeholder');
+  const hasGenerated = unverified.some((offering) => offering.source === 'ai_generated');
 
-    const visible = offerings.filter(matches);
-
-    return {
-      trackCourses: visible.filter(
-        (offering) => studyTrackId && offering.trackIds.includes(studyTrackId),
+  /*
+   * Search narrows the DEGREE'S courses. It deliberately does not reach other
+   * degrees: showing a Law student the Computer Science catalog was the bug this
+   * change fixes, and a cross-degree search would quietly reintroduce it.
+   */
+  const visible = useMemo(
+    () =>
+      catalog.filter(
+        (offering) =>
+          !trimmed ||
+          offering.name.toLowerCase().includes(trimmed) ||
+          offering.code.toLowerCase().includes(trimmed),
       ),
-      otherCourses: visible.filter(
-        (offering) => !studyTrackId || !offering.trackIds.includes(studyTrackId),
-      ),
-    };
-  }, [offerings, studyTrackId, trimmed]);
+    [catalog, trimmed],
+  );
 
   const toggle = (offeringId: string) => {
     setSelected((current) =>
@@ -98,6 +177,11 @@ export function CoursePicker({
           type="button"
           onClick={() => toggle(offering.offeringId)}
           aria-pressed={isSelected}
+          /*
+           * Explicit, because the name and code sit in adjacent spans and would
+           * otherwise be announced run together as "Constitutional LawLAW-102".
+           */
+          aria-label={`${offering.name} (${offering.code})`}
           className={cn(
             'border-outline-variant/60 flex w-full items-center gap-3 rounded-md border bg-white p-3.5 text-left transition-colors',
             'hover:border-brand/60 focus-visible:ring-brand/35 focus-visible:ring-4 focus-visible:outline-none',
@@ -128,11 +212,60 @@ export function CoursePicker({
   };
 
   return (
-    <StepForm action={saveCourses} submitLabel="Continue" backHref="/onboarding">
+    <StepForm
+      action={saveCourses}
+      submitLabel="Continue"
+      backHref="/onboarding"
+      /*
+       * Held closed until a course is chosen. The exception is a catalog with
+       * nothing in it: the requirement is there to keep a student matchable, and
+       * turning it into an unsatisfiable condition would just trap them on step 2
+       * with no action available. The server action draws the same line.
+       */
+      submitDisabled={selected.length === 0 && catalog.length > 0}
+      submitDisabledReason={
+        selected.length === 0 && catalog.length > 0
+          ? 'Choose a course first \u2014 we match you on the courses you share'
+          : undefined
+      }
+    >
       {/* The selection lives in React state; these carry it to the server. */}
       {selected.map((offeringId) => (
         <input key={offeringId} type="hidden" name="offeringIds" value={offeringId} />
       ))}
+
+      {fetching ? (
+        <p
+          role="status"
+          className="text-brand bg-brand-fixed/50 flex items-center gap-2 rounded-md p-3 text-label-md"
+        >
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Fetching syllabus…
+        </p>
+      ) : null}
+
+      {hasPlaceholders || hasGenerated ? (
+        <p className="bg-sunset-fixed/60 text-sunset-deep flex items-start gap-2 rounded-md p-3 text-label-md">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          {/*
+            * Provenance, stated plainly. Neither list came from the registrar, so
+            * it may not match the real syllabus — saying so is the difference
+            * between a useful shortcut and the app asserting something false
+            * about the institution.
+            */}
+          <span>
+            {hasPlaceholders
+              ? `This is a standard course list for ${degreeName}, not your university\u2019s own syllabus. Course names and codes may differ from the real ones.`
+              : `This course list was suggested automatically and has not been verified against your university\u2019s syllabus. Check it before relying on it.`}
+          </span>
+        </p>
+      ) : null}
+
+      {notice && !fetching ? (
+        <p className="bg-surface-container text-on-surface-variant rounded-md p-3 text-label-md">
+          {notice}
+        </p>
+      ) : null}
 
       {/* The page heading already asks the question; a second copy here read as
           a stutter. This block is just the search control. */}
@@ -161,32 +294,24 @@ export function CoursePicker({
         <Chip tone={selected.length > 0 ? 'brand' : 'neutral'}>
           {selected.length} selected
         </Chip>
-        {selected.length === 0 ? (
-          <span className="text-outline text-label-sm">Pick at least one to continue</span>
-        ) : null}
+        {/* The reason lives on the disabled Continue button, not here too. */}
       </div>
 
-      {trackCourses.length > 0 ? (
+      {visible.length > 0 ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-on-surface-variant text-label-md">{trackName}</h2>
-          <ul className="flex flex-col gap-2">{trackCourses.map(renderCourse)}</ul>
+          <h2 className="text-on-surface-variant text-label-md">{degreeName}</h2>
+          <ul className="flex flex-col gap-2">{visible.map(renderCourse)}</ul>
         </section>
       ) : null}
 
-      {otherCourses.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-on-surface-variant text-label-md">
-            {trimmed ? 'Other courses' : 'Courses from other tracks'}
-          </h2>
-          <ul className="flex flex-col gap-2">{otherCourses.map(renderCourse)}</ul>
-        </section>
-      ) : null}
-
-      {trackCourses.length === 0 && otherCourses.length === 0 ? (
+      {visible.length === 0 && !fetching ? (
         <p className="text-on-surface-variant bg-surface-container rounded-md p-4 text-body-md">
-          No courses match “{query}”. Try the course code instead.
+          {trimmed
+            ? `No courses in ${degreeName} match \u201C${query}\u201D. Try the course code instead.`
+            : `We have no course list for ${degreeName} yet. You can continue and add courses later.`}
         </p>
       ) : null}
+
     </StepForm>
   );
 }

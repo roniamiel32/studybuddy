@@ -4,9 +4,10 @@
  * Description: Reads for the matching screens. The scoring lives in SQL
  *              (`rpc_find_candidates`); this layer only shapes the result for
  *              display.
- * Version:     0.8.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Matching v2 columns; track_name dropped
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
  */
 
@@ -63,7 +64,7 @@ export async function getMatches(options?: {
       candidateId: row.candidate_id,
       fullName: row.full_name ?? 'A classmate',
       avatarUrl: row.avatar_url,
-      trackName: row.track_name,
+      degreeName: row.degree_name,
       yearOfStudy: row.year_of_study,
       score: Number(row.rule_score),
       overlapMinutes: row.overlap_minutes,

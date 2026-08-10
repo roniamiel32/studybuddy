@@ -2,9 +2,10 @@
  * File:        src/app/(onboarding)/onboarding/preferences/page.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: Step 3 — default study preferences.
- * Version:     0.6.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Study format question added
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  */
 
@@ -37,6 +38,7 @@ export default async function OnboardingPreferencesPage() {
           studyEnvironments: preferences?.study_environments ?? [],
           groupSizes: preferences?.group_sizes ?? [],
           studiesOnSaturday: preferences?.studies_on_saturday ?? null,
+          studyFormats: preferences?.study_formats ?? [],
           spokenLanguages: preferences?.spoken_languages ?? [],
         }}
       />

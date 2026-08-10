@@ -6,9 +6,10 @@
  *              on, so a missing or malformed value fails immediately and
  *              loudly rather than surfacing as a confusing runtime error
  *              deep inside a Supabase or AI call.
- * Version:     0.2.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Anthropic provider; per-task course generation cap
  *     0.2.0 - 2026-08-03 - Initial implementation (Phase 0.5 scaffold)
  */
 
@@ -36,7 +37,12 @@ const serverSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z
     .string()
     .min(20, 'looks too short to be a Supabase service role key'),
-  AI_PROVIDER: z.enum(['openai', 'gemini']).default('openai'),
+  /*
+   * 'anthropic' added for the Smart Course API. The PRD named OpenAI and Gemini;
+   * Claude was explicitly permitted later, and the provider module speaks to the
+   * Anthropic Messages API over plain fetch.
+   */
+  AI_PROVIDER: z.enum(['openai', 'gemini', 'anthropic']).default('anthropic'),
   /*
    * Optional: absent means AI features are switched off and matching falls
    * back to the deterministic SQL ranking. An empty assignment (`AI_API_KEY=`)
@@ -60,6 +66,13 @@ const serverSchema = z.object({
   AI_RERANK_DAILY_LIMIT: z.coerce.number().int().positive().default(20),
   /** Per-user daily cap on AI icebreaker generations. */
   AI_ICEBREAKER_DAILY_LIMIT: z.coerce.number().int().positive().default(30),
+  /*
+   * Per-user daily cap on course-catalog generations, counted separately from
+   * the other two. A student needs one catalog per degree and almost never a
+   * second, so the cap is low; sharing the re-rank budget would mean tuning
+   * either one silently changed the other.
+   */
+  AI_COURSE_GENERATION_DAILY_LIMIT: z.coerce.number().int().positive().default(5),
   /** Hours a cached row in `match_scores` stays fresh. */
   MATCH_CACHE_TTL_HOURS: z.coerce.number().int().positive().default(24),
 });

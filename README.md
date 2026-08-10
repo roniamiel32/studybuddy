@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.9.0** — ranked matches with strict format filtering and proximity bonuses.
+Version **0.11.0** — every degree has courses to pick, and picking one is required.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final
@@ -21,6 +21,7 @@ project for the Full-Stack course at Reichman University.
 | 1b | Row Level Security | ✅ 33 policies, 2 immutability triggers, 35 adversarial tests |
 | 1c | Auth & onboarding | ✅ Email+password, route guards, 4-step onboarding, avatars, dashboard |
 | 2 | Rule-based matching | ✅ Scoring RPC, matches dashboard, demo seed |
+| 2.5 | Smart Course API | ✅ Per-degree catalog: from the database, a model, or a stock curriculum — never empty |
 | 3 | AI re-rank & icebreaker | ⬜ Not started |
 | 4a | WhatsApp handoff | ⬜ Not started |
 | 4c | Calendar sync (D7) | ⬜ Not started — stretch goal |
@@ -30,7 +31,8 @@ project for the Full-Stack course at Reichman University.
 - **Frontend:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4,
   shadcn/ui
 - **Backend:** Supabase — PostgreSQL, Auth, Row Level Security
-- **AI:** OpenAI / Gemini — match re-ranking and icebreaker generation
+- **AI:** Anthropic Messages API — course-catalog generation; match re-ranking
+  and icebreakers to follow in Phase 3
 - **Testing:** Vitest + Testing Library (unit/integration), Playwright (e2e)
 - **Deployment:** Vercel
 

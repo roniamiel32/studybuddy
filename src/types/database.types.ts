@@ -277,39 +277,6 @@ export type Database = {
           },
         ]
       }
-      course_tracks: {
-        Row: {
-          course_id: string
-          created_at: string
-          track_id: string
-        }
-        Insert: {
-          course_id: string
-          created_at?: string
-          track_id: string
-        }
-        Update: {
-          course_id?: string
-          created_at?: string
-          track_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_tracks_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "courses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "course_tracks_track_id_fkey"
-            columns: ["track_id"]
-            isOneToOne: false
-            referencedRelation: "study_tracks"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       courses: {
         Row: {
           code: string
@@ -626,7 +593,6 @@ export type Database = {
           id: string
           is_discoverable: boolean
           onboarding_completed_at: string | null
-          study_track_id: string | null
           university_id: string
           updated_at: string
           year_of_study: number | null
@@ -642,7 +608,6 @@ export type Database = {
           id: string
           is_discoverable?: boolean
           onboarding_completed_at?: string | null
-          study_track_id?: string | null
           university_id: string
           updated_at?: string
           year_of_study?: number | null
@@ -658,7 +623,6 @@ export type Database = {
           id?: string
           is_discoverable?: boolean
           onboarding_completed_at?: string | null
-          study_track_id?: string | null
           university_id?: string
           updated_at?: string
           year_of_study?: number | null
@@ -672,56 +636,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "profiles_study_track_id_fkey"
-            columns: ["study_track_id"]
-            isOneToOne: false
-            referencedRelation: "study_tracks"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "profiles_university_id_fkey"
-            columns: ["university_id"]
-            isOneToOne: false
-            referencedRelation: "universities"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      study_tracks: {
-        Row: {
-          code: string
-          created_at: string
-          degree_id: string
-          id: string
-          name: string
-          university_id: string
-        }
-        Insert: {
-          code: string
-          created_at?: string
-          degree_id: string
-          id?: string
-          name: string
-          university_id: string
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          degree_id?: string
-          id?: string
-          name?: string
-          university_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "study_tracks_degree_id_fkey"
-            columns: ["degree_id"]
-            isOneToOne: false
-            referencedRelation: "degrees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "study_tracks_university_id_fkey"
             columns: ["university_id"]
             isOneToOne: false
             referencedRelation: "universities"
@@ -881,14 +796,13 @@ export type Database = {
           studies_on_saturday: boolean
           study_environments: Database["public"]["Enums"]["study_environment"][]
           study_formats: Database["public"]["Enums"]["study_format"][]
-          track_name: string
           year_of_study: number
         }[]
       }
     }
     Enums: {
       ai_status: "ok" | "error" | "rate_limited" | "invalid_output"
-      ai_task: "match_rerank" | "icebreaker"
+      ai_task: "match_rerank" | "icebreaker" | "course_generation"
       availability_mode: "manual" | "calendar_sync"
       availability_source: "manual" | "google_calendar" | "apple_calendar"
       connection_status:
@@ -897,7 +811,7 @@ export type Database = {
         | "declined"
         | "cancelled"
         | "expired"
-      course_source: "seed" | "registrar" | "ai_generated"
+      course_source: "seed" | "registrar" | "ai_generated" | "placeholder"
       degree_level: "bachelors" | "masters" | "phd"
       enrollment_intent: "need_help" | "want_partner" | "can_tutor"
       group_size_choice: "small" | "large"
@@ -1035,7 +949,7 @@ export const Constants = {
   public: {
     Enums: {
       ai_status: ["ok", "error", "rate_limited", "invalid_output"],
-      ai_task: ["match_rerank", "icebreaker"],
+      ai_task: ["match_rerank", "icebreaker", "course_generation"],
       availability_mode: ["manual", "calendar_sync"],
       availability_source: ["manual", "google_calendar", "apple_calendar"],
       connection_status: [
@@ -1045,7 +959,7 @@ export const Constants = {
         "cancelled",
         "expired",
       ],
-      course_source: ["seed", "registrar", "ai_generated"],
+      course_source: ["seed", "registrar", "ai_generated", "placeholder"],
       degree_level: ["bachelors", "masters", "phd"],
       enrollment_intent: ["need_help", "want_partner", "can_tutor"],
       group_size_choice: ["small", "large"],

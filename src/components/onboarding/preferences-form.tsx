@@ -4,9 +4,10 @@
  * Description: Step 3 — how the student likes to study. These become the
  *              profile's DEFAULT preferences; per-course overrides are a
  *              planned extension.
- * Version:     0.6.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Study format multi-select
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  */
 
@@ -18,6 +19,7 @@ import {
   ENVIRONMENT_OPTIONS,
   GROUP_SIZE_OPTIONS,
   LANGUAGE_OPTIONS,
+  STUDY_FORMAT_OPTIONS,
   TIME_BLOCK_OPTIONS,
 } from '@/config/onboarding';
 import { savePreferences } from '@/features/onboarding/actions';
@@ -28,6 +30,7 @@ export interface PreferencesFormProps {
     studyEnvironments: string[];
     groupSizes: string[];
     studiesOnSaturday: boolean | null;
+    studyFormats: string[];
     spokenLanguages: string[];
   };
 }
@@ -51,6 +54,14 @@ export function PreferencesForm({ defaults }: PreferencesFormProps) {
         description="Pick every slot that works — more answers mean more possible partners, not fewer."
         options={TIME_BLOCK_OPTIONS}
         defaultValue={defaults.preferredTimeBlocks}
+      />
+
+      <ChoiceGroup
+        name="studyFormats"
+        legend="How do you want to meet?"
+        description="This one is a hard filter — we never suggest someone whose answer has no overlap with yours."
+        options={STUDY_FORMAT_OPTIONS}
+        defaultValue={defaults.studyFormats.length > 0 ? defaults.studyFormats : ['in_person']}
       />
 
       <ChoiceGroup
