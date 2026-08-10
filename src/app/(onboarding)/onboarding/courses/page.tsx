@@ -52,7 +52,7 @@ export default async function OnboardingCoursesPage() {
         Which courses are you taking?
       </h1>
       <p className="text-on-surface-variant mt-2 mb-8 text-body-md text-pretty">
-        Every course on your degree this semester, whatever year you are in.
+        
       </p>
 
       <CoursePicker

@@ -37,7 +37,7 @@ export default async function CoursesPage() {
           <p className="text-on-surface-variant mt-2 text-body-md text-pretty">
             {courses.length === 0
               ? 'Add the courses you are taking and we will find you partners in them.'
-              : 'Open a course to see who else is taking it, and to set preferences just for that class.'}
+              : `You are enrolled in ${courses.length} course${courses.length > 1 ? 's' : ''}.`}
           </p>
         </div>
 

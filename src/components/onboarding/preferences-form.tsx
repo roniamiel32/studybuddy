@@ -59,7 +59,6 @@ export function PreferencesForm({ defaults }: PreferencesFormProps) {
       <ChoiceGroup
         name="studyFormats"
         legend="How do you want to meet?"
-        description="This one is a hard filter — we never suggest someone whose answer has no overlap with yours."
         options={STUDY_FORMAT_OPTIONS}
         defaultValue={defaults.studyFormats.length > 0 ? defaults.studyFormats : ['in_person']}
       />
@@ -67,7 +66,6 @@ export function PreferencesForm({ defaults }: PreferencesFormProps) {
       <ChoiceGroup
         name="studyEnvironments"
         legend="How do you like to work?"
-        description="Both is a perfectly good answer."
         options={ENVIRONMENT_OPTIONS}
         defaultValue={defaults.studyEnvironments}
       />
@@ -82,7 +80,6 @@ export function PreferencesForm({ defaults }: PreferencesFormProps) {
       <ChoiceGroup
         name="studiesOnSaturday"
         legend="Do you study on Saturday?"
-        description="Shabbat is the one day the Israeli week reliably differs on, so it is worth asking outright."
         options={[
           { value: 'yes', label: 'Yes', icon: '✅' },
           { value: 'no', label: 'No', icon: '🚫' },
@@ -98,7 +95,6 @@ export function PreferencesForm({ defaults }: PreferencesFormProps) {
       <ChoiceGroup
         name="spokenLanguages"
         legend="Which languages can you study in?"
-        description="A partner who wants Hebrew and one who wants English are a poor match however well their timetables line up."
         options={LANGUAGE_OPTIONS}
         defaultValue={defaults.spokenLanguages.length > 0 ? defaults.spokenLanguages : ['he']}
       />

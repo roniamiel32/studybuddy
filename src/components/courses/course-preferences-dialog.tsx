@@ -177,28 +177,24 @@ export function CoursePreferencesDialog({
           <ChoiceGroup
             name="studyFormats"
             legend="How do you want to meet for this course?"
-            description={`Your default: ${labelsFor(globals.studyFormats, STUDY_FORMAT_OPTIONS)}`}
             options={STUDY_FORMAT_OPTIONS}
             defaultValue={inForce.studyFormats}
           />
           <ChoiceGroup
             name="preferredTimeBlocks"
             legend="When would you study for it?"
-            description={`Your default: ${labelsFor(globals.preferredTimeBlocks, TIME_BLOCK_OPTIONS)}`}
             options={TIME_BLOCK_OPTIONS}
             defaultValue={inForce.preferredTimeBlocks}
           />
           <ChoiceGroup
             name="studyEnvironments"
             legend="How would you work on it?"
-            description={`Your default: ${labelsFor(globals.studyEnvironments, ENVIRONMENT_OPTIONS)}`}
             options={ENVIRONMENT_OPTIONS}
             defaultValue={inForce.studyEnvironments}
           />
           <ChoiceGroup
             name="groupSizes"
             legend="How many people, for this one?"
-            description={`Your default: ${labelsFor(globals.groupSizes, GROUP_SIZE_OPTIONS)}`}
             options={GROUP_SIZE_OPTIONS}
             defaultValue={inForce.groupSizes}
           />

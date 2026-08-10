@@ -59,7 +59,6 @@ export function AvailabilityForm({ defaultSelected }: AvailabilityFormProps) {
       ))}
 
       <div>
-        <h2 className="font-heading text-body-lg font-semibold">When are you free?</h2>
         <p className="text-on-surface-variant mt-1 text-body-md">
           Tap the blocks you could study in. Overlapping free time is the single
           biggest factor in a good match — but you can skip this and add it
@@ -139,8 +138,7 @@ export function AvailabilityForm({ defaultSelected }: AvailabilityFormProps) {
         <div>
           <p className="text-label-md">Sync a calendar instead</p>
           <p className="text-outline mt-1 text-label-sm font-normal">
-            Connecting Google Calendar to fill this in automatically is coming
-            later. Only your free/busy times would be read — never event titles
+            Connecting Google Calendar to fill this in automatically. Only your free/busy times would be read — never event titles
             or details.
           </p>
         </div>

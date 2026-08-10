@@ -12,7 +12,7 @@ export function Logo() {
         className="object-contain"
       />
       <span className="font-heading text-xl font-bold tracking-tight">
-        <span className="text-[#635BFF]">Study</span>
+        <span className="text-[#AF52DE]">Study</span>
         <span className="text-[#FF8A50]">Buddy</span>
       </span>
     </div>

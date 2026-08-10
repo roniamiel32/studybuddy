@@ -5,15 +5,15 @@
  *              dotted field, with no navigation. There is nowhere else to go
  *              from here, and offering links would only invite wandering off
  *              mid-signup.
- * Version:     0.6.0
+ * Version:     0.6.1
  *
  * Modifications:
+ *     0.6.1 - 2026-08-10 - Replaced Wordmark with logo image only
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  */
 
+import Image from 'next/image';
 import Link from 'next/link';
-
-import { Wordmark } from '@/components/marketing/wordmark';
 
 /**
  * Wraps the sign-up and sign-in pages.
@@ -28,7 +28,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         href="/"
         className="focus-visible:ring-brand/35 mb-8 rounded-md focus-visible:ring-4 focus-visible:outline-none"
       >
-        <Wordmark />
+        <Image
+          src="/logo.png"
+          alt="StudyBuddy"
+          width={48}
+          height={48}
+          className="object-contain"
+        />
       </Link>
 
       <div className="border-outline-variant/30 shadow-clay w-full max-w-md rounded-xl border bg-white p-7 sm:p-8">

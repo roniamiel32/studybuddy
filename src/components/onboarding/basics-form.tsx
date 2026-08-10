@@ -197,7 +197,7 @@ export function BasicsForm({
           required
           value={fullName}
           onChange={(event) => setFullName(event.target.value)}
-          placeholder="Jane Doe"
+          placeholder="Israel Israeli"
         />
         <p className="text-outline text-label-sm font-normal">
           {suggestedName && !defaults.fullName
@@ -246,7 +246,6 @@ export function BasicsForm({
           ))}
         </select>
         <p className="text-outline text-label-sm font-normal">
-          We fetch this degree&apos;s course list on the next step.
         </p>
       </div>
 
@@ -277,8 +276,6 @@ export function BasicsForm({
           onChange={(event) => setDateOfBirth(event.target.value)}
         />
         <p className="text-outline text-label-sm font-normal">
-          Optional, and never shown to anyone. We only use it to prefer partners
-          close to your age.
         </p>
       </div>
 
@@ -302,7 +299,6 @@ export function BasicsForm({
           ))}
         </select>
         <p className="text-outline text-label-sm font-normal">
-          Used for context only — it never limits which courses you can pick.
         </p>
       </div>
 

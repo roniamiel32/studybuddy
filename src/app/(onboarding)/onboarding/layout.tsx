@@ -1,17 +1,18 @@
 /**
  * File:        src/app/(onboarding)/onboarding/layout.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: Shell for the four-step flow: wordmark, a way out, the progress
+ * Description: Shell for the four-step flow: logo, a way out, the progress
  *              bar, and the current step in a clay card.
- * Version:     0.6.0
+ * Version:     0.6.1
  *
  * Modifications:
+ *     0.6.1 - 2026-08-10 - Replaced Wordmark with logo image only
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  */
 
+import Image from 'next/image';
 import { X } from 'lucide-react';
 
-import { Wordmark } from '@/components/marketing/wordmark';
 import { OnboardingStepper } from '@/components/onboarding/stepper';
 import { Button } from '@/components/ui/button';
 import { signOut } from '@/features/auth/actions';
@@ -26,7 +27,16 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   return (
     <div className="bg-dotted flex min-h-full flex-1 flex-col">
       <header className="mx-auto flex w-full max-w-2xl items-center justify-between px-5 py-5">
-        <Wordmark />
+        
+        {/* הלוגו הנקי בלבד במקום ה-Wordmark */}
+        <Image
+          src="/logo.png"
+          alt="StudyBuddy"
+          width={40}
+          height={40}
+          className="object-contain"
+        />
+
         {/*
          * A deliberate exit. Without one, a student who wants to stop is stuck
          * on a form with no visible way out, since the middleware sends them

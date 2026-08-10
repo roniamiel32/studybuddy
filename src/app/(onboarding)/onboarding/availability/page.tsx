@@ -35,12 +35,9 @@ export default async function OnboardingAvailabilityPage() {
   return (
     <>
       <h1 className="font-heading text-headline-lg text-balance">
-        When could you study?
+        When are you free?
       </h1>
-      <p className="text-on-surface-variant mt-2 mb-8 text-body-md text-pretty">
-        Rough blocks are fine. We only use these to find hours you and a partner
-        both have free.
-      </p>
+      
 
       <AvailabilityForm defaultSelected={defaultSelected} />
     </>
