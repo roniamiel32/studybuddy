@@ -3,19 +3,11 @@
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The consolidated user area at the far right of the header: a
  *              stadium-shaped control holding the avatar, the student's first name
- *              and a chevron, which opens a menu with Profile and Sign out.
- *
- *              Consolidating these was the point of the redesign. Sign out used to
- *              sit permanently in the header as a bare button, which gave the most
- *              destructive action on the screen the same prominence as navigation.
- *
- *              Built on a <details> element rather than state and a document
- *              listener. The platform gives open/closed, Escape, and correct
- *              button semantics for free; what it does not give is
- *              click-outside-to-close, which is the one behaviour added by hand.
- * Version:     0.16.0
+ *              and a chevron, which opens a menu with Profile, Dark Mode toggle, and Sign out.
+ * Version:     0.17.0
  *
  * Modifications:
+ *     0.17.0 - 2026-08-10 - Added dark/light mode toggle inside the user menu
  *     0.16.0 - 2026-08-10 - Initial implementation
  */
 
@@ -24,7 +16,8 @@
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, LogOut, UserRound } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { ChevronDown, LogOut, Moon, Sun, UserRound } from 'lucide-react';
 
 import { ProfileBadge } from '@/components/layout/profile-badge';
 
@@ -46,6 +39,7 @@ export interface UserMenuProps {
 export function UserMenu({ fullName, avatarUrl, signOut }: UserMenuProps) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const pathname = usePathname();
+  const { theme, setTheme } = useTheme();
 
   /* First name only: the header is not the place for someone's full legal name. */
   const firstName = fullName?.trim().split(/\s+/)[0] ?? 'You';
@@ -85,12 +79,6 @@ export function UserMenu({ fullName, avatarUrl, signOut }: UserMenuProps) {
         * renders by default, in both WebKit and Firefox.
         */}
       <summary
-        /*
-         * The name goes on the summary, not in an sr-only child. A hidden span
-         * inside it sits behind the avatar, so it is unclickable — and a screen
-         * reader would read the avatar, the name and then "Your account" as three
-         * separate things instead of one control.
-         */
         aria-label={`Your account, ${firstName}`}
         className="border-outline-variant/60 hover:border-brand/50 focus-visible:ring-brand/35 flex cursor-pointer list-none items-center gap-2 rounded-full border bg-white/80 py-1 pr-3 pl-1 shadow-clay-soft transition-colors focus-visible:ring-4 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
       >
@@ -107,6 +95,25 @@ export function UserMenu({ fullName, avatarUrl, signOut }: UserMenuProps) {
           <UserRound className="size-4" aria-hidden="true" />
           Profile
         </Link>
+
+        {/* כפתור מעבר בין דארק מוד ללייט מוד */}
+        <button
+          type="button"
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="text-on-surface-variant hover:bg-surface-container-high focus-visible:ring-brand/35 flex w-full items-center gap-2.5 border-t border-outline-variant/40 px-4 py-3 text-left text-label-md transition-colors focus-visible:ring-4 focus-visible:outline-none"
+        >
+          {theme === 'dark' ? (
+            <>
+              <Sun className="size-4 text-amber-500" aria-hidden="true" />
+              Light mode
+            </>
+          ) : (
+            <>
+              <Moon className="size-4 text-purple-600" aria-hidden="true" />
+              Dark mode
+            </>
+          )}
+        </button>
 
         <form action={signOut} className="border-outline-variant/40 border-t">
           <button

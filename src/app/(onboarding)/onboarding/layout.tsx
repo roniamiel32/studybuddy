@@ -59,4 +59,5 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
       </main>
     </div>
   );
+  
 }

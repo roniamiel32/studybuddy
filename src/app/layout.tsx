@@ -5,29 +5,19 @@
  *              the html/body shell only. The authenticated navigation shell
  *              lives in the (app) route group so that public pages do not
  *              render it.
- * Version:     0.2.0
+ * Version:     0.2.1
  *
  * Modifications:
+ *     0.2.1 - 2026-08-10 - Added ThemeProvider for dark mode support
  *     0.2.0 - 2026-08-03 - Initial implementation (Phase 0.5 scaffold)
  */
 
 import type { Metadata } from 'next';
 import { Nunito, Plus_Jakarta_Sans } from 'next/font/google';
+import { ThemeProvider } from 'next-themes';
 
 import './globals.css';
 
-/*
- * The two faces of the Kinetic Learning system. The variable names must stay
- * in sync with the `@theme` block in globals.css — a mismatch is silent, and
- * the page just falls back to the browser's default serif.
- *
- * Nunito replaces the source design's Be Vietnam Pro for headings. Its rounded
- * terminals match the claymorphic surfaces far better: the soft shapes and a
- * geometric, squared-off display face were pulling in opposite directions.
- *
- * Only the weights the type scale actually uses are loaded. Shipping the full
- * families would cost several hundred kilobytes for weights nothing renders.
- */
 const headingFont = Nunito({
   variable: '--font-heading-family',
   subsets: ['latin'],
@@ -66,9 +56,12 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${headingFont.variable} ${plusJakartaSans.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
-        {children}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

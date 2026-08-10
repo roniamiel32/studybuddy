@@ -9,9 +9,10 @@
  *
  *              Tailwind v4 is CSS-first: this @theme block IS the config.
  *              There is no tailwind.config.ts.
- * Version:     0.4.0
+ * Version:     0.5.0
  *
  * Modifications:
+ *     0.5.0 - 2026-08-10 - Added dark mode variant and dark theme variables
  *     0.2.0 - 2026-08-03 - shadcn/ui defaults (Phase 0.5)
  *     0.4.0 - 2026-08-03 - Replaced with the Kinetic Learning tokens
  */
@@ -20,15 +21,11 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* ---------------------------------------------------------------------
    * Typography
-   *
-   * Nunito carries the headlines. Its rounded terminals belong with the
-   * claymorphic surfaces — the source design's geometric display face was
-   * working against the soft shapes rather than with them. Plus Jakarta Sans
-   * runs everything else; its own soft terminals keep a dense match card
-   * feeling approachable rather than administrative.
    * ------------------------------------------------------------------- */
   --font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-heading-family), var(--font-plus-jakarta), sans-serif;
@@ -63,21 +60,17 @@
   --text-label-sm--font-weight: 700;
 
   /* ---------------------------------------------------------------------
-   * Shape — "ultra-rounded", per the design system. No sharp corners.
-   * Cards 24px, buttons and inputs 12px, chips fully round.
+   * Shape
    * ------------------------------------------------------------------- */
   --radius-sm: 0.25rem;
   --radius-DEFAULT: 0.5rem;
-  --radius-md: 0.75rem; /* buttons, inputs */
+  --radius-md: 0.75rem;
   --radius-lg: 1rem;
-  --radius-xl: 1.5rem; /* cards, containers */
+  --radius-xl: 1.5rem;
   --radius-2xl: 2rem;
 
   /* ---------------------------------------------------------------------
-   * Palette — Deep Electric Purple against Vibrant Sunset Orange.
-   *
-   * The surface ramp is tinted rather than grey: every "grey" here carries a
-   * trace of purple, which is what stops the interface reading as clinical.
+   * Palette
    * ------------------------------------------------------------------- */
   --color-surface: #fcf8fb;
   --color-surface-dim: #dcd9dc;
@@ -93,9 +86,9 @@
   --color-outline: #777587;
   --color-outline-variant: #c7c4d8;
 
-  --color-brand: #493ee5;
-  --color-brand-bright: #635bff;
-  --color-brand-tint: #4c42e9;
+  --color-brand: #AF52DE; 
+  --color-brand-bright: #bf6de6;
+  --color-brand-tint: #9a3bc9;
   --color-brand-fixed: #e2dfff;
   --color-brand-fixed-dim: #c3c0ff;
   --color-on-brand-fixed: #0f0069;
@@ -112,43 +105,30 @@
   --color-grape-fixed: #f6d9ff;
   --color-on-grape-fixed: #310048;
 
-  /* Field background. Inputs sit on a faint purple wash so that focusing one
-   * — which turns it white — reads as the field lighting up. */
   --color-field: #f8f7ff;
 
   /* ---------------------------------------------------------------------
-   * Claymorphism — the system's signature.
-   *
-   * Two things make it work, and both matter: the ambient shadow is tinted
-   * with the brand purple rather than black, so cards look lit rather than
-   * dirty; and the inset white highlight along the top edge is what reads as
-   * a moulded, soft-plastic surface instead of a flat rectangle.
+   * Claymorphism
    * ------------------------------------------------------------------- */
   --shadow-clay:
-    0 10px 30px -10px rgb(73 62 229 / 0.15),
+    0 10px 30px -10px rgb(175 82 222 / 0.15),
     inset 0 2px 0 0 rgb(255 255 255 / 0.8);
   --shadow-clay-lifted:
-    0 18px 40px -12px rgb(73 62 229 / 0.22),
+    0 18px 40px -12px rgb(175 82 222 / 0.22),
     inset 0 2px 0 0 rgb(255 255 255 / 0.8);
   --shadow-clay-btn:
-    0 8px 20px -6px rgb(73 62 229 / 0.4),
+    0 8px 20px -6px rgb(175 82 222 / 0.4),
     inset 0 2px 0 0 rgb(255 255 255 / 0.3);
   --shadow-clay-btn-pressed:
-    0 4px 10px -4px rgb(73 62 229 / 0.4),
+    0 4px 10px -4px rgb(175 82 222 / 0.4),
     inset 0 2px 0 0 rgb(255 255 255 / 0.3);
   --shadow-clay-sunset:
     0 8px 20px -6px rgb(159 66 10 / 0.35),
     inset 0 2px 0 0 rgb(255 255 255 / 0.3);
-  --shadow-clay-soft: 0 4px 12px -4px rgb(73 62 229 / 0.1);
-  --shadow-nav: 0 -4px 12px rgb(76 66 233 / 0.08);
+  --shadow-clay-soft: 0 4px 12px -4px rgb(175 82 222 / 0.1);
+  --shadow-nav: 0 -4px 12px rgb(175 82 222 / 0.08);
 }
 
-/* -------------------------------------------------------------------------
- * shadcn/ui semantic aliases.
- *
- * Mapped onto the palette above so every primitive inherits the design
- * automatically instead of each component re-deriving it.
- * ---------------------------------------------------------------------- */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -171,7 +151,7 @@
 }
 
 :root {
-  --background: #fcf8fb;
+  --background: #ffffff;
   --foreground: #1b1b1d;
 
   --card: #ffffff;
@@ -179,26 +159,51 @@
   --popover: #ffffff;
   --popover-foreground: #1b1b1d;
 
-  --primary: #493ee5;
+  --primary: #AF52DE;
   --primary-foreground: #ffffff;
 
-  /* The high-conversion orange, reserved for the single most important
-   * action on a screen. Used sparingly on purpose — the design system calls
-   * it out for "Get Started" and "Connect", nothing else. */
   --secondary: #fd894f;
   --secondary-foreground: #6c2800;
 
   --muted: #f0edef;
   --muted-foreground: #464555;
 
-  --accent: #e2dfff;
-  --accent-foreground: #0f0069;
+  --accent: #f6d9ff;
+  --accent-foreground: #310048;
 
   --destructive: #ba1a1a;
 
   --border: #e4e2e4;
   --input: #c7c4d8;
-  --ring: #493ee5;
+  --ring: #AF52DE;
+}
+
+.dark {
+  --background: #121214;
+  --foreground: #f3f0f2;
+
+  --card: #18181b;
+  --card-foreground: #f3f0f2;
+  --popover: #18181b;
+  --popover-foreground: #f3f0f2;
+
+  --primary: #AF52DE;
+  --primary-foreground: #ffffff;
+
+  --secondary: #fd894f;
+  --secondary-foreground: #ffdbcc;
+
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+
+  --accent: #310048;
+  --accent-foreground: #f6d9ff;
+
+  --destructive: #f87171;
+
+  --border: #27272a;
+  --input: #3f3f46;
+  --ring: #AF52DE;
 }
 
 @layer base {
@@ -211,7 +216,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-200;
   }
 
   h1,
@@ -225,30 +230,8 @@
 }
 
 @layer components {
-  /*
-   * The dotted field the app screens sit on. Faint enough to read as texture
-   * rather than pattern — it gives the flat pastel surface something to be,
-   * without competing with content.
-     */
-  .bg-dotted {
-    background-image: radial-gradient(
-      circle at 1px 1px,
-      rgb(73 62 229 / 0.06) 2px,
-      transparent 0
-    );
-    background-size: 40px 40px;
-  }
- 
-
-
-  /*
-   * The template's named classes, rebuilt from the theme tokens above rather
-   * than copied with their literal rgba values. That is the whole point of
-   * extracting them: `.clay-card` and `shadow-clay` now cannot disagree, and
-   * changing the brand purple updates both.
-   */
   .clay-card {
-    background-color: var(--color-surface-container-lowest);
+    background-color: var(--card);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-clay);
   }
@@ -271,7 +254,7 @@
   }
 
   .clay-btn-secondary {
-    background-color: var(--color-surface-container-lowest);
+    background-color: var(--card);
     border: 1.5px solid var(--color-brand);
     color: var(--color-brand);
     box-shadow: var(--shadow-clay-soft);
@@ -286,29 +269,17 @@
     transform: translateY(2px);
   }
 
-  /*
-   * The dotted field, at the template's 30px spacing. Kept distinct from
-   * `.bg-dotted`, which is the finer 40px grid the onboarding and marketing
-   * pages use.
-  .bg-pattern {
-    background-color: var(--color-surface);
-    background-image: radial-gradient(var(--color-brand-fixed) 2px, transparent 2px);
-    background-size: 30px 30px;
-  }
-   */
-
-  /* Sticky headers and the bottom nav, per the design system's glass spec. */
   .glass {
     background-color: rgb(255 255 255 / 0.7);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
   }
+
+  .dark .glass {
+    background-color: rgb(18 18 20 / 0.7);
+  }
 }
 
-/*
- * Motion is decorative here, so all of it is opt-out. Anyone who has asked
- * their system for reduced motion gets a static page, not a slower one.
- */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
