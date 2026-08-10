@@ -6,9 +6,13 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.7.0
+Version:     0.8.0
 
 Modifications:
+    0.8.0 - 2026-08-10 - Added section 12: Phase 3 as built — conversations and
+                         messages, decisions D21-D25, why the participation rule
+                         is stricter than tenancy, what Realtime does and does
+                         not guarantee, and the deviations from the chat design
     0.7.0 - 2026-08-09 - Section 11.7: why the API never returns an empty
                          catalog, decisions D18-D20 (the placeholder curriculum,
                          its own provenance value, and the course requirement on
@@ -1720,3 +1724,142 @@ import, and until then the warning has to stay on the screen. The placeholder
 path is also unrate-limited — it costs nothing, its upserts are idempotent, and
 it is reachable only while a degree's catalog is empty, which stops being true
 after the first call.
+
+---
+
+## 12. Phase 3 as built — conversations, icebreakers, realtime
+
+### 12.1 Decisions taken in this phase
+
+| # | Decision | Consequence |
+|---|----------|-------------|
+| D21 | **A conversation is per PAIR, not per course** | `conversations` has two participants and a nullable `course_offering_id` recording what brought them together. A connection request is per-course (D2) because that is the unit of interest when *looking* for a partner; once two people are talking, splitting them into a thread per shared course would fragment one human exchange. |
+| D22 | **The icebreaker is sent, not drafted** | As specified: `/api/icebreaker` creates the conversation and inserts the opener, so the student lands in a thread that already has a first message. See §12.5 for the concern this raises and how it is mitigated. |
+| D23 | **A generated message is labelled; a template one is not** | `messages.is_icebreaker` is true only for model output, and the chat shows "AI ICEBREAKER" above it. The keyless fallback is a sentence assembled from two facts the sender already knew, so it is *their* message — labelling it AI would be a lie in the other direction. |
+| D24 | **Messages can never be edited or deleted** | No DELETE grant, and a `freeze_message_content` trigger. A thread is a shared record: one side rewriting or erasing part of it rewrites the other side's history. |
+| D25 | **`read_at` is derived, never written by the application** | The requested column is `is_read`; the design also shows "Read 10:42", which a boolean cannot say. A trigger keeps the timestamp in step, so the two can never disagree. |
+
+### 12.2 Why the access rule here is not the usual one
+
+Every table before this one answers the same question: *is this row in your
+university?* Conversations do not. Every classmate shares a university and none
+of them may read this thread, so the condition is **you are one of exactly two
+people** — strictly narrower.
+
+The policy says exactly that and nothing else:
+
+```sql
+using (auth.uid() in (participant_a, participant_b))
+```
+
+There is deliberately no same-university clause beside it. It would be pure
+noise: two participants is already narrower, and a broader condition sitting next
+to it invites a future reader to think the tenant check is carrying weight it is
+not. Tenancy is enforced where it can still be got wrong — on INSERT, both in the
+policy (`university_id = app_current_university_id()`) and in a trigger that
+compares the two profiles' universities directly.
+
+Two write rules matter as much as the read rule:
+
+- `sender_id = auth.uid()` on INSERT. Without it, a legitimate participant could
+  forge a message attributed to the other person, inside a thread they are
+  entitled to write to.
+- `sender_id <> auth.uid()` on UPDATE. This is what makes "mark as read" safe: a
+  sender marking their own message read could clear their own badge and tell the
+  other person their message had been seen when it had not.
+
+**A denied UPDATE is silent, and the tests had to be rewritten to notice.** An
+UPDATE whose `USING` clause excludes a row matches nothing and returns success on
+zero rows — not an error. Two tests originally asserted "an error came back",
+passed for the wrong reason, and would have kept passing if the policy were
+loosened. They now assert that no row changed and the content is unchanged.
+
+### 12.3 Two triggers need SECURITY DEFINER, and one deliberately does not
+
+- `touch_conversation_on_message` maintains `last_message_at`. Students have no
+  UPDATE grant on `conversations` on purpose — a student who could write that
+  column could reorder their own Requests list or forge activity on a dormant
+  thread — so the trigger needs the owner's rights to do it for them.
+- `check_conversation_same_university` has to see **both** profiles to compare
+  them. Under invoker rights the other student's row is filtered out by the
+  profiles policy exactly when they are at another university, which is the case
+  the check exists to catch: one visible row, one distinct university, and a check
+  that passes by being blind.
+- `app_is_conversation_participant` is **invoker** rights, and that is the point.
+  It reads `conversations`, which is already behind the read policy, so a
+  non-participant asking about someone else's thread gets no row and the answer is
+  false. Definer rights would let it answer questions about threads the caller
+  cannot see, for no benefit. Unlike `app_current_university_id` there is no
+  recursion to escape — it is called from the messages policy, not the
+  conversations one.
+
+### 12.4 What Realtime does, and what it does not
+
+`messages` and `conversations` are in the `supabase_realtime` publication, and
+`messages` is `replica identity full` so an UPDATE payload carries the old row —
+without it a client cannot tell an unread-to-read transition from any other
+change.
+
+**RLS applies to the stream.** A student's socket only carries rows from their own
+conversations. That is why the unread badge can subscribe to `messages` with no
+filter: `postgres_changes` filters are single-column equality and the real
+condition is a join, but the database is already applying that join. A filter
+would be a second, weaker copy of a rule that is already enforced.
+
+Three implementation notes, each of which was a bug first:
+
+- **Channel names must be unique per component instance.** `createBrowserClient`
+  memoises its client and that client keeps one channel per name, so two
+  components asking for `channel('unread-messages')` get the *same object* — and
+  the second `.on()` lands after `subscribe()`, which throws and takes the page
+  down. Both navigation bars render a badge, so this happened immediately.
+- **The badge re-counts rather than increments.** An increment is only correct if
+  every event is received exactly once, and a socket that drops and reconnects
+  breaks that silently, leaving a badge stuck at 3 forever.
+- **The chat holds only socket arrivals in state, not the whole thread.** History
+  stays in the server-rendered prop and the two are merged by id at render time.
+  This removes the usual bug in this shape of component: seeding state from props
+  and then having to re-sync whenever the server sends a fresher list.
+
+### 12.5 The concern with D22, stated plainly
+
+The specification is that pressing "Send message" sends a generated opener. That
+means **words the student never read go out under their name.** It is recorded
+here rather than quietly changed, because it is a product decision and it was
+made deliberately:
+
+- The recipient is told: a generated opener carries the "AI ICEBREAKER" label, so
+  nobody is deceived about who wrote it.
+- The sender sees it immediately — they land in the thread with the message
+  visible, and can follow it with their own words at once.
+- Nothing is hidden: the message is an ordinary row with `model` recorded.
+
+Turning this into a draft the student approves before sending is a small change —
+the API would return the text instead of inserting it, and the design's "Send
+Suggestion" button would do the insert. If the behaviour ever feels wrong in use,
+that is the change to make.
+
+### 12.6 Deviations from the supplied chat design
+
+| Design | What was built | Why |
+|---|---|---|
+| Green status dot, "Psychology • Online" | Degree and course code | There is no presence tracking in this project (conflict C7). A green dot that means nothing is worse than no dot: a student would wait for a reply that was never coming |
+| Material Symbols icon font | lucide-react | Already a dependency. A second icon font is ~100 KB and a render-blocking request for glyphs we already have |
+| "Schedule Session" quick action | Not built | Session scheduling is C5/C7, still unresolved. A control that silently does nothing is worse than its absence |
+| Its own palette, Plus Jakarta + Be Vietnam Pro, its own spacing scale | The existing Kinetic Learning tokens | The layout is reproduced exactly — bubble shapes, the asymmetric corner that makes direction readable without reading the text, the inner top highlight, the date pill, the round composer and circular send button. The literal palette was not copied, because two colour systems in one app disagree the first time either changes |
+| An "AI Icebreaker" card with a "Send Suggestion" button | The label on the message itself | Given D22 the opener is already sent by the time the thread renders. A "send" button on a sent message would be a lie |
+| Mobile-only frame, bottom nav inside the chat | The existing app shell, responsive | The app already has a nav shell used by every other screen; a second one would drift |
+
+### 12.7 Still open after this phase
+
+- **A thread is not paginated.** Every message is read in one query. Correct for
+  two study partners and wrong for a year of history; the fix is a keyset page on
+  `(conversation_id, created_at)`, which the index already supports.
+- **No typing indicator, presence, or attachments.** None were specified, and
+  each needs its own store — presence in particular is the same C7 gap that
+  removed the green dot.
+- **The opener cannot be regenerated.** One conversation per pair means pressing
+  the button again opens the existing thread, which is the right behaviour but
+  leaves no way to ask for a different opening line.
+- **C4, C5, C8, C9** remain unresolved: study groups, session scheduling, course
+  meeting times and sections. The per-course dashboard still waits on C8 and C9.

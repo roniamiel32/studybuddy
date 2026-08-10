@@ -4,6 +4,95 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] — 2026-08-10
+
+Phase 3 — conversations, the Smart Icebreaker, and realtime chat.
+
+### Added
+- **`conversations` and `messages`**, with `is_read` on messages. One
+  conversation per PAIR rather than per course: a connection request is
+  per-course because the unit of interest is "a partner for Computational
+  Models", but a conversation is between two people, and splitting the same two
+  students into one thread per shared course would fragment a single human
+  exchange. The course they matched on is recorded on the row instead, so the
+  chat header can still name it.
+- **RLS restricted to the two participants** — a stricter rule than anywhere
+  else in the app. Elsewhere the condition is "your university"; here that is
+  necessary but nowhere near sufficient, since every classmate shares a
+  university and none of them may read the thread. 24 integration tests attack
+  it as a real student: an outsider reading it, writing into it, marking it read,
+  a participant forging a message as the other person, and a participant editing
+  what was said.
+- **`POST /api/icebreaker`** — creates the conversation, generates the opener
+  with the specified prompt, and inserts it as the first message. Authorisation
+  is the insert policy, not the handler: the row goes in through the caller's own
+  client, so a student can only open a thread with someone the matches list would
+  have shown them.
+- **The Requests tab** (`/requests`) listing conversations with previews, unread
+  pills and relative times, and **the chat room** (`/requests/[conversationId]`)
+  built from the supplied design.
+- **Realtime.** Both sides see a new message without a refresh, and receipts flip
+  to "Read" when the other person opens the thread. Verified in a browser with
+  two real signed-in students.
+- **The unread badge** over the Requests tab: a red circle with a white count,
+  seeded server-side so it is right on first paint, then kept live by the same
+  subscription. Hidden completely at zero — not a zero in a circle.
+- **Mark as read on open**, which clears the badge and stamps `read_at`.
+- 41 tests: 24 RLS, 17 for the chat formatting and the icebreaker's pure parts,
+  and 5 e2e including two that prove a message arrives with no reload.
+
+### Changed
+- The match-card button is now **"Send message"**. It was "Send smart
+  icebreaker", which promised which kind of opener would be written — the button
+  sends a model-written one when a model is configured and a hand-built one when
+  not, and the label should not claim which.
+- `messages.model` and `is_icebreaker` record provenance, and the chat labels a
+  generated opener "AI ICEBREAKER". The recipient is told a message was drafted
+  rather than typed — the same honesty rule the course catalog follows. The
+  fallback opener is deliberately NOT labelled: a sentence assembled from two
+  facts the sender already knew is their own message, and calling it AI would be
+  a lie in the other direction.
+
+### Deviations from the supplied design
+| Design | What was built | Why |
+|---|---|---|
+| Green dot and "Online" | Degree and course code | There is no presence tracking (conflict C7). A green dot that means nothing is worse than none: a student would wait for a reply that was never coming |
+| Material Symbols icon font | lucide-react | Already a dependency; a second icon font is ~100 KB of render-blocking request for glyphs we have |
+| "Schedule Session" quick action | Not built | Session scheduling is conflicts C5/C7, still unresolved. A control that silently does nothing is worse than its absence |
+| Its own colour tokens and fonts | The existing Kinetic Learning tokens | Layout, spacing and bubble shapes are reproduced exactly, including the asymmetric corner that makes direction readable without reading the text. Copying the literal palette would have given the app two disagreeing colour systems |
+| "AI Icebreaker" as a card with "Send Suggestion" | Label on the message itself | The specification is that the API sends the opener, so by the time the student sees the thread it is already sent. A "send" button on a sent message would be a lie |
+
+### Fixed
+- A shared Realtime channel name crashed the app. `createBrowserClient`
+  memoises its client and that client keeps one channel per name, so the second
+  badge to mount called `.on()` on a channel the first had already subscribed —
+  which throws and took the whole page down. Channel names are now unique per
+  component instance. Found by running it, not by reading it.
+- The mobile nav dimmed inactive tabs with `opacity-60` on the link, which faded
+  the unread badge with everything else — on the one tab where it matters, since
+  Requests is inactive exactly when a student needs to notice something arrived.
+  The dimming now applies to the icon and label only.
+- A screen reader announced the badge before the label ("2 unread messages,
+  Requests"). The count is now a hook, so the visual circle sits over the icon
+  and the spoken sentence comes after the label.
+
+### Known limitations
+- **A thread is not paginated.** Fine for two study partners; it would not be for
+  a year of history.
+- **The fallback opener is not a model's work**, and reads like it. That is the
+  cost of working without an API key, which is how this will be graded.
+- **No typing indicator, presence, or attachments.** None were specified, and
+  each needs its own store.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 238 tests, production build.
+Playwright: 36 e2e tests across chromium and mobile-safari.
+
+Verified by hand in the browser with two signed-in students: pressing "Send
+message" opened a thread with an opener in it; a message sent by the other
+student appeared with no reload; the badge went 0 → 2 live and cleared on
+opening; read receipts moved to "Read" only for the recipient's side.
+
 ## [0.11.0] — 2026-08-09
 
 Step 2 always has courses to pick, and now requires one.

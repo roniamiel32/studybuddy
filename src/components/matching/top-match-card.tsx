@@ -4,16 +4,18 @@
  * Description: The best candidate, given the bento treatment from the source
  *              design: large avatar, score badge, trait chips, shared
  *              availability, and the primary call to action.
- * Version:     0.10.0
+ * Version:     0.12.0
  *
  * Modifications:
+ *     0.12.0 - 2026-08-10 - Send message opens a conversation (Phase 3)
  *     0.10.0 - 2026-08-09 - Study track no longer shown
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
  */
 
-import { Flame, HandHeart, Stars } from 'lucide-react';
+import { Flame, Stars } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { MessageButton } from '@/components/matching/message-button';
 import { describeScore, traitChipsFor } from '@/components/matching/traits';
 import { Chip } from '@/components/ui/chip';
 import { formatSharedAvailability, type MatchView } from '@/features/matching/match-view';
@@ -105,23 +107,19 @@ export function TopMatchCard({ match }: TopMatchCardProps) {
           </div>
 
           {/*
-           * Disabled rather than absent. Sending a request is Phase 3a and the
-           * icebreaker itself Phase 3c; showing the button conveys where this
-           * screen is going, and disabling it is more honest than wiring a
-           * control that silently does nothing.
+           * Live as of Phase 3. It opens a conversation with an opener already
+           * written, which is why the label is "Send message" and not "Send
+           * smart icebreaker": the opener is generated when a model is
+           * configured and hand-built when one is not, and the button should not
+           * promise which.
            */}
-          <button
-            type="button"
-            disabled
-            aria-describedby="icebreaker-pending"
-            className="clay-btn-primary flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 text-label-md disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
-          >
-            <HandHeart className="size-5" aria-hidden="true" />
-            Send smart icebreaker
-          </button>
-          <p id="icebreaker-pending" className="text-outline mt-2 text-label-sm font-normal">
-            Requests and AI icebreakers arrive in the next phase.
-          </p>
+          <MessageButton
+            partnerId={match.candidateId}
+            courseOfferingId={match.bestCourseOfferingId}
+            partnerName={match.fullName}
+            tone="primary"
+            className="w-full md:w-auto"
+          />
         </div>
       </div>
     </section>

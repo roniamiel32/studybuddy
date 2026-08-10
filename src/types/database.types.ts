@@ -238,6 +238,65 @@ export type Database = {
           },
         ]
       }
+      conversations: {
+        Row: {
+          course_offering_id: string | null
+          created_at: string
+          id: string
+          last_message_at: string
+          participant_a: string
+          participant_b: string
+          university_id: string
+        }
+        Insert: {
+          course_offering_id?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          participant_a: string
+          participant_b: string
+          university_id: string
+        }
+        Update: {
+          course_offering_id?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          participant_a?: string
+          participant_b?: string
+          university_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_course_offering_id_fkey"
+            columns: ["course_offering_id"]
+            isOneToOne: false
+            referencedRelation: "course_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_participant_a_fkey"
+            columns: ["participant_a"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_participant_b_fkey"
+            columns: ["participant_b"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_offerings: {
         Row: {
           course_id: string
@@ -517,6 +576,57 @@ export type Database = {
           },
         ]
       }
+      messages: {
+        Row: {
+          body: string
+          conversation_id: string
+          created_at: string
+          id: string
+          is_icebreaker: boolean
+          is_read: boolean
+          model: string | null
+          read_at: string | null
+          sender_id: string
+        }
+        Insert: {
+          body: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          is_icebreaker?: boolean
+          is_read?: boolean
+          model?: string | null
+          read_at?: string | null
+          sender_id: string
+        }
+        Update: {
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          is_icebreaker?: boolean
+          is_read?: boolean
+          model?: string | null
+          read_at?: string | null
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_contacts: {
         Row: {
           created_at: string
@@ -758,6 +868,10 @@ export type Database = {
       app_current_university_id: { Args: never; Returns: string }
       app_is_connected_to: {
         Args: { other_profile_id: string }
+        Returns: boolean
+      }
+      app_is_conversation_participant: {
+        Args: { target_conversation_id: string }
         Returns: boolean
       }
       app_overlap_minutes: {

@@ -7,9 +7,10 @@
  *              profile route yet. Rather than ship a control that goes nowhere,
  *              it expands the card in place to show why this person was matched
  *              — which is the question a student actually has at that moment.
- * Version:     0.10.0
+ * Version:     0.12.0
  *
  * Modifications:
+ *     0.12.0 - 2026-08-10 - Send message button (Phase 3)
  *     0.10.0 - 2026-08-09 - Study track no longer shown
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
  */
@@ -20,6 +21,7 @@ import { useState } from 'react';
 import { CalendarClock, ChevronDown } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { MessageButton } from '@/components/matching/message-button';
 import { describeScore, traitChipsFor } from '@/components/matching/traits';
 import { Chip } from '@/components/ui/chip';
 import { formatSharedAvailability, type MatchView } from '@/features/matching/match-view';
@@ -76,12 +78,19 @@ export function MatchCard({ match }: MatchCardProps) {
         ))}
       </ul>
 
+      <MessageButton
+        partnerId={match.candidateId}
+        courseOfferingId={match.bestCourseOfferingId}
+        partnerName={match.fullName}
+        className="mt-auto w-full"
+      />
+
       <button
         type="button"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
         aria-controls={detailsId}
-        className="clay-btn-secondary focus-visible:ring-brand/35 mt-auto flex w-full items-center justify-center gap-1.5 rounded-md py-2 text-label-sm focus-visible:ring-4 focus-visible:outline-none"
+        className="text-on-surface-variant hover:text-brand focus-visible:ring-brand/35 mt-2 flex w-full items-center justify-center gap-1.5 rounded-md py-1 text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none"
       >
         {expanded ? 'Hide details' : 'Why this match?'}
         <ChevronDown
