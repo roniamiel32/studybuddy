@@ -2,22 +2,7 @@
  * File:        src/app/(app)/students/[profileId]/page.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: A student's profile.
- *
- *              Three bands: who they are, what the viewer has in common with them,
- *              and who they have studied with. A profile the viewer cannot see is a
- *              404 rather than a refusal, so a guessed id cannot confirm that
- *              somebody exists.
- *
- *              ONLY POSITIVE CONNECTIONS APPEAR HERE, and nothing on this page can
- *              change that: the ratings SELECT policy will not return a negative row
- *              to anyone but its author, and the view model has no field to hold one.
- *              There is also no count of negatives, and no gap where one would go —
- *              "3 of 5 partners rated this person well" would leak the thing the
- *              policy protects.
- * Version:     0.18.0
- *
- * Modifications:
- *     0.18.0 - 2026-08-10 - Initial implementation (Phase 6)
+ * Version:     0.18.1
  */
 
 import type { Metadata } from 'next';
@@ -45,6 +30,17 @@ import {
 import { getStudentProfile } from '@/features/profiles/queries';
 
 export const metadata: Metadata = { title: 'Profile' };
+
+/**
+ * 0-40: #FF6B7D
+ * 41-79: #FF8A50
+ * 80-100: #c5d9c9
+ */
+function getCompatibilityColor(score: number): string {
+  if (score <= 40) return '#FF6B7D';
+  if (score <= 79) return '#FF8A50';
+  return '#4f7b58ff';
+}
 
 /**
  * Renders a student's profile.
@@ -101,12 +97,6 @@ export default async function StudentProfilePage({
                     courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
                     partnerName={profile.fullName}
                   />
-                  {/*
-                    * Rating requires a conversation, which is the rule the insert
-                    * policy enforces. The control is absent rather than disabled
-                    * when there is none: "rate someone you have never spoken to" is
-                    * not a thing to explain, it is a thing that does not apply yet.
-                    */}
                   {profile.canRate ? (
                     <RatePartnerDialog
                       rateeId={profile.id}
@@ -166,7 +156,12 @@ export default async function StudentProfilePage({
               {profile.compatibilityScore !== null ? (
                 <div className="border-outline-variant/30 bg-surface-container-low mt-4 rounded-lg border p-4">
                   <p className="text-outline text-label-sm">Compatibility</p>
-                  <p className="font-heading text-brand text-headline-lg">
+                  <p
+                    className="font-heading text-headline-lg font-bold"
+                    style={{
+                      color: getCompatibilityColor(Math.round(profile.compatibilityScore)),
+                    }}
+                  >
                     {Math.round(profile.compatibilityScore)}%
                   </p>
                   <p className="text-on-surface-variant text-label-sm font-normal">
@@ -176,11 +171,6 @@ export default async function StudentProfilePage({
                 </div>
               ) : (
                 <p className="text-on-surface-variant mt-3 text-body-md text-pretty">
-                  {/*
-                    * Honest about the two reasons, without saying which. A negative
-                    * rating in either direction removes the pair from scoring, and
-                    * naming that here would disclose it.
-                    */}
                   No compatibility score — you may not share a course this semester.
                 </p>
               )}
