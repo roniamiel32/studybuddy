@@ -10,9 +10,10 @@
  *              (design conflict C2), and that name stopped being true once it
  *              held real conversations. Renaming it also frees "Requests" for the
  *              connection-request flow D2 actually describes.
- * Version:     0.13.0
+ * Version:     0.15.0
  *
  * Modifications:
+ *     0.15.0 - 2026-08-10 - Join-request badge on Courses (Phase 5)
  *     0.13.0 - 2026-08-10 - Requests renamed to Messages
  *     0.12.0 - 2026-08-10 - Unread badge on Requests (Phase 3)
  *     0.8.0  - 2026-08-05 - Initial implementation (Phase 2)
@@ -24,12 +25,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { GraduationCap, MessageSquare, Sparkles, UserRound } from 'lucide-react';
 
-import { UnreadDot, UnreadText, useUnreadCount } from '@/components/layout/unread-badge';
+import {
+  UnreadDot,
+  UnreadText,
+  usePendingRequestCount,
+  useUnreadCount,
+} from '@/components/layout/unread-badge';
 import { cn } from '@/lib/utils';
 
 const DESTINATIONS = [
   { href: '/dashboard', label: 'Match', icon: Sparkles },
-  { href: '/courses', label: 'Courses', icon: GraduationCap },
+  /* Carries the admin's pending join requests, which is where they act on them. */
+  { href: '/courses', label: 'Courses', icon: GraduationCap, requests: true },
   /* The only destination that carries a count, hence the flag rather than a
      lookup by href in the render. */
   { href: '/messages', label: 'Messages', icon: MessageSquare, badge: true },
@@ -39,6 +46,8 @@ const DESTINATIONS = [
 export interface NavProps {
   /** Unread total from the server, so the badge is right on first paint. */
   unreadCount: number;
+  /** Join requests waiting on this student as a group admin. */
+  pendingRequestCount: number;
   viewerId: string;
 }
 
@@ -61,9 +70,10 @@ function isActive(pathname: string, href: string): boolean {
  *
  * @returns The nav element.
  */
-export function DesktopNav({ unreadCount, viewerId }: NavProps) {
+export function DesktopNav({ unreadCount, pendingRequestCount, viewerId }: NavProps) {
   const pathname = usePathname();
   const unread = useUnreadCount(unreadCount, viewerId);
+  const requests = usePendingRequestCount(pendingRequestCount, viewerId);
 
   return (
     <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
@@ -88,11 +98,15 @@ export function DesktopNav({ unreadCount, viewerId }: NavProps) {
             <span className="relative flex">
               <Icon className="size-4" aria-hidden="true" />
               {'badge' in destination ? <UnreadDot count={unread} /> : null}
+              {'requests' in destination ? <UnreadDot count={requests} /> : null}
             </span>
             {label}
             {/* After the label, so the link announces "Messages, 2 unread
                 messages" rather than leading with a bare number. */}
             {'badge' in destination ? <UnreadText count={unread} /> : null}
+            {'requests' in destination ? (
+              <UnreadText count={requests} noun="join request" />
+            ) : null}
           </Link>
         );
       })}
@@ -106,9 +120,10 @@ export function DesktopNav({ unreadCount, viewerId }: NavProps) {
  *
  * @returns The nav element.
  */
-export function MobileNav({ unreadCount, viewerId }: NavProps) {
+export function MobileNav({ unreadCount, pendingRequestCount, viewerId }: NavProps) {
   const pathname = usePathname();
   const unread = useUnreadCount(unreadCount, viewerId);
+  const requests = usePendingRequestCount(pendingRequestCount, viewerId);
 
   return (
     <nav
@@ -160,6 +175,12 @@ export function MobileNav({ unreadCount, viewerId }: NavProps) {
               <>
                 <UnreadDot count={unread} variant="mobile" />
                 <UnreadText count={unread} />
+              </>
+            ) : null}
+            {'requests' in destination ? (
+              <>
+                <UnreadDot count={requests} variant="mobile" />
+                <UnreadText count={requests} noun="join request" />
               </>
             ) : null}
           </Link>

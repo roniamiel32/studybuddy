@@ -6,6 +6,7 @@
  * Version:     0.12.0
  *
  * Modifications:
+ *     0.15.0 - 2026-08-10 - Pending join-request count for the badge (Phase 5)
  *     0.12.0 - 2026-08-10 - Unread count for the navigation badge (Phase 3)
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  *     0.6.1 - 2026-08-05 - Avatar in the header
@@ -18,6 +19,7 @@ import { DesktopNav, MobileNav } from '@/components/layout/app-nav';
 import { ProfileBadge } from '@/components/layout/profile-badge';
 import { Button } from '@/components/ui/button';
 import { getUnreadCount } from '@/features/chat/queries';
+import { getPendingRequestCount } from '@/features/groups/queries';
 import { signOut } from '@/features/auth/actions';
 import { getOnboardingProfile } from '@/features/onboarding/queries';
 import { requireUser } from '@/lib/supabase/server';
@@ -29,10 +31,11 @@ import { requireUser } from '@/lib/supabase/server';
  * @returns The layout element.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const [profile, user, unreadCount] = await Promise.all([
+  const [profile, user, unreadCount, pendingRequestCount] = await Promise.all([
     getOnboardingProfile(),
     requireUser(),
     getUnreadCount(),
+    getPendingRequestCount(),
   ]);
 
   return (
@@ -45,7 +48,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Logo />
           </Link>
 
-          <DesktopNav unreadCount={unreadCount} viewerId={user.id} />
+          <DesktopNav
+            unreadCount={unreadCount}
+            pendingRequestCount={pendingRequestCount}
+            viewerId={user.id}
+          />
 
           <form action={signOut}>
             <Button type="submit" variant="ghost" size="sm">
@@ -60,7 +67,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {children}
       </main>
 
-      <MobileNav unreadCount={unreadCount} viewerId={user.id} />
+      <MobileNav
+        unreadCount={unreadCount}
+        pendingRequestCount={pendingRequestCount}
+        viewerId={user.id}
+      />
     </div>
   );
 }

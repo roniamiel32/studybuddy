@@ -6,9 +6,13 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.9.0
+Version:     0.10.0
 
 Modifications:
+    0.10.0 - 2026-08-10 - Added section 14: Phase 5 as built — study groups,
+                          decisions D30-D34, why approval is one SQL function,
+                          the discovery-versus-privacy split, and the RLS bug a
+                          test found in the groups read policy
     0.9.0 - 2026-08-10 - Added section 13: Phase 4 as built — per-course
                          preference overrides, decisions D26-D29, why the
                          overrides live on `enrollments`, the two places the
@@ -1970,3 +1974,127 @@ answer while ranking them on their override would be explaining the wrong thing.
   reason. It costs wall-clock time on the unit tests, which is the right trade: a
   suite that fails for reasons unrelated to the code teaches people to re-run
   instead of read.
+
+---
+
+## 14. Phase 5 as built — study groups
+
+Closes **conflict C4**, open since §8.4: the source design showed study groups and
+the schema had nowhere to put them.
+
+### 14.1 Decisions taken in this phase
+
+| # | Decision | Consequence |
+|---|----------|-------------|
+| D30 | **A group belongs to one course offering** | `study_groups.course_offering_id`. The product's unit of interest is a partner for Computational Models, not a general club, and the same reasoning already shapes `connection_requests`. |
+| D31 | **Membership is its own table** | `study_group_members`, not an array on the group. An array of uuids cannot be constrained, cannot cascade when a student is deleted, and cannot be joined against without unnesting it on every read. |
+| D32 | **The group chat is a separate table** | `study_group_messages`, not `conversations`. See §14.3. |
+| D33 | **"Full" is not a status** | `status` is `open` or `closed`, set by the admin. Fullness is a count against `max_participants`; storing it would be a second copy of a number the members table already knows, free to drift the moment someone leaves. |
+| D34 | **Approval is one SQL function** | `rpc_approve_group_request`. See §14.4. |
+
+### 14.2 Discovery and privacy are two different rules
+
+This is the distinction the whole feature turns on, and it is the reason there are
+two separate policies rather than one:
+
+- **The class can see a group exists**, who is in it and how full it is. Without
+  that there is no discovery, and a group nobody can find has nobody to join it.
+- **Only members can read the chat.** What the group says to each other is theirs.
+
+So `study_groups` and `study_group_members` are readable by anyone enrolled in the
+course, and `study_group_messages` is readable only by members. The integration
+suite tests both halves from the position of a classmate who *can* see the group
+and must not read a word of its conversation.
+
+Two write rules carry as much weight:
+
+- **An admin cannot add someone who never asked.** The members insert policy
+  requires an `approved` row in `group_requests` for that person. Without it an
+  admin could sweep any classmate into a group they never applied to — joining has
+  to be consensual, not something done to you.
+- **A member cannot forge a system message.** `not is_system` in the insert policy
+  means the "Welcome X to the group!" line can only come from the approval
+  function. A system message looks official; a member faking one could imply a
+  decision the admin never made.
+
+### 14.3 Why the group chat is not `conversations`
+
+`conversations` is strictly one-to-one: two `NOT NULL` participants, a no-self
+CHECK, and a unique index on the unordered pair. Phase 3's policies — the tightest
+RLS in the project — lean on exactly that shape. Widening the table to hold N
+participants would mean rewriting those policies to serve a second use case, and
+the failure mode of getting it wrong is private messages leaking.
+
+A separate table costs some duplication in the chat component and leaves
+one-to-one messages exactly as private as they were. That trade is not close.
+
+### 14.4 Why approval is one function and not three statements
+
+The members insert policy requires an already-approved request. So an application
+doing this in steps must approve first and insert second — and the insert can fail,
+because the capacity trigger rejects a group that filled up in between. That leaves
+the request `approved` with no membership, and the freeze trigger deliberately
+forbids re-deciding it: an unrecoverable state reachable by two admins clicking at
+the same moment.
+
+`rpc_approve_group_request` does all three writes in one transaction, so capacity
+failing rolls the whole thing back and the request stays pending. There is a test
+that fills a group to its limit, tries to approve one more, and asserts both that
+the approval failed and that the request is still `pending`.
+
+Being SECURITY DEFINER, it restates its own authorisation — caller must be the
+group's admin, request must be pending. That WHERE clause is the only thing
+standing between any signed-in student and approving anyone into any group, so two
+tests attack it directly: once as an unrelated classmate, once as the requester
+trying to let themselves in.
+
+### 14.5 The rejection flow, and why it is canned by default
+
+The admin picks from four polite messages or writes their own, and the text is
+shown in full before it is sent. Two reasons for the list:
+
+- The alternative is an admin typing something in a hurry to a classmate they will
+  sit beside for the rest of the semester.
+- A rejection with no message is worse than the feature not existing: the request
+  simply vanishes and the student is left guessing. The schema refuses an empty
+  one, and the action refuses a custom reason with nothing written in it.
+
+It is delivered as an ordinary one-to-one message from the admin, reusing Phase 3.
+It is attributed to them because the decision was theirs — the wording is canned,
+the choice is not. The text is also kept on `group_requests.decision_note`, so the
+group's own history records what was said rather than only that a rejection
+happened.
+
+### 14.6 A bug a test found in the read policy
+
+The `study_groups` SELECT policy was first written as
+`using (public.app_can_see_group(id))`. That helper is STABLE and re-reads
+`study_groups` to find the row it is being asked about — so during an
+`insert ... returning` it evaluated against the snapshot from before the insert,
+could not find the new row, and the statement failed with a policy violation.
+
+Any client doing `insert().select()` on the table would have hit it. The
+application happened not to, which is exactly why it is worth recording: it would
+have sat there until someone added a `.select()` and lost an afternoon to it. The
+policy is now written against the row's own `course_offering_id`, with no self-read
+and no snapshot to be caught by. The helper is still correct — and still used — for
+the other three tables, where the group id is a foreign key to a row that already
+exists.
+
+### 14.7 Deviations from the design, and what is still open
+
+| Design | What was built | Why |
+|---|---|---|
+| "Join Next Session · Thu, 6:00 PM" | No schedule | Session scheduling is **C5** and the group has no calendar. A time that is not real is worse than no time |
+| A single "Join" button | "Request to join", then admin approval | The spec for this phase is a request flow, and it is also the only version that makes joining consensual on both sides |
+
+Still open after this phase:
+
+- **Group membership does not feed the match score.** Two students in the same
+  study group are not ranked closer to each other, which is arguably what the
+  score is for.
+- **The admin cannot leave or hand over a group.** Leaving would orphan it, so the
+  delete policy excludes them; closing it to new requests is the available exit.
+- **No group size limit interacts with `group_sizes`** — a student who prefers
+  small groups is not warned when asking to join a group of twelve.
+- **C5, C8, C9** remain open: session scheduling, course meeting times, sections.

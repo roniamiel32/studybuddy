@@ -1,7 +1,8 @@
 /**
  * File:        src/components/layout/unread-badge.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: The red count over the Messages tab, and the hook behind it.
+ * Description: The red counts over the Messages and Courses tabs, and the hooks
+ *              behind them.
  *
  *              Seeded from the server so it is correct on first paint, then kept
  *              current by a Realtime subscription — the count must not wait for a
@@ -15,9 +16,10 @@
  *              socket only ever carries rows this student is allowed to see. The
  *              filter would be a second, weaker copy of a rule the database is
  *              already applying.
- * Version:     0.12.0
+ * Version:     0.15.0
  *
  * Modifications:
+ *     0.15.0 - 2026-08-10 - usePendingRequestCount for join requests (Phase 5)
  *     0.12.0 - 2026-08-10 - Initial implementation (Phase 3)
  */
 
@@ -114,6 +116,62 @@ export function useUnreadCount(initialCount: number, viewerId: string): number {
 }
 
 /**
+ * Tracks the join requests waiting on the caller as a group admin.
+ *
+ * A separate hook rather than a parameter on useUnreadCount, because the two count
+ * different tables and land on different tabs. Same shape though — seeded by the
+ * server, re-counted rather than incremented, and one channel per instance.
+ *
+ * @param initialCount - Count rendered on the server.
+ * @param viewerId     - The signed-in student; their own requests never count.
+ * @returns The current pending-request total.
+ */
+export function usePendingRequestCount(initialCount: number, viewerId: string): number {
+  const channelId = useId();
+  const [count, setCount] = useState(initialCount);
+  const [lastServerCount, setLastServerCount] = useState(initialCount);
+
+  if (initialCount !== lastServerCount) {
+    setLastServerCount(initialCount);
+    setCount(initialCount);
+  }
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    /*
+     * Re-counted, not incremented, for the same reason as the unread badge: a
+     * socket that drops and reconnects would leave an incrementing counter stuck.
+     *
+     * RLS limits `group_requests` to rows the caller sent or administers, so
+     * "pending and not mine" is exactly the set they have to act on — no filter
+     * here could express that, and none is needed.
+     */
+    const recount = async () => {
+      const { count: fresh } = await supabase
+        .from('group_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .neq('requester_id', viewerId);
+
+      setCount(fresh ?? 0);
+    };
+
+    const channel = supabase
+      .channel(`group-requests-${channelId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_requests' }, recount)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_requests' }, recount)
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [channelId, viewerId]);
+
+  return count;
+}
+
+/**
  * The red circle over a navigation icon.
  *
  * @param count   - The unread total.
@@ -158,17 +216,20 @@ export function UnreadDot({
  * announcing every arriving message would talk over whatever the student is
  * actually doing.
  *
- * @param count - The unread total.
- * @returns Visually hidden text, or null when there is nothing unread.
+ * @param count - The count.
+ * @param noun  - What is being counted. Defaults to an unread message.
+ * @returns Visually hidden text, or null when there is nothing to announce.
  */
-export function UnreadText({ count }: { count: number }) {
+export function UnreadText({ count, noun }: { count: number; noun?: string }) {
   if (count <= 0) {
     return null;
   }
 
+  const singular = noun ?? 'unread message';
+
   return (
     <span className="sr-only">
-      , {count} unread {count === 1 ? 'message' : 'messages'}
+      , {count} {count === 1 ? singular : `${singular}s`}
     </span>
   );
 }

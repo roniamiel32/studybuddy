@@ -496,6 +496,61 @@ export type Database = {
           },
         ]
       }
+      group_requests: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          group_id: string
+          id: string
+          requester_id: string
+          status: Database["public"]["Enums"]["group_request_status"]
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          group_id: string
+          id?: string
+          requester_id: string
+          status?: Database["public"]["Enums"]["group_request_status"]
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          group_id?: string
+          id?: string
+          requester_id?: string
+          status?: Database["public"]["Enums"]["group_request_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_requests_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       learning_preferences: {
         Row: {
           created_at: string
@@ -782,6 +837,139 @@ export type Database = {
           },
         ]
       }
+      study_group_members: {
+        Row: {
+          group_id: string
+          joined_at: string
+          profile_id: string
+        }
+        Insert: {
+          group_id: string
+          joined_at?: string
+          profile_id: string
+        }
+        Update: {
+          group_id?: string
+          joined_at?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_group_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_group_messages: {
+        Row: {
+          body: string
+          created_at: string
+          group_id: string
+          id: string
+          is_system: boolean
+          sender_id: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          group_id: string
+          id?: string
+          is_system?: boolean
+          sender_id?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          is_system?: boolean
+          sender_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_group_messages_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_group_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_groups: {
+        Row: {
+          admin_id: string
+          course_offering_id: string
+          created_at: string
+          description: string | null
+          id: string
+          max_participants: number
+          name: string
+          status: Database["public"]["Enums"]["study_group_status"]
+          university_id: string
+        }
+        Insert: {
+          admin_id: string
+          course_offering_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          max_participants: number
+          name: string
+          status?: Database["public"]["Enums"]["study_group_status"]
+          university_id: string
+        }
+        Update: {
+          admin_id?: string
+          course_offering_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          max_participants?: number
+          name?: string
+          status?: Database["public"]["Enums"]["study_group_status"]
+          university_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_groups_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_groups_course_offering_id_fkey"
+            columns: ["course_offering_id"]
+            isOneToOne: false
+            referencedRelation: "course_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_groups_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       terms: {
         Row: {
           created_at: string
@@ -889,6 +1077,7 @@ export type Database = {
         Returns: number
       }
       app_array_jaccard: { Args: { a: unknown; b: unknown }; Returns: number }
+      app_can_see_group: { Args: { target_group_id: string }; Returns: boolean }
       app_can_see_profile: {
         Args: { target_profile_id: string }
         Returns: boolean
@@ -902,6 +1091,14 @@ export type Database = {
         Args: { target_conversation_id: string }
         Returns: boolean
       }
+      app_is_group_admin: {
+        Args: { target_group_id: string }
+        Returns: boolean
+      }
+      app_is_group_member: {
+        Args: { target_group_id: string }
+        Returns: boolean
+      }
       app_overlap_minutes: {
         Args: { profile_a: string; profile_b: string }
         Returns: number
@@ -909,6 +1106,10 @@ export type Database = {
       app_shared_days: {
         Args: { profile_a: string; profile_b: string }
         Returns: number[]
+      }
+      rpc_approve_group_request: {
+        Args: { p_request_id: string }
+        Returns: string
       }
       rpc_find_candidates: {
         Args: { p_course_offering_id?: string; p_limit?: number }
@@ -956,9 +1157,11 @@ export type Database = {
       course_source: "seed" | "registrar" | "ai_generated" | "placeholder"
       degree_level: "bachelors" | "masters" | "phd"
       enrollment_intent: "need_help" | "want_partner" | "can_tutor"
+      group_request_status: "pending" | "approved" | "rejected"
       group_size_choice: "small" | "large"
       study_environment: "discussion" | "quiet"
       study_format: "in_person" | "remote"
+      study_group_status: "open" | "closed"
       time_block: "morning" | "noon" | "evening"
     }
     CompositeTypes: {
@@ -1104,9 +1307,11 @@ export const Constants = {
       course_source: ["seed", "registrar", "ai_generated", "placeholder"],
       degree_level: ["bachelors", "masters", "phd"],
       enrollment_intent: ["need_help", "want_partner", "can_tutor"],
+      group_request_status: ["pending", "approved", "rejected"],
       group_size_choice: ["small", "large"],
       study_environment: ["discussion", "quiet"],
       study_format: ["in_person", "remote"],
+      study_group_status: ["open", "closed"],
       time_block: ["morning", "noon", "evening"],
     },
   },

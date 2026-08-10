@@ -5,18 +5,18 @@
  *              it.
  *
  *              Follows the supplied course-dashboard design — breadcrumb, title,
- *              a sidebar of course facts, and a grid of classmates beside it. Two
- *              parts of that design are deliberately not built, and the reasons
- *              are recorded in the deviations table in the design document:
- *              meeting times, room and lecturer (the schema has no columns for
- *              them — design conflicts C8/C9), and study groups (C4).
+ *              a sidebar of course facts, and a grid of classmates beside it. The
+ *              design's study groups arrived in Phase 5 and are listed here. What
+ *              is still deliberately absent is meeting times, room and lecturer:
+ *              the schema has no columns for them (design conflicts C8/C9).
  *
  *              The matches here are scoped to THIS course by passing the offering
  *              id to `rpc_find_candidates`, which has accepted that argument since
  *              Phase 2 precisely so this screen could exist.
- * Version:     0.14.0
+ * Version:     0.15.0
  *
  * Modifications:
+ *     0.15.0 - 2026-08-10 - Study groups on the course page (Phase 5)
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
  */
 
@@ -25,6 +25,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronRight, TriangleAlert, Users } from 'lucide-react';
 
+import { CreateGroupPanel } from '@/components/groups/create-group-panel';
+import { GroupCard } from '@/components/groups/group-card';
 import { CoursePreferencesDialog } from '@/components/courses/course-preferences-dialog';
 import { MatchCard } from '@/components/matching/match-card';
 import { Chip } from '@/components/ui/chip';
@@ -35,6 +37,7 @@ import {
   resolveCoursePreferences,
 } from '@/features/courses/course-view';
 import { getGlobalPreferences, getMyCourse } from '@/features/courses/queries';
+import { getCourseGroups } from '@/features/groups/queries';
 import { getMatches } from '@/features/matching/queries';
 import {
   ENVIRONMENT_OPTIONS,
@@ -78,7 +81,10 @@ export default async function CoursePage({
     notFound();
   }
 
-  const matches = await getMatches({ courseOfferingId: offeringId, limit: 24 });
+  const [matches, groups] = await Promise.all([
+    getMatches({ courseOfferingId: offeringId, limit: 24 }),
+    getCourseGroups(offeringId),
+  ]);
 
   const inForce = resolveCoursePreferences(globals, course.override);
   const customised = hasOverride(course.override);
@@ -200,8 +206,32 @@ export default async function CoursePage({
           </section>
         </aside>
 
+        {/* ---- Study groups -------------------------------------------------- */}
+        <div className="flex flex-col gap-6 lg:col-span-8">
+          <section aria-labelledby="groups-heading">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 id="groups-heading" className="font-heading text-headline-md">
+                Study groups
+              </h2>
+              <CreateGroupPanel offeringId={offeringId} courseCode={course.code} />
+            </div>
+
+            {groups.length > 0 ? (
+              <ul aria-label="Study groups" className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
+                {groups.map((group) => (
+                  <GroupCard key={group.id} group={group} />
+                ))}
+              </ul>
+            ) : (
+              <p className="text-on-surface-variant bg-surface-container rounded-md p-4 text-body-md text-pretty">
+                No study groups for {course.code} yet. Create the first one and
+                classmates can ask to join.
+              </p>
+            )}
+          </section>
+
         {/* ---- Classmates --------------------------------------------------- */}
-        <section aria-labelledby="partners-heading" className="lg:col-span-8">
+        <section aria-labelledby="partners-heading">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 id="partners-heading" className="font-heading text-headline-md">
               Find partners
@@ -238,6 +268,7 @@ export default async function CoursePage({
             </div>
           )}
         </section>
+        </div>
       </div>
     </>
   );

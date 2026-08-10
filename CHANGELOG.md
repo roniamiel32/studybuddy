@@ -4,6 +4,91 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] — 2026-08-10
+
+Phase 5 — study groups, join requests, and a group chat. Closes design conflict
+**C4**, open since Phase 1.5.
+
+### Added
+- **Four tables.** `study_groups` (one course, one admin, `max_participants`,
+  `status`), `study_group_members`, `group_requests`, and
+  `study_group_messages`. Membership is its own table rather than an array on the
+  group: an array of uuids cannot be constrained, cannot cascade when a student is
+  deleted, and cannot be joined against without unnesting it on every read.
+- **Create a study group** from the course page, setting the size and becoming its
+  admin. The creator is added as a member by trigger, so a group can never exist
+  with an admin who is not in it.
+- **Discovery and join requests.** Open groups are listed to the whole class —
+  a group nobody can find has nobody to join it — with `Request to join`, and the
+  specific reason when that is unavailable ("Full", "Waiting for the admin to
+  reply", "Not accepting requests" are three different situations and a single
+  greyed-out button explains none of them).
+- **Admin notification**: a red badge on the Courses tab, seeded server-side and
+  kept live by Realtime, plus a count on the group card so they know *which* group.
+- **Applicant review**: opening a request shows the applicant's profile with
+  **Accept** and **Reject** on it, so the decision is made while looking at the
+  person it concerns.
+- **Rejection flow**: a dropdown of four polite canned messages plus **Other** for
+  custom text, the exact wording shown before sending, and the result delivered to
+  the rejected student as a real one-to-one message from the admin — reusing Phase
+  3's conversations, so it arrives where they already read messages.
+- **Acceptance flow**: `rpc_approve_group_request` marks the request, adds the
+  member and posts `Welcome [name] to the group!` as a system message, in **one
+  transaction**.
+- **Group chat**, live over Realtime, with sender names (a group needs them; a
+  one-to-one thread does not) and system messages rendered as centred events
+  rather than as something a person said.
+- 58 tests: 27 integration on the policies, 25 unit on capacity, blocked-reasons
+  and the canned messages, and 6 e2e covering create → request → notify → accept
+  and → reject.
+
+### Why approval is one SQL function
+The members insert policy requires an already-approved request, so the application
+would have to approve first and insert second. If the insert then failed — and it
+can, because the capacity trigger rejects a group that filled up in between — the
+request would be left approved with no membership, and the freeze trigger
+deliberately forbids re-deciding it. That is an unrecoverable state reachable by
+two clicks at the same moment. Inside one function it is one transaction: capacity
+fails, everything rolls back, the request stays pending. There is a test that fills
+a group and asserts exactly this.
+
+### Security notes
+- **Discovery and privacy are different rules.** The class can see that a group
+  exists and how full it is; only members can read its chat. Both are tested from
+  the position of a classmate who can see the group and must not read a word of it.
+- **An admin cannot add someone who never asked** — the members policy requires an
+  approved request, which is what makes joining consensual rather than something
+  done to you.
+- **A member cannot forge a system message.** `not is_system` in the insert policy
+  means "Welcome X to the group!" can only come from the approval function, so
+  nobody can fake a decision the admin never made.
+- `rpc_approve_group_request` is SECURITY DEFINER and therefore restates its own
+  authorisation: caller must be the group's admin and the request must be pending.
+  Two tests attack it as a non-admin and as the requester.
+
+### Fixed
+- **A SELECT policy that broke `insert().select()`.** The `study_groups` read
+  policy originally called `app_can_see_group(id)`, a STABLE definer function that
+  re-reads `study_groups` — so during an insert-with-returning it evaluated against
+  the pre-insert snapshot, could not find the new row, and failed with a policy
+  violation. Rewritten against the row's own columns. Found because a test used
+  `.select('id')` after inserting; the helper is still correct for the other three
+  tables, where the group id is a foreign key to a row that already exists.
+
+### Known limitations
+- **Saturday and languages are not overridable per group**, and group membership
+  does not yet feed the match score.
+- **The admin cannot leave or hand over a group** — leaving would orphan it, so the
+  delete policy excludes them. They can close it to new requests.
+- **A rejected student can ask again.** Deliberate: circumstances change, and a
+  permanent ban after one "not right now" is harsher than anyone meant.
+- **C5, C8 and C9 remain open** — session scheduling, meeting times and sections.
+  The group has no calendar, so "Next: Thu 6:00 PM" from the design is still absent.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 318 tests, production build. Playwright:
+66 e2e tests across chromium and mobile-safari.
+
 ## [0.14.1] — 2026-08-10
 
 Header logo, and brand-only course banners.
