@@ -70,14 +70,41 @@ describe('emailDomain', () => {
 });
 
 describe('institutionNameFromDomain', () => {
+  /*
+   * Known domains get their real name; everything else is derived from the
+   * domain. The map exists because derivation produces "Runi" and "Tau" — right
+   * enough to route a signup, wrong enough to look careless on a profile header
+   * next to a student's name.
+   */
   it.each([
-    ['post.runi.ac.il', 'Runi'],
-    ['runi.ac.il', 'Runi'],
-    ['mail.tau.ac.il', 'Tau'],
+    ['post.runi.ac.il', 'Reichman University'],
+    ['runi.ac.il', 'Reichman University'],
+    ['idc.ac.il', 'Reichman University'],
+    ['mail.tau.ac.il', 'Tel Aviv University'],
+  ])('uses the real name for the known domain %s', (domain, expected) => {
+    expect(institutionNameFromDomain(domain)).toBe(expected);
+  });
+
+  it.each([
     ['harvard.edu', 'Harvard'],
     ['cs.stanford.edu', 'Stanford'],
-  ])('derives %s into %s', (domain, expected) => {
+    ['newcollege.edu', 'Newcollege'],
+  ])('derives %s into %s when the domain is unknown', (domain, expected) => {
+    /*
+     * The fallback still has to work: any .ac.il or .edu address can sign up
+     * (D12), so most institutions will never be in the map.
+     */
     expect(institutionNameFromDomain(domain)).toBe(expected);
+  });
+
+  it('is case-insensitive about the domain', () => {
+    expect(institutionNameFromDomain('POST.RUNI.AC.IL')).toBe('Reichman University');
+  });
+
+  it('returns the domain unchanged when it is not academic at all', () => {
+    /* Signup rejects these long before this point; returning something rather
+       than throwing keeps the function total. */
+    expect(institutionNameFromDomain('example.com')).toBe('example.com');
   });
 });
 

@@ -48,15 +48,6 @@ export interface CoursePreferencesDialogProps {
   override: CoursePreferenceOverride;
 }
 
-/** Turns stored values into the labels a student recognises. */
-function labelsFor(values: string[], options: readonly { value: string; label: string }[]): string {
-  return (
-    values
-      .map((value) => options.find((option) => option.value === value)?.label ?? value)
-      .join(', ') || 'None'
-  );
-}
-
 /**
  * Renders the override control and its dialog.
  *

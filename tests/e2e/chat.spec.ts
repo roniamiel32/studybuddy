@@ -212,7 +212,7 @@ test.describe('conversations', () => {
 
     await page.getByRole('link', { name: /Messages/ }).click();
     await expect(page).toHaveURL(/\/messages$/);
-    await page.getByRole('link', { name: /Yuval Partner/ }).click();
+    await page.getByRole('list', { name: 'Conversations' }).getByRole('link', { name: /Yuval Partner/ }).click();
     await expect(page).toHaveURL(/\/messages\/[0-9a-f-]{36}$/);
 
     const conversationId = page.url().split('/').pop()!;
@@ -288,7 +288,7 @@ test.describe('conversations', () => {
 
     /* Opening the thread clears it. */
     await messages.click();
-    await page.getByRole('link', { name: /Yuval Partner/ }).click();
+    await page.getByRole('list', { name: 'Conversations' }).getByRole('link', { name: /Yuval Partner/ }).click();
     await expect(page).toHaveURL(/\/messages\/[0-9a-f-]{36}$/);
 
     await expect(messages).toHaveText('Messages', { timeout: 15_000 });
@@ -302,7 +302,7 @@ test.describe('conversations', () => {
     await expect(page).toHaveURL(/\/dashboard$/);
 
     await page.goto('/messages');
-    await page.getByRole('link', { name: /Yuval Partner/ }).click();
+    await page.getByRole('list', { name: 'Conversations' }).getByRole('link', { name: /Yuval Partner/ }).click();
 
     const composer = page.getByLabel(/Message Yuval Partner/);
     const submit = page.getByRole('button', { name: 'Send message' });

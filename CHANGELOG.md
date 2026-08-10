@@ -4,6 +4,95 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] — 2026-08-10
+
+Phase 6 — student profiles, and the post-session rating system.
+
+### Added
+- **`/students/[profileId]`** — a social-style profile: avatar, name, age, year,
+  degree, university, city, weekly free hours, and every answer the onboarding
+  questionnaire collected. Reachable by clicking a name on a match card or in a
+  chat header.
+- **Viewer context.** Shared courses, shared study groups, and the compatibility
+  score — taken from `rpc_find_candidates` rather than recomputed, so the number on
+  a profile can never disagree with the ranking on the matches screen.
+- **`study_ratings`** with a `positive` / `negative` sentiment, one row per rater
+  per ratee, and a rating dialog reachable from a profile.
+- **Public positive connections.** A positive rating appears on the rated student's
+  profile naming the rater, and adds up to 6 bonus points to their score with
+  everyone, saturating at three ratings.
+- **Private negative ratings.** Never shown to anyone but their author, and they
+  remove the pair from each other's candidates entirely.
+- **`app_profile_age_years`**, which returns an age and never a birth date.
+- 44 tests: 23 integration on the rating policies and their effect on matching, 14
+  unit on the profile view model, and 7 e2e across the profile and both ratings.
+
+### The privacy rule, and where it lives
+"Only positive connections are publicly displayed" is a promise to the person being
+rated, so it is enforced by a **SELECT policy**, not a `WHERE` clause:
+
+```sql
+using (rater_id = auth.uid()
+       or (sentiment = 'positive' and app_can_see_profile(ratee_id)))
+```
+
+A negative row is therefore invisible to the person it is about, to their
+classmates, and to every other rater — its author is the only reader. No query,
+route or future feature can leak one by forgetting a filter. Tests assert this from
+the rated student's own session, including through an unfiltered read of the table
+and through a `count`, and the e2e suite checks it from their browser.
+
+Three supporting decisions:
+- **The view model has no field for a negative rating**, so no component could
+  render one even by mistake.
+- **The public summary never implies a denominator.** "Studied with 3 classmates"
+  is safe; "3 of 5 partners rated this well" would disclose the two negatives. A
+  unit test asserts the wording contains no "of", no percentage and no mention of
+  rating at all.
+- **The exclusion is symmetric.** The rated student is never told, but they also
+  stop seeing the person who quietly opted out of them — a one-directional
+  exclusion would leave exactly one of the pair still being shown the other.
+
+### Changed
+- Rating requires an existing conversation, enforced by the insert policy: a
+  student can only rate someone they have actually talked to on StudyBuddy. Without
+  it this is a drive-by system where anyone can mark any classmate as one to avoid.
+- Matching is now **v4**. Unchanged behaviour with no ratings present — all 28
+  existing matching and override tests passed after the rewrite.
+- `/students` and `/groups` added to the route guard.
+
+### A deliberate disclosure worth naming
+The schema put `date_of_birth` in `profile_private` specifically so classmates
+could not read it, and matching only ever derived a *gap* from it. Showing an age
+on a profile discloses more than that. It is what the specification asks for and
+what a reader expects a profile to show, so `app_profile_age_years` returns whole
+years — and only to someone who may already see that student. The date itself still
+never leaves the database, and a test asserts the private table stays unreadable.
+
+### Fixed
+- Three stale assertions in `academic-email.test.ts`, which were still expecting
+  the derived names ("Runi", "Tau") after the switch to real university names.
+  Rewritten to cover both the known-domain map and the derivation fallback.
+- Removed a dead `labelsFor` helper left in the course-preferences dialog.
+- `sign_in_sign_ups` raised to 1000 locally; 300 stopped being enough once the
+  suite passed eighty tests.
+
+### Known limitations
+- **"Avoid matching with profiles similar to a negative interaction" is not
+  implemented.** The concrete half — never pairing that pair again — is. Inferring
+  similarity between students would need a model of what made the session fail, and
+  the schema records only that it did. Guessing at it would quietly shrink someone's
+  candidate pool for reasons nobody could explain.
+- **Connections are rating-based**, not the unused `connection_requests` table.
+- **One rating per pair**, not per session; a second study session replaces the
+  first answer rather than adding to it.
+- The reject flow in `groups.spec.ts` failed once in a full run and has passed
+  every isolated run since. Not root-caused, and recorded rather than papered over.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 359 tests, production build. Playwright:
+80 e2e tests across chromium and mobile-safari.
+
 ## [0.16.0] — 2026-08-10
 
 Header and navigation redesign.

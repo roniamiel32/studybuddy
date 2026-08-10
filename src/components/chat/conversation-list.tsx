@@ -38,7 +38,9 @@ export function ConversationList({ conversations }: ConversationListProps) {
   }
 
   return (
-    <ul className="flex flex-col gap-3">
+    /* Named, so a test — or a screen-reader user — can tell this list of people
+       apart from the match cards, which now also link names to profiles. */
+    <ul aria-label="Conversations" className="flex flex-col gap-3">
       {conversations.map((conversation) => {
         const unread = conversation.unreadCount > 0;
 

@@ -1,0 +1,335 @@
+/**
+ * File:        src/app/(app)/students/[profileId]/page.tsx
+ * Authors:     Roni Amiel & Eden Bitran
+ * Description: A student's profile.
+ *
+ *              Three bands: who they are, what the viewer has in common with them,
+ *              and who they have studied with. A profile the viewer cannot see is a
+ *              404 rather than a refusal, so a guessed id cannot confirm that
+ *              somebody exists.
+ *
+ *              ONLY POSITIVE CONNECTIONS APPEAR HERE, and nothing on this page can
+ *              change that: the ratings SELECT policy will not return a negative row
+ *              to anyone but its author, and the view model has no field to hold one.
+ *              There is also no count of negatives, and no gap where one would go —
+ *              "3 of 5 partners rated this person well" would leak the thing the
+ *              policy protects.
+ * Version:     0.18.0
+ *
+ * Modifications:
+ *     0.18.0 - 2026-08-10 - Initial implementation (Phase 6)
+ */
+
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import {
+  BookOpen,
+  CalendarClock,
+  GraduationCap,
+  Handshake,
+  MapPin,
+  Sparkles,
+  Users,
+} from 'lucide-react';
+
+import { MessageButton } from '@/components/matching/message-button';
+import { MatchAvatar } from '@/components/matching/match-avatar';
+import { RatePartnerDialog } from '@/components/profiles/rate-partner-dialog';
+import { Chip } from '@/components/ui/chip';
+import {
+  connectionsSummary,
+  preferenceSections,
+  profileSubtitle,
+} from '@/features/profiles/profile-view';
+import { getStudentProfile } from '@/features/profiles/queries';
+
+export const metadata: Metadata = { title: 'Profile' };
+
+/**
+ * Renders a student's profile.
+ *
+ * @param params - Route parameters carrying the profile id.
+ * @returns The page element.
+ */
+export default async function StudentProfilePage({
+  params,
+}: {
+  params: Promise<{ profileId: string }>;
+}) {
+  const { profileId } = await params;
+  const profile = await getStudentProfile(profileId);
+
+  if (!profile) {
+    notFound();
+  }
+
+  const sections = preferenceSections(profile);
+  const connections = connectionsSummary(profile.positiveConnections.length);
+
+  return (
+    <>
+      {/* ---- Who they are --------------------------------------------------- */}
+      <section aria-labelledby="profile-heading" className="clay-card mb-6 overflow-hidden p-0">
+        <div
+          aria-hidden="true"
+          className="h-24 bg-[linear-gradient(135deg,var(--color-grape-bright)_0%,var(--color-brand-bright)_55%,var(--color-brand)_100%)]"
+        />
+
+        <div className="p-6">
+          {/* The avatar overlaps the banner, as a social profile does. */}
+          <div className="-mt-16 mb-4 flex flex-wrap items-end justify-between gap-4">
+            <MatchAvatar
+              fullName={profile.fullName}
+              avatarUrl={profile.avatarUrl}
+              size={96}
+              className="border-4"
+            />
+
+            <div className="flex flex-wrap items-center gap-2">
+              {profile.isSelf ? (
+                <Link
+                  href="/settings"
+                  className="clay-btn-secondary rounded-md px-4 py-2 text-label-md"
+                >
+                  Edit your profile
+                </Link>
+              ) : (
+                <>
+                  <MessageButton
+                    partnerId={profile.id}
+                    courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
+                    partnerName={profile.fullName}
+                  />
+                  {/*
+                    * Rating requires a conversation, which is the rule the insert
+                    * policy enforces. The control is absent rather than disabled
+                    * when there is none: "rate someone you have never spoken to" is
+                    * not a thing to explain, it is a thing that does not apply yet.
+                    */}
+                  {profile.canRate ? (
+                    <RatePartnerDialog
+                      rateeId={profile.id}
+                      rateeName={profile.fullName.split(' ')[0]}
+                      myRating={profile.myRating}
+                      courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
+                    />
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+
+          <h1 id="profile-heading" className="font-heading text-[28px] leading-9 text-balance">
+            {profile.fullName}
+          </h1>
+          <p className="text-on-surface-variant mt-1 text-body-md">
+            {profileSubtitle(profile)}
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Chip tone="brand">
+              <GraduationCap className="size-3" aria-hidden="true" />
+              {profile.universityName}
+            </Chip>
+            {profile.city ? (
+              <Chip tone="neutral">
+                <MapPin className="size-3" aria-hidden="true" />
+                {profile.city}
+              </Chip>
+            ) : null}
+            {profile.weeklyFreeHours > 0 ? (
+              <Chip tone="mint">
+                <CalendarClock className="size-3" aria-hidden="true" />
+                {profile.weeklyFreeHours}h free a week
+              </Chip>
+            ) : null}
+            {connections ? (
+              <Chip tone="sunset">
+                <Handshake className="size-3" aria-hidden="true" />
+                {connections}
+              </Chip>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+        {/* ---- What you have in common -------------------------------------- */}
+        <div className="flex flex-col gap-6 lg:col-span-5">
+          {!profile.isSelf ? (
+            <section aria-labelledby="common-heading" className="clay-card p-5">
+              <h2 id="common-heading" className="font-heading text-headline-md">
+                You two
+              </h2>
+
+              {profile.compatibilityScore !== null ? (
+                <div className="border-outline-variant/30 bg-surface-container-low mt-4 rounded-lg border p-4">
+                  <p className="text-outline text-label-sm">Compatibility</p>
+                  <p className="font-heading text-brand text-headline-lg">
+                    {Math.round(profile.compatibilityScore)}%
+                  </p>
+                  <p className="text-on-surface-variant text-label-sm font-normal">
+                    Best across your shared courses, from{' '}
+                    {profile.compatibilityCourseCode}.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-on-surface-variant mt-3 text-body-md text-pretty">
+                  {/*
+                    * Honest about the two reasons, without saying which. A negative
+                    * rating in either direction removes the pair from scoring, and
+                    * naming that here would disclose it.
+                    */}
+                  No compatibility score — you may not share a course this semester.
+                </p>
+              )}
+
+              <h3 className="text-on-surface-variant mt-5 mb-2 text-label-md tracking-wider uppercase">
+                Shared courses
+              </h3>
+              {profile.sharedCourses.length > 0 ? (
+                <ul aria-label="Shared courses" className="flex flex-col gap-2">
+                  {profile.sharedCourses.map((course) => (
+                    <li key={course.offeringId}>
+                      <Link
+                        href={`/courses/${course.offeringId}`}
+                        className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
+                      >
+                        <BookOpen className="text-brand size-4 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-label-md block truncate">{course.name}</span>
+                          <span className="text-outline block text-label-sm font-normal">
+                            {course.code}
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-on-surface-variant text-body-md">
+                  No courses in common this semester.
+                </p>
+              )}
+
+              <h3 className="text-on-surface-variant mt-5 mb-2 text-label-md tracking-wider uppercase">
+                Shared groups
+              </h3>
+              {profile.sharedGroups.length > 0 ? (
+                <ul aria-label="Shared groups" className="flex flex-col gap-2">
+                  {profile.sharedGroups.map((group) => (
+                    <li key={group.id}>
+                      <Link
+                        href={`/groups/${group.id}`}
+                        className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
+                      >
+                        <Users className="text-brand size-4 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-label-md block truncate">{group.name}</span>
+                          <span className="text-outline block text-label-sm font-normal">
+                            {group.memberCount}{' '}
+                            {group.memberCount === 1 ? 'member' : 'members'}
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-on-surface-variant text-body-md">
+                  You are not in a study group together.
+                </p>
+              )}
+            </section>
+          ) : null}
+        </div>
+
+        {/* ---- How they study, and who they have studied with --------------- */}
+        <div className="flex flex-col gap-6 lg:col-span-7">
+          <section aria-labelledby="preferences-heading" className="clay-card p-5">
+            <h2 id="preferences-heading" className="font-heading text-headline-md">
+              How {profile.isSelf ? 'you' : profile.fullName.split(' ')[0]} study
+            </h2>
+
+            {sections.length > 0 ? (
+              <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                {sections.map((section) => (
+                  <div key={section.heading}>
+                    <dt className="text-outline mb-1.5 text-label-sm">{section.heading}</dt>
+                    <dd className="flex flex-wrap gap-1.5">
+                      {section.values.map((value) => (
+                        <Chip key={value.label} tone="neutral" icon={value.icon}>
+                          {value.label}
+                        </Chip>
+                      ))}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="text-on-surface-variant mt-3 text-body-md">
+                {profile.isSelf
+                  ? 'You have not answered the study questions yet.'
+                  : 'They have not answered the study questions yet.'}
+              </p>
+            )}
+          </section>
+
+          <section aria-labelledby="connections-heading" className="clay-card p-5">
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <h2 id="connections-heading" className="font-heading text-headline-md">
+                Study connections
+              </h2>
+              {profile.positiveConnections.length > 0 ? (
+                <Chip tone="mint">{profile.positiveConnections.length}</Chip>
+              ) : null}
+            </div>
+
+            <p className="text-on-surface-variant mt-1 mb-4 text-body-md text-pretty">
+              Classmates who studied with{' '}
+              {profile.isSelf ? 'you' : profile.fullName.split(' ')[0]} and said it
+              went well.
+            </p>
+
+            {profile.positiveConnections.length > 0 ? (
+              <ul aria-label="Study connections" className="flex flex-col gap-2">
+                {profile.positiveConnections.map((connection) => (
+                  <li key={connection.raterId}>
+                    <Link
+                      href={`/students/${connection.raterId}`}
+                      className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
+                    >
+                      <MatchAvatar
+                        fullName={connection.raterName}
+                        avatarUrl={connection.raterAvatarUrl}
+                        size={36}
+                        className="border-2"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="text-label-md block truncate">
+                          {connection.raterName}
+                        </span>
+                        <span className="text-outline block text-label-sm font-normal">
+                          Studied together
+                          {connection.courseCode ? ` · ${connection.courseCode}` : ''}
+                        </span>
+                      </span>
+                      <Sparkles className="text-brand size-4 shrink-0" aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-on-surface-variant bg-surface-container rounded-md p-4 text-body-md text-pretty">
+                {profile.isSelf
+                  ? 'None yet. After you study with someone, they can say it went well and it will show here.'
+                  : 'None yet.'}
+              </p>
+            )}
+          </section>
+        </div>
+      </div>
+    </>
+  );
+}

@@ -970,6 +970,61 @@ export type Database = {
           },
         ]
       }
+      study_ratings: {
+        Row: {
+          course_offering_id: string | null
+          created_at: string
+          id: string
+          note: string | null
+          ratee_id: string
+          rater_id: string
+          sentiment: Database["public"]["Enums"]["rating_sentiment"]
+          updated_at: string
+        }
+        Insert: {
+          course_offering_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          ratee_id: string
+          rater_id: string
+          sentiment: Database["public"]["Enums"]["rating_sentiment"]
+          updated_at?: string
+        }
+        Update: {
+          course_offering_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          ratee_id?: string
+          rater_id?: string
+          sentiment?: Database["public"]["Enums"]["rating_sentiment"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_ratings_course_offering_id_fkey"
+            columns: ["course_offering_id"]
+            isOneToOne: false
+            referencedRelation: "course_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_ratings_ratee_id_fkey"
+            columns: ["ratee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_ratings_rater_id_fkey"
+            columns: ["rater_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       terms: {
         Row: {
           created_at: string
@@ -1103,6 +1158,14 @@ export type Database = {
         Args: { profile_a: string; profile_b: string }
         Returns: number
       }
+      app_positive_rating_count: {
+        Args: { target_profile_id: string }
+        Returns: number
+      }
+      app_profile_age_years: {
+        Args: { target_profile_id: string }
+        Returns: number
+      }
       app_shared_days: {
         Args: { profile_a: string; profile_b: string }
         Returns: number[]
@@ -1159,6 +1222,7 @@ export type Database = {
       enrollment_intent: "need_help" | "want_partner" | "can_tutor"
       group_request_status: "pending" | "approved" | "rejected"
       group_size_choice: "small" | "large"
+      rating_sentiment: "positive" | "negative"
       study_environment: "discussion" | "quiet"
       study_format: "in_person" | "remote"
       study_group_status: "open" | "closed"
@@ -1309,6 +1373,7 @@ export const Constants = {
       enrollment_intent: ["need_help", "want_partner", "can_tutor"],
       group_request_status: ["pending", "approved", "rejected"],
       group_size_choice: ["small", "large"],
+      rating_sentiment: ["positive", "negative"],
       study_environment: ["discussion", "quiet"],
       study_format: ["in_person", "remote"],
       study_group_status: ["open", "closed"],

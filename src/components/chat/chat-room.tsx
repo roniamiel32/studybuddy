@@ -18,9 +18,10 @@
  *              server sends a fresher list, which no amount of effects gets
  *              reliably right. Here a re-render simply wins, and a row present in
  *              both is taken from the socket, which is never older.
- * Version:     0.12.0
+ * Version:     0.18.0
  *
  * Modifications:
+ *     0.18.0 - 2026-08-10 - The partner's name links to their profile (Phase 6)
  *     0.12.0 - 2026-08-10 - Initial implementation (Phase 3)
  */
 
@@ -250,7 +251,12 @@ export function ChatRoom({ conversation, initialMessages, viewerId }: ChatRoomPr
 
         <div className="min-w-0">
           <h1 className="font-heading truncate text-[18px] leading-tight font-bold">
-            {conversation.partnerName}
+            <Link
+              href={`/students/${conversation.partnerId}`}
+              className="hover:text-brand focus-visible:ring-brand/35 rounded-md transition-colors focus-visible:ring-4 focus-visible:outline-none"
+            >
+              {conversation.partnerName}
+            </Link>
           </h1>
           {/*
             * Degree and course, where the design showed "Psychology • Online".

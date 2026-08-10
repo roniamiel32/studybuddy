@@ -4,14 +4,16 @@
  * Description: The best candidate, given the bento treatment from the source
  *              design: large avatar, score badge, trait chips, shared
  *              availability, and the primary call to action.
- * Version:     0.12.0
+ * Version:     0.18.0
  *
  * Modifications:
+ *     0.18.0 - 2026-08-10 - The name links to the student's profile (Phase 6)
  *     0.12.0 - 2026-08-10 - Send message opens a conversation (Phase 3)
  *     0.10.0 - 2026-08-09 - Study track no longer shown
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
  */
 
+import Link from 'next/link';
 import { Flame, Stars } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
@@ -72,7 +74,14 @@ export function TopMatchCard({ match }: TopMatchCardProps) {
         </div>
 
         <div className="z-10 w-full grow">
-          <h3 className="font-heading text-headline-md">{match.fullName}</h3>
+          <h3 className="font-heading text-headline-md">
+            <Link
+              href={`/students/${match.candidateId}`}
+              className="hover:text-brand focus-visible:ring-brand/35 rounded-md transition-colors focus-visible:ring-4 focus-visible:outline-none"
+            >
+              {match.fullName}
+            </Link>
+          </h3>
           <p className="text-on-surface-variant text-body-md">
             {[match.degreeName, match.yearOfStudy ? `Year ${match.yearOfStudy}` : null]
               .filter(Boolean)

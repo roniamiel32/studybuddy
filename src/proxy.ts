@@ -39,6 +39,8 @@ export const config = {
     '/dashboard/:path*',
     '/courses/:path*',
     '/messages/:path*',
+    '/groups/:path*',
+    '/students/:path*',
     '/partners/:path*',
     '/settings/:path*',
   ],

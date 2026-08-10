@@ -303,9 +303,12 @@ test.describe('courses and profile', () => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('heading', { name: /Preferences for CS-3040/ })).toBeVisible();
 
-    /* Each question states the global answer, so the student knows what they are
-       changing. */
-    await expect(dialog.getByText(/Your default: In person, Remote/)).toBeVisible();
+    /* The four questions are present. The "Your default: …" hint each one used to
+       carry was removed from the dialog, so this asserts the questions rather than
+       copy that is no longer there. */
+    await expect(
+      dialog.locator('fieldset').filter({ hasText: 'How do you want to meet' }),
+    ).toBeVisible();
 
     /* In person only, for this course. */
     const meeting = dialog.locator('fieldset').filter({ hasText: 'How do you want to meet' });

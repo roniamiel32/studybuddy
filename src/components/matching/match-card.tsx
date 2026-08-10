@@ -7,9 +7,10 @@
  *              profile route yet. Rather than ship a control that goes nowhere,
  *              it expands the card in place to show why this person was matched
  *              — which is the question a student actually has at that moment.
- * Version:     0.12.0
+ * Version:     0.18.0
  *
  * Modifications:
+ *     0.18.0 - 2026-08-10 - The name links to the student's profile (Phase 6)
  *     0.12.0 - 2026-08-10 - Send message button (Phase 3)
  *     0.10.0 - 2026-08-09 - Study track no longer shown
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
@@ -18,6 +19,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { CalendarClock, ChevronDown } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
@@ -60,7 +62,16 @@ export function MatchCard({ match }: MatchCardProps) {
         className="mb-3 border-[3px]"
       />
 
-      <h3 className="text-label-md text-lg">{match.fullName}</h3>
+      {/* The name is the way into their profile — the convention every social app
+          uses, and it saves adding a second control to a card that already has two. */}
+      <h3 className="text-label-md text-lg">
+        <Link
+          href={`/students/${match.candidateId}`}
+          className="hover:text-brand focus-visible:ring-brand/35 rounded-md transition-colors focus-visible:ring-4 focus-visible:outline-none"
+        >
+          {match.fullName}
+        </Link>
+      </h3>
       <p className="text-outline mb-3 text-label-sm font-normal">
         {match.degreeName ?? 'Classmate'}
       </p>

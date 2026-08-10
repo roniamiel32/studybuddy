@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.16.0** — study groups, and a redesigned header with a Groups tab.
+Version **0.18.0** — student profiles, with study connections you can only earn by being rated well.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final
@@ -26,6 +26,7 @@ project for the Full-Stack course at Reichman University.
 | — | Messages tab | ✅ Renamed from "Requests", freeing that name for the D2 request flow |
 | 4 | Profile & Courses tabs | ✅ Settings, course grid, per-course page, preference overrides |
 | 5 | Study groups | ✅ Groups per course, join requests, admin review, group chat |
+| 6 | Profiles & ratings | ✅ Profile pages, shared context, positive connections, private negative feedback |
 | 3b | AI match re-rank | ⬜ Not started |
 | 4a | WhatsApp handoff | ⬜ Not started |
 | 4c | Calendar sync (D7) | ⬜ Not started — stretch goal |

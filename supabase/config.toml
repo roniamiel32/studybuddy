@@ -205,15 +205,20 @@ anonymous_users = 30
 token_refresh = 150
 # Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
 #
-# Raised from the default 30 for the test suite. The e2e suite signs in far more
-# than 30 times in five minutes — every test starts from the login page on purpose,
-# because a session carried between tests hides bugs in the route guards. At the
-# default the later specs failed with a silent redirect back to /login, which looks
-# exactly like a broken guard and is really a throttle.
+# Raised from the default 30 for the test suite. The e2e suite signs in once or
+# twice per test, across two browser projects — every test starts from the login
+# page on purpose, because a session carried between tests hides bugs in the route
+# guards. When the limit is hit the sign-in silently leaves the browser on /login,
+# which looks exactly like a broken guard and is really a throttle.
+#
+# 300 was still not enough once the suite passed eighty tests: the failure moved to
+# whichever spec happened to run last. 1000 leaves headroom for the suite to keep
+# growing, and the alternative — sharing one session across tests — would give up
+# the guard coverage that motivates signing in every time.
 #
 # LOCAL ONLY. A hosted Supabase project sets its own limits in the dashboard, and
 # this file does not touch them.
-sign_in_sign_ups = 300
+sign_in_sign_ups = 1000
 # Number of OTP / Magic link verifications that can be made in a 5 minute interval per IP address.
 token_verifications = 30
 # Number of Web3 logins that can be made in a 5 minute interval per IP address.

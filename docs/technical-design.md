@@ -6,9 +6,12 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.10.0
+Version:     0.11.0
 
 Modifications:
+    0.11.0 - 2026-08-10 - Added section 15: Phase 6 as built — profiles and the
+                          rating system, decisions D35-D39, why the privacy rule
+                          lives in a SELECT policy, and the age disclosure
     0.10.0 - 2026-08-10 - Added section 14: Phase 5 as built — study groups,
                           decisions D30-D34, why approval is one SQL function,
                           the discovery-versus-privacy split, and the RLS bug a
@@ -2098,3 +2101,103 @@ Still open after this phase:
 - **No group size limit interacts with `group_sizes`** — a student who prefers
   small groups is not warned when asking to join a group of twelve.
 - **C5, C8, C9** remain open: session scheduling, course meeting times, sections.
+
+---
+
+## 15. Phase 6 as built — profiles and ratings
+
+### 15.1 Decisions taken in this phase
+
+| # | Decision | Consequence |
+|---|----------|-------------|
+| D35 | **The positive/negative asymmetry is enforced by RLS, not by a query** | The `study_ratings` SELECT policy admits a negative row only to its author. See §15.2. |
+| D36 | **No stored reputation column** | The score effect is computed from the rows. A denormalised counter would be a second copy of what the rows already say, and the matching function has to read them anyway for the exclusion. |
+| D37 | **Rating requires an existing conversation** | Enforced by the insert policy. Without it, any student could quietly mark any classmate as one to avoid. |
+| D38 | **A negative rating excludes the pair symmetrically** | The rated student is never told, but they stop seeing that person too. |
+| D39 | **Age is disclosed; the birth date is not** | `app_profile_age_years` returns whole years, and only for a student the caller may already see. See §15.4. |
+
+### 15.2 The privacy rule, and why it is in the schema
+
+The requirement is *"only positive connections are publicly displayed"*. That is a
+promise to the person being rated, and the question is where a promise like that
+should live.
+
+A `WHERE sentiment = 'positive'` in the profile query would satisfy it today and be
+one refactor away from breaking silently — a new feature reads the table, forgets
+the filter, and someone learns that a partner rated them badly. So it is a policy:
+
+```sql
+using (
+  rater_id = auth.uid()
+  or (sentiment = 'positive' and public.app_can_see_profile(ratee_id))
+)
+```
+
+Note what is **absent**: no clause admitting the ratee to negative rows about
+themselves. That is the point, not an oversight.
+
+Three things reinforce it, and each is tested:
+
+- **The view model has no field** a negative rating could occupy, so no component
+  can render one even by mistake.
+- **The public summary never implies a denominator.** "Studied with 3 classmates"
+  discloses nothing; "3 of 5 partners rated this well" would disclose two
+  negatives. A unit test asserts the wording contains no "of", no percentage and no
+  mention of rating.
+- **The application filter is still there** as a second layer. Both are present so
+  that changing either one leaves the promise intact.
+
+The integration suite attacks it from the rated student's own session: by ratee id,
+by row id, through an unfiltered read of the whole table, and through a `count`
+(which would otherwise disclose existence). The e2e suite repeats the check from
+their browser after a rating is flipped from positive to negative.
+
+### 15.3 What "avoid similar profiles" turned into
+
+The specification also asked to avoid matching someone with *profiles similar to* a
+negative interaction. The concrete half — never pairing that pair again — is built
+and tested. The similarity half is **not**, deliberately.
+
+To act on it the system would need a model of *what* made the session fail, and the
+schema records only that it did. The available signals are the ones both students
+share, which is exactly what the score already rewards — so "avoid similar" would
+mean penalising the traits that make a good match, on the strength of one bad
+afternoon. It would quietly shrink a student's candidate pool for reasons nobody
+could explain to them, including us.
+
+If it is wanted later, the honest version needs a reason on the rating — a small
+fixed set, not free text — and a rule that only penalises the trait actually named.
+`study_ratings.note` exists and is private, so the data could be collected first
+and the rule written once there is something real to look at.
+
+### 15.4 The age disclosure
+
+§9 put `date_of_birth` in `profile_private` precisely so classmates could not read
+it, and matching only ever derived an age *gap* through a definer function. A
+profile showing an age discloses more than a gap.
+
+It is built because it is what the specification asks for and what a reader expects
+a profile to show, and because a year is far less identifying than a date. The trade
+is made explicit in code: `app_profile_age_years` returns an integer, checks
+`app_can_see_profile` before returning anything, and there is a test asserting that
+`profile_private` itself remains unreadable to the same viewer. The date never
+leaves the database.
+
+### 15.5 Connections are ratings, not `connection_requests`
+
+`connection_requests` (D2) models an accept/decline flow that was never built —
+Phase 3 replaced its purpose with conversations, and §13 freed the name "Requests"
+for it. So "connections" on a profile are positive ratings: people who studied with
+you and said it went well. That has a property the request table lacks — it can
+only be earned by someone else's action, so it cannot be gamed by sending requests.
+
+### 15.6 Still open
+
+- **One rating per pair, not per session.** A second study session replaces the
+  first answer. Enough for the signal; wrong if the product ever wants a history.
+- **Nothing expires.** A bad session in first year still excludes a pair in third.
+- **The rating prompt is passive.** Nothing asks after a session, because nothing
+  knows a session happened — that is conflict C5, still open.
+- **A student cannot see who has rated them positively before it appears**, and
+  cannot decline a public connection. Worth revisiting if anyone treats the list as
+  something to curate.
