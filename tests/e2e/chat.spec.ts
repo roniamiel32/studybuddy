@@ -15,9 +15,10 @@
  *              The second student is driven through supabase-js rather than a
  *              second browser context. It is the same insert the app performs,
  *              subject to the same policies, and it keeps the test to one page.
- * Version:     0.12.0
+ * Version:     0.13.0
  *
  * Modifications:
+ *     0.13.0 - 2026-08-10 - Requests renamed to Messages
  *     0.12.0 - 2026-08-10 - Initial implementation (Phase 3)
  */
 
@@ -116,6 +117,16 @@ test.describe('conversations', () => {
   const theirsEmail = `chat-them-${stamp}@post.runi.ac.il`;
 
   let admin: SupabaseClient;
+  /*
+   * ONE signed-in client for the partner, created once.
+   *
+   * Signing in per test looked tidier and was wrong: the local auth server rate
+   * limits password grants, so a later sign-in quietly failed and left an
+   * ANONYMOUS client. RLS then correctly returned no conversations, and the test
+   * failed several lines later on a null dereference that said nothing about the
+   * real cause.
+   */
+  let asPartner: SupabaseClient;
   let partnerId = '';
   let offeringId = '';
 
@@ -137,6 +148,21 @@ test.describe('conversations', () => {
 
     await createMatchableStudent(admin, mineEmail, 'Dana Test', offeringId);
     partnerId = await createMatchableStudent(admin, theirsEmail, 'Yuval Partner', offeringId);
+
+    asPartner = createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const { error: signInError } = await asPartner.auth.signInWithPassword({
+      email: theirsEmail,
+      password: PASSWORD,
+    });
+
+    /* Asserted, so a failed sign-in fails here with the reason rather than
+       surfacing as an empty query result three tests later. */
+    if (signInError) {
+      throw new Error(`partner sign-in failed: ${signInError.message}`);
+    }
   });
 
   test.afterAll(async () => {
@@ -168,7 +194,7 @@ test.describe('conversations', () => {
     await send.click();
 
     /* Straight into the thread, which already contains a first message. */
-    await expect(page).toHaveURL(/\/requests\/[0-9a-f-]{36}$/, { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/messages\/[0-9a-f-]{36}$/, { timeout: 20_000 });
     await expect(page.getByRole('heading', { name: 'Yuval Partner' })).toBeVisible();
     /* The opener addresses them by name and names something they share — scoped
        to the bubble, since "Yuval" also appears in the header and the composer
@@ -184,20 +210,15 @@ test.describe('conversations', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    await page.getByRole('link', { name: /Requests/ }).click();
-    await expect(page).toHaveURL(/\/requests$/);
+    await page.getByRole('link', { name: /Messages/ }).click();
+    await expect(page).toHaveURL(/\/messages$/);
     await page.getByRole('link', { name: /Yuval Partner/ }).click();
-    await expect(page).toHaveURL(/\/requests\/[0-9a-f-]{36}$/);
+    await expect(page).toHaveURL(/\/messages\/[0-9a-f-]{36}$/);
 
     const conversationId = page.url().split('/').pop()!;
 
     /* Give the socket a moment to attach before writing the row it must carry. */
     await page.waitForTimeout(1500);
-
-    const asPartner = createClient(SUPABASE_URL, ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    await asPartner.auth.signInWithPassword({ email: theirsEmail, password: PASSWORD });
 
     const inserted = await asPartner.from('messages').insert({
       conversation_id: conversationId,
@@ -234,42 +255,43 @@ test.describe('conversations', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    const requests = page.getByRole('navigation', { name: 'Main' }).getByRole('link', {
-      name: /Requests/,
+    const messages = page.getByRole('navigation', { name: 'Main' }).getByRole('link', {
+      name: /Messages/,
     });
 
     /* Nothing unread: the badge must be absent, not a zero in a circle. */
-    await expect(requests).toHaveText('Requests');
+    await expect(messages).toHaveText('Messages');
 
     await page.waitForTimeout(1500);
 
-    const asPartner = createClient(SUPABASE_URL, ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    await asPartner.auth.signInWithPassword({ email: theirsEmail, password: PASSWORD });
-
-    const { data: conversation } = await asPartner
+    const { data: conversation, error: readError } = await asPartner
       .from('conversations')
       .select('id')
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    await asPartner.from('messages').insert({
+    /* Checked rather than asserted with `!`: a missing conversation here means
+       the earlier test did not run, which is worth saying out loud. */
+    expect(readError).toBeNull();
+    expect(conversation, 'the conversation from the first test should exist').not.toBeNull();
+
+    const { error: insertError } = await asPartner.from('messages').insert({
       conversation_id: conversation!.id,
       sender_id: partnerId,
       body: 'Are you around this afternoon?',
     });
+    expect(insertError).toBeNull();
 
     /* Live, on a page that was never reloaded. */
-    await expect(requests).toContainText('1 unread message', { timeout: 15_000 });
+    await expect(messages).toContainText('1 unread message', { timeout: 15_000 });
     expect(page.url()).toContain('/dashboard');
 
     /* Opening the thread clears it. */
-    await requests.click();
+    await messages.click();
     await page.getByRole('link', { name: /Yuval Partner/ }).click();
-    await expect(page).toHaveURL(/\/requests\/[0-9a-f-]{36}$/);
+    await expect(page).toHaveURL(/\/messages\/[0-9a-f-]{36}$/);
 
-    await expect(requests).toHaveText('Requests', { timeout: 15_000 });
+    await expect(messages).toHaveText('Messages', { timeout: 15_000 });
   });
 
   test('a reply typed in the composer is sent and shown', async ({ page }) => {
@@ -279,7 +301,7 @@ test.describe('conversations', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    await page.goto('/requests');
+    await page.goto('/messages');
     await page.getByRole('link', { name: /Yuval Partner/ }).click();
 
     const composer = page.getByLabel(/Message Yuval Partner/);
@@ -309,7 +331,7 @@ test.describe('conversations', () => {
      * found" would confirm the conversation exists, which is more than a stranger
      * should be able to learn by guessing ids.
      */
-    const response = await page.goto('/requests/0e1d4a2b-0000-4000-8000-000000000999');
+    const response = await page.goto('/messages/0e1d4a2b-0000-4000-8000-000000000999');
 
     expect(response?.status()).toBe(404);
   });

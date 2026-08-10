@@ -1,7 +1,7 @@
 /**
  * File:        src/components/chat/conversations-refresh.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: Keeps the server-rendered Requests list current.
+ * Description: Keeps the server-rendered Messages list current.
  *
  *              Renders nothing. It subscribes to message changes and calls
  *              router.refresh(), so the list re-renders on the server with fresh

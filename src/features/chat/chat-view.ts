@@ -80,7 +80,7 @@ export function formatReceipt(message: ChatMessageView): string {
 }
 
 /**
- * Formats the timestamp on a conversation in the Requests list.
+ * Formats the timestamp on a conversation in the Messages list.
  *
  * Relative for anything recent, then the weekday, then the date. A list of
  * threads is scanned rather than read, and "14:20" is useless on something from

@@ -38,7 +38,7 @@ export const config = {
     '/onboarding/:path*',
     '/dashboard/:path*',
     '/courses/:path*',
-    '/requests/:path*',
+    '/messages/:path*',
     '/partners/:path*',
     '/settings/:path*',
   ],

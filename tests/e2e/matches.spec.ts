@@ -154,13 +154,13 @@ test.describe('matches dashboard', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    // The design's "Chat" tab is replaced by Requests (design conflict C2).
+    // The design's "Chat" tab is called Messages here (design conflict C2).
     const nav = page.getByRole('navigation', { name: 'Main' }).first();
     await expect(nav.getByRole('link', { name: 'Match' })).toHaveAttribute(
       'aria-current',
       'page',
     );
-    await expect(nav.getByRole('link', { name: 'Requests' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Messages' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Chat' })).toHaveCount(0);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * File:        src/components/layout/unread-badge.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: The red count over the Requests tab, and the hook behind it.
+ * Description: The red count over the Messages tab, and the hook behind it.
  *
  *              Seeded from the server so it is correct on first paint, then kept
  *              current by a Realtime subscription — the count must not wait for a
@@ -35,7 +35,7 @@ import { cn } from '@/lib/utils';
  * A hook rather than state inside the badge, because the count is needed in two
  * places within one navigation link: the red circle over the icon, and the
  * screen-reader sentence that has to come AFTER the label. Announcing
- * "2 unread messages, Requests" puts the number before the thing it counts.
+ * "2 unread messages, Messages" puts the number before the thing it counts.
  *
  * @param initialCount - Count rendered on the server.
  * @param viewerId     - The signed-in student.
@@ -153,7 +153,7 @@ export function UnreadDot({
 /**
  * The screen-reader half of the badge.
  *
- * Rendered after the label so the link announces "Requests, 2 unread messages".
+ * Rendered after the label so the link announces "Messages, 2 unread messages".
  * aria-live is deliberately absent: this sits inside a navigation link, and
  * announcing every arriving message would talk over whatever the student is
  * actually doing.

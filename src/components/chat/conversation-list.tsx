@@ -1,7 +1,7 @@
 /**
  * File:        src/components/chat/conversation-list.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: The Requests tab — every active conversation, most recent first.
+ * Description: The Messages tab — every active conversation, most recent first.
  *
  *              A server component: the list is a read, and nothing here is
  *              interactive beyond following a link. Liveness comes from
@@ -45,7 +45,7 @@ export function ConversationList({ conversations }: ConversationListProps) {
         return (
           <li key={conversation.id}>
             <Link
-              href={`/requests/${conversation.id}`}
+              href={`/messages/${conversation.id}`}
               className={cn(
                 'clay-card focus-visible:ring-brand/35 flex items-center gap-4 p-4 transition-colors focus-visible:ring-4 focus-visible:outline-none',
                 /* An unread thread is tinted, not just badged: the whole row is
@@ -113,7 +113,7 @@ export function ConversationList({ conversations }: ConversationListProps) {
 }
 
 /**
- * Explains an empty Requests tab, and where conversations come from.
+ * Explains an empty Messages tab, and where conversations come from.
  *
  * @returns The empty state element.
  */

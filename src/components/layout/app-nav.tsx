@@ -5,13 +5,15 @@
  *              desktop and a bottom bar on mobile.
  *
  *              Four destinations, matching the source design's shape. The
- *              design's "Chat" tab is called "Requests" here (design conflict
- *              C2) — the name the rest of the app already uses for it, kept so
- *              this stays one vocabulary rather than two. It now leads to the
- *              conversations built in Phase 3, and carries the unread badge.
- * Version:     0.12.0
+ *              design's "Chat" tab is called "Messages" here — it was
+ *              "Requests" while it stood in for the unbuilt accept/decline flow
+ *              (design conflict C2), and that name stopped being true once it
+ *              held real conversations. Renaming it also frees "Requests" for the
+ *              connection-request flow D2 actually describes.
+ * Version:     0.13.0
  *
  * Modifications:
+ *     0.13.0 - 2026-08-10 - Requests renamed to Messages
  *     0.12.0 - 2026-08-10 - Unread badge on Requests (Phase 3)
  *     0.8.0  - 2026-08-05 - Initial implementation (Phase 2)
  */
@@ -20,7 +22,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { GraduationCap, Inbox, Sparkles, UserRound } from 'lucide-react';
+import { GraduationCap, MessageSquare, Sparkles, UserRound } from 'lucide-react';
 
 import { UnreadDot, UnreadText, useUnreadCount } from '@/components/layout/unread-badge';
 import { cn } from '@/lib/utils';
@@ -30,7 +32,7 @@ const DESTINATIONS = [
   { href: '/courses', label: 'Courses', icon: GraduationCap },
   /* The only destination that carries a count, hence the flag rather than a
      lookup by href in the render. */
-  { href: '/requests', label: 'Requests', icon: Inbox, badge: true },
+  { href: '/messages', label: 'Messages', icon: MessageSquare, badge: true },
   { href: '/settings', label: 'Profile', icon: UserRound },
 ] as const;
 
@@ -88,7 +90,7 @@ export function DesktopNav({ unreadCount, viewerId }: NavProps) {
               {'badge' in destination ? <UnreadDot count={unread} /> : null}
             </span>
             {label}
-            {/* After the label, so the link announces "Requests, 2 unread
+            {/* After the label, so the link announces "Messages, 2 unread
                 messages" rather than leading with a bare number. */}
             {'badge' in destination ? <UnreadText count={unread} /> : null}
           </Link>
@@ -133,7 +135,7 @@ export function MobileNav({ unreadCount, viewerId }: NavProps) {
               * An inactive tab is faded to 60%, and CSS opacity applies to every
               * descendant with no way for a child to opt out. With the class on
               * the link, the unread badge would be faded too — on the one tab
-              * where it matters most, since Requests is inactive precisely when
+              * where it matters most, since Messages is inactive precisely when
               * a student needs to notice something arrived.
               */}
             <span

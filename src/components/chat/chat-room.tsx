@@ -215,7 +215,7 @@ export function ChatRoom({ conversation, initialMessages, viewerId }: ChatRoomPr
    * A safety net rather than the main path: Realtime normally delivers the
    * sender's own row within milliseconds. If the socket is slow or has dropped,
    * this is what stops a message the student definitely sent from being invisible
-   * until they navigate away. Cheap, and it refreshes the Requests list preview at
+   * until they navigate away. Cheap, and it refreshes the Messages list preview at
    * the same time.
    */
   useEffect(() => {
@@ -234,7 +234,7 @@ export function ChatRoom({ conversation, initialMessages, viewerId }: ChatRoomPr
       {/* ---- Header --------------------------------------------------------- */}
       <header className="border-outline-variant/30 flex items-center gap-3 border-b bg-white/70 px-4 py-3 backdrop-blur-xl">
         <Link
-          href="/requests"
+          href="/messages"
           aria-label="Back to conversations"
           className="text-on-surface-variant hover:bg-surface-container-high focus-visible:ring-brand/35 -ml-2 rounded-full p-2 transition-colors focus-visible:ring-4 focus-visible:outline-none"
         >

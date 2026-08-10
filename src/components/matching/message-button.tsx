@@ -84,7 +84,7 @@ export function MessageButton({
          * room — where they can type their own — is the most useful place to be.
          */
         startNavigating(() => {
-          router.push(`/requests/${payload.conversationId}`);
+          router.push(`/messages/${payload.conversationId}`);
         });
         return;
       }

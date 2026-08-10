@@ -8,9 +8,11 @@
  *              middleware guards, server actions, RLS, the database triggers
  *              and the UI. Everything else tests a layer; this tests that the
  *              layers fit together.
- * Version:     0.11.0
+ * Version:     0.13.0
  *
  * Modifications:
+ *     0.13.0 - 2026-08-10 - Typed rather than filled in the preservation test,
+ *                           which was flaking on WebKit
  *     0.11.0 - 2026-08-09 - Placeholder catalog and the course requirement
  *     0.10.0 - 2026-08-09 - Law-degree course filtering regression test
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
@@ -180,8 +182,26 @@ test.describe('signup and onboarding', () => {
     const email = newStudentEmail();
 
     await page.goto('/signup');
-    await page.getByLabel('University email').fill(email);
+
+    /*
+     * Typed, not filled, and only in this test.
+     *
+     * `fill()` sets the DOM value directly. On WebKit that sometimes lands
+     * without React's onChange firing, which leaves the input showing the text
+     * while the component's state is still empty — and this is the one test whose
+     * assertion comes AFTER a re-render, so the controlled value is re-applied
+     * from that empty state and the field blanks. The failure looked exactly like
+     * the bug this test exists to catch, which is the worst kind of flake.
+     *
+     * pressSequentially sends real keystrokes, so state and DOM agree, the same
+     * way they do for a student typing.
+     */
+    await page.getByLabel('University email').pressSequentially(email);
     await page.getByLabel('Password').fill('short');
+
+    /* State really holds it before the action runs. */
+    await expect(page.getByLabel('University email')).toHaveValue(email);
+
     await page.getByRole('button', { name: 'Create account' }).click();
 
     await expect(page.locator('#form-error')).toContainText('at least 8');

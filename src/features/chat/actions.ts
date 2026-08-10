@@ -65,12 +65,12 @@ export async function sendMessage(
 
     /*
      * Revalidate both screens. Realtime already updates the open chat for
-     * everyone watching it, but the server-rendered Requests list and the
+     * everyone watching it, but the server-rendered Messages list and the
      * navigation badge are cached, and a student who navigates back to them
      * should not see a stale preview.
      */
-    revalidatePath('/requests');
-    revalidatePath(`/requests/${input.conversationId}`);
+    revalidatePath('/messages');
+    revalidatePath(`/messages/${input.conversationId}`);
 
     return ok(undefined);
   } catch (error) {

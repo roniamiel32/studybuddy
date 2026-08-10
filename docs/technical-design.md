@@ -1544,7 +1544,7 @@ demonstrated.
 | "Send Smart Icebreaker" | Rendered, **disabled**, with a note | Requests are Phase 3a and the icebreaker Phase 3c. A control that silently does nothing is worse than one that says why it is off |
 | "View Profile" button | Expands the card in place to show *why* this match | There is no profile route yet, and "why this match" is the question a student actually has at that moment |
 | Title "AI-Powered Matches" | "Your matches" | The ranking is entirely rule based at this phase. The AI re-rank is 3b; claiming it now would be a promise the screen cannot keep |
-| "Chat" nav tab | "Requests" | Design conflict C2, resolved earlier |
+| "Chat" nav tab | "Requests", renamed to "Messages" in v0.13.0 | Design conflict C2. "Requests" stood in for the unbuilt accept/decline flow; once the tab held real conversations that name described something it no longer did, and renaming it frees "Requests" for the D2 flow itself |
 | Tailwind config block, `.clay-*` CSS | Rebuilt as `@layer components` classes **derived from the theme tokens** | Copying the literal rgba values would let `.clay-card` and `shadow-clay` disagree. Now changing the brand purple updates both |
 
 ### 10.6 Still open

@@ -4,6 +4,24 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] — 2026-08-10
+
+Renamed the Requests tab to Messages.
+
+### Changed
+- **"Requests" is now "Messages"** in the navigation, the page title, the heading
+  and the empty state. The name came from design conflict C2, where the tab stood
+  in for an accept/decline flow that did not exist yet; once it held real
+  conversations, "Requests" described something the screen no longer did.
+- **The route moved with it**, `/requests` → `/messages`. A tab labelled Messages
+  pointing at `/requests` is the kind of drift that turns into a bug later, and
+  the rename frees `/requests` for the connection-request flow decision D2
+  actually describes — a genuinely different feature, still unbuilt.
+- The tab icon changed from an inbox to a speech bubble, for the same reason.
+
+### Verification
+`npm run verify` passes; 36 e2e tests still pass after the route change.
+
 ## [0.12.0] — 2026-08-10
 
 Phase 3 — conversations, the Smart Icebreaker, and realtime chat.

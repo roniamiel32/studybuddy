@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.12.0** — realtime chat, with an opening message written for you.
+Version **0.13.0** — realtime chat, with an opening message written for you.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final
@@ -23,6 +23,7 @@ project for the Full-Stack course at Reichman University.
 | 2 | Rule-based matching | ✅ Scoring RPC, matches dashboard, demo seed |
 | 2.5 | Smart Course API | ✅ Per-degree catalog: from the database, a model, or a stock curriculum — never empty |
 | 3 | Chat & Smart Icebreaker | ✅ Conversations, realtime messages, unread badge, generated openers |
+| — | Messages tab | ✅ Renamed from "Requests", freeing that name for the D2 request flow |
 | 3b | AI match re-rank | ⬜ Not started |
 | 4a | WhatsApp handoff | ⬜ Not started |
 | 4c | Calendar sync (D7) | ⬜ Not started — stretch goal |

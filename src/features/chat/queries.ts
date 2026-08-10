@@ -1,7 +1,7 @@
 /**
  * File:        src/features/chat/queries.ts
  * Authors:     Roni Amiel & Eden Bitran
- * Description: Reads for the Requests list and the chat room.
+ * Description: Reads for the Messages list and the chat room.
  *
  *              Every query here runs as the signed-in student, so the Phase 3
  *              policies have already narrowed the rows to conversations they are

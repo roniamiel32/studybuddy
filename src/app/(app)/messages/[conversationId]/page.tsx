@@ -1,5 +1,5 @@
 /**
- * File:        src/app/(app)/requests/[conversationId]/page.tsx
+ * File:        src/app/(app)/messages/[conversationId]/page.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: One conversation.
  *
