@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.15.0** — study groups, with join requests the admin accepts or politely declines.
+Version **0.16.0** — study groups, and a redesigned header with a Groups tab.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final

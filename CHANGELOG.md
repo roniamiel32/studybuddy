@@ -4,6 +4,59 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] — 2026-08-10
+
+Header and navigation redesign.
+
+### Changed
+- **The header now runs brand → centred menu → Match → user**, as specified. The
+  menu is `Courses`, `Groups`, `Messages`, each an icon and a text label.
+- **Match is the call to action**, a pill with a purple-to-blue gradient, a sparkles
+  icon and a coloured shadow in the same hue. It was one link among four, which
+  said it was a peer of the others rather than the thing the product exists to do.
+  It sits outside the `nav` landmark deliberately, and a test asserts that.
+- **The user area is one stadium-shaped control** — avatar initial, first name,
+  chevron — opening a menu with `Profile` and `Sign out`. Sign out used to sit
+  permanently in the header as a bare button, giving the most destructive action on
+  the screen the same weight as navigation.
+- **The join-request badge moved from Courses to Groups.** A join request is a
+  group request; on Courses a student had to guess which of the two tabs wanted
+  them.
+
+### Added
+- **`/groups`** — the Groups tab needed a page, or the nav link would 404. It lists
+  the groups you are in, with the requests waiting on you first. Groups are still
+  created and discovered on a course page, because a group belongs to a course.
+- `getMyGroups()`, which reads membership first and the groups second: the groups
+  policy admits every group in every course you take, so filtering there would
+  return groups you can merely see.
+
+### Notes on the implementation
+- The user menu is a native `<details>`, so open/close, Escape and button semantics
+  come from the platform. The two behaviours added by hand are click-outside and
+  close-on-navigation — the component is not remounted by a client-side route
+  change, so without the latter the menu stays open behind the new page.
+- The accessible name is on the `<summary>` rather than in an `sr-only` child. A
+  hidden span inside it sits behind the avatar and cannot be clicked, and a screen
+  reader would read the avatar, the name and the label as three separate things.
+- **The mobile bar keeps five items** rather than mirroring the desktop shape. A
+  fixed bottom bar has no room for a dropdown or a CTA pill, so Profile stays a
+  destination and Match stays a tab. The alternative is a hamburger, which hides the
+  two things people use most.
+
+### Fixed
+- **`sign_in_sign_ups` raised from 30 to 300 in `supabase/config.toml`.** The e2e
+  suite signs in far more than 30 times in five minutes — every test starts from the
+  login page on purpose, because a session carried between tests hides bugs in the
+  route guards. At the default, later specs failed with a silent redirect back to
+  `/login`, which looks exactly like a broken guard and is really a throttle. Local
+  only; a hosted project sets its own limits.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 318 tests, production build. Playwright:
+66 e2e tests across chromium and mobile-safari. The header was also captured at
+1280px and 390px, with the dropdown open, to check it against the specification.
+
 ## [0.15.0] — 2026-08-10
 
 Phase 5 — study groups, join requests, and a group chat. Closes design conflict

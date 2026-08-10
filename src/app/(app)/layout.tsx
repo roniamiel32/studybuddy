@@ -1,11 +1,18 @@
 /**
  * File:        src/app/(app)/layout.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: Shell for the signed-in application: a glass top bar with the
- *              student's photo and navigation, and a bottom bar on mobile.
- * Version:     0.12.0
+ * Description: Shell for the signed-in application.
+ *
+ *              The header runs left to right: brand, centred menu, the Match call
+ *              to action, and the consolidated user menu. Sign out used to sit in
+ *              the header as a bare button, which gave the most destructive action
+ *              on the screen the same weight as navigation; it now lives inside the
+ *              user menu.
+ * Version:     0.16.0
  *
  * Modifications:
+ *     0.16.0 - 2026-08-10 - Header redesign: centred menu, Match call to action,
+ *                           consolidated user menu
  *     0.15.0 - 2026-08-10 - Pending join-request count for the badge (Phase 5)
  *     0.12.0 - 2026-08-10 - Unread count for the navigation badge (Phase 3)
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
@@ -14,10 +21,10 @@
  */
 
 import Link from 'next/link';
+
 import { Logo } from '@/components/ui/logo';
-import { DesktopNav, MobileNav } from '@/components/layout/app-nav';
-import { ProfileBadge } from '@/components/layout/profile-badge';
-import { Button } from '@/components/ui/button';
+import { DesktopNav, MatchButton, MobileNav } from '@/components/layout/app-nav';
+import { UserMenu } from '@/components/layout/user-menu';
 import { getUnreadCount } from '@/features/chat/queries';
 import { getPendingRequestCount } from '@/features/groups/queries';
 import { signOut } from '@/features/auth/actions';
@@ -41,24 +48,46 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="bg-pattern flex min-h-full flex-1 flex-col">
       <header className="glass border-outline-variant/30 sticky top-0 z-40 border-b">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3">
-          <Link href="/dashboard"
-            className="focus-visible:ring-brand/35 flex shrink-0 items-center gap-3 rounded-md focus-visible:ring-4 focus-visible:outline-none">
-            <ProfileBadge fullName={profile.fullName} avatarUrl={profile.avatarUrl} />
+        {/*
+          * Four zones, left to right: brand, menu, call to action, user.
+          *
+          * The menu is centred with `justify-between` plus a nav that grows, rather
+          * than absolute positioning: the brand and the user area have different
+          * widths depending on the name, and centring by layout keeps the menu put
+          * as either changes.
+          */}
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-4 px-5 py-2.5">
+          {/* ---- Far left: brand ------------------------------------------- */}
+          <Link
+            href="/dashboard"
+            aria-label="StudyBuddy home"
+            className="focus-visible:ring-brand/35 flex shrink-0 items-center rounded-md focus-visible:ring-4 focus-visible:outline-none"
+          >
             <Logo />
           </Link>
 
-          <DesktopNav
-            unreadCount={unreadCount}
-            pendingRequestCount={pendingRequestCount}
-            viewerId={user.id}
-          />
+          {/* ---- Centre: the menu ------------------------------------------ */}
+          <div className="flex flex-1 justify-center">
+            <DesktopNav
+              unreadCount={unreadCount}
+              pendingRequestCount={pendingRequestCount}
+              viewerId={user.id}
+            />
+          </div>
 
-          <form action={signOut}>
-            <Button type="submit" variant="ghost" size="sm">
-              Sign out
-            </Button>
-          </form>
+          {/* ---- Right: the call to action, then the user ------------------ */}
+          <div className="flex shrink-0 items-center gap-3">
+            {/* Hidden on mobile, where Match is a tab in the bottom bar. */}
+            <span className="hidden md:inline-flex">
+              <MatchButton />
+            </span>
+
+            <UserMenu
+              fullName={profile.fullName}
+              avatarUrl={profile.avatarUrl}
+              signOut={signOut}
+            />
+          </div>
         </div>
       </header>
 

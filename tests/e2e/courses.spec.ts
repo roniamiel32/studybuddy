@@ -384,7 +384,13 @@ test.describe('courses and profile', () => {
   test('the Profile tab saves global preferences', async ({ page }) => {
     await signIn(page);
 
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Profile' }).click();
+    /*
+     * Profile moved into the user menu with the header redesign. The <summary> is
+     * the control, clicked as an element: <details> is exposed inconsistently
+     * across engines, so a role-based locator is not portable here.
+     */
+    await page.getByRole('banner').locator('summary').click();
+    await page.getByRole('banner').getByRole('link', { name: 'Profile' }).click();
     await expect(page).toHaveURL(/\/settings$/);
 
     await expect(page.getByRole('heading', { level: 1, name: 'Your profile' })).toBeVisible();

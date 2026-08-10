@@ -202,11 +202,16 @@ test.describe('study groups', () => {
   test('the admin is notified, and accepting posts a welcome message', async ({ page }) => {
     await signIn(page, adminEmail);
 
-    /* The notification: a badge on the Courses tab, seeded by the server. */
-    const coursesTab = page
+    /*
+     * The notification: a badge on the GROUPS tab, seeded by the server. It moved
+     * there with the header redesign — a join request is a group request, and a
+     * badge on Courses made a student guess which tab wanted them.
+     */
+    const groupsTab = page
       .getByRole('navigation', { name: 'Main' })
-      .getByRole('link', { name: /Courses/ });
-    await expect(coursesTab).toContainText('1 join request');
+      .first()
+      .getByRole('link', { name: /Groups/ });
+    await expect(groupsTab).toContainText('1 join request');
 
     await page.goto(`/courses/${offeringId}`);
     const card = page
@@ -247,7 +252,7 @@ test.describe('study groups', () => {
     await expect(page.getByText('2 of 2')).toBeVisible();
 
     /* And the badge has cleared. */
-    await expect(coursesTab).toHaveText('Courses');
+    await expect(groupsTab).toHaveText('Groups');
   });
 
   test('rejecting sends the applicant a real message', async ({ page }) => {

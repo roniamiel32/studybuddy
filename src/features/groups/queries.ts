@@ -10,7 +10,8 @@
  * Version:     0.15.0
  *
  * Modifications:
- *     0.15.0 - 2026-08-10 - Initial implementation (Phase 5)
+ *     0.15.0 - 2026-08-10 - Initial implementation (Phase 5); getMyGroups for
+ *                           the Groups tab
  */
 
 import 'server-only';
@@ -212,6 +213,60 @@ export async function getCourseGroups(offeringId: string): Promise<StudyGroupVie
 
   return rows.map((row) =>
     toGroupView(row, user.id, pendingByGroup.get(row.id) ?? [], myStatuses.get(row.id) ?? null),
+  );
+}
+
+/**
+ * Every group the student belongs to, across all their courses.
+ *
+ * Backs the Groups tab. Reads the membership rows first and the groups second
+ * rather than joining from `study_groups`: the groups policy admits every group in
+ * every course they take, so a filter there would return groups they can merely
+ * see, and "my groups" means the ones they are in.
+ *
+ * @returns Their groups, newest first.
+ */
+export async function getMyGroups(): Promise<StudyGroupView[]> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data: memberships } = await supabase
+    .from('study_group_members')
+    .select('group_id')
+    .eq('profile_id', user.id);
+
+  const groupIds = (memberships ?? []).map((row) => row.group_id);
+
+  if (groupIds.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('study_groups')
+    .select(GROUP_SELECT)
+    .in('id', groupIds)
+    .order('created_at', { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  const { data: pending } = await supabase
+    .from('group_requests')
+    .select(REQUEST_SELECT)
+    .eq('status', 'pending')
+    .in('group_id', groupIds)
+    .order('created_at', { ascending: true });
+
+  const pendingByGroup = new Map<string, GroupRequestView[]>();
+  for (const row of (pending ?? []) as unknown as RequestRow[]) {
+    const view = toRequestView(row);
+    pendingByGroup.set(view.groupId, [...(pendingByGroup.get(view.groupId) ?? []), view]);
+  }
+
+  return (data as unknown as GroupRow[]).map((row) =>
+    /* A member's own request is 'approved' by definition — they are in the group. */
+    toGroupView(row, user.id, pendingByGroup.get(row.id) ?? [], 'approved'),
   );
 }
 

@@ -154,13 +154,55 @@ test.describe('matches dashboard', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    // The design's "Chat" tab is called Messages here (design conflict C2).
-    const nav = page.getByRole('navigation', { name: 'Main' }).first();
-    await expect(nav.getByRole('link', { name: 'Match' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
-    await expect(nav.getByRole('link', { name: 'Messages' })).toBeVisible();
+    /*
+     * The menu holds Courses, Groups and Messages. Match is the call to action and
+     * deliberately NOT in the nav landmark, so it is asserted on the header — which
+     * is also what proves the redesign actually moved it rather than duplicating it.
+     */
+    /*
+     * `.last()` rather than `.first()`: both bars are in the DOM at every width and
+     * only one is displayed, and the mobile bar comes second. Asserting visibility
+     * against the hidden one would fail for a reason that has nothing to do with
+     * the navigation being right.
+     */
+    const nav = page
+      .getByRole('navigation', { name: 'Main' })
+      .filter({ visible: true })
+      .first();
+    await expect(nav.getByRole('link', { name: 'Courses' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Groups/ })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Messages/ })).toBeVisible();
+    /* The design's "Chat" tab is called Messages here (design conflict C2). */
     await expect(nav.getByRole('link', { name: 'Chat' })).toHaveCount(0);
+
+    /*
+     * Match lives in a different place on each breakpoint, and that is the design
+     * rather than an accident: a fixed bottom bar has no room for a call-to-action
+     * pill, so on a phone Match stays a tab. The invariant that holds either way is
+     * that there is exactly one Match link and it knows it is the current page.
+     */
+    const header = page.getByRole('banner');
+    const isDesktop = (page.viewportSize()?.width ?? 0) >= 768;
+    const match = isDesktop
+      ? header.getByRole('link', { name: 'Match' })
+      : page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Match' });
+
+    await expect(match).toHaveAttribute('aria-current', 'page');
+
+    /* On desktop it is deliberately outside the nav landmark. */
+    if (isDesktop) {
+      await expect(nav.getByRole('link', { name: 'Match' })).toHaveCount(0);
+    }
+
+    /* Profile and Sign out live in the user menu now, not loose in the header. */
+    await expect(header.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+    /*
+     * The <summary> IS the control, so it is clicked directly. Not by role:
+     * <details>/<summary> is exposed inconsistently across engines, and an sr-only
+     * label inside it would sit behind the avatar and be unclickable.
+     */
+    await header.locator('summary').click();
+    await expect(header.getByRole('link', { name: 'Profile' })).toBeVisible();
+    await expect(header.getByRole('button', { name: 'Sign out' })).toBeVisible();
   });
 });

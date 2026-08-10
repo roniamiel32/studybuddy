@@ -1,18 +1,28 @@
 /**
  * File:        src/components/layout/app-nav.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: The application's primary navigation, rendered as a top bar on
+ * Description: The application's primary navigation, rendered as a centred menu on
  *              desktop and a bottom bar on mobile.
  *
- *              Four destinations, matching the source design's shape. The
- *              design's "Chat" tab is called "Messages" here — it was
- *              "Requests" while it stood in for the unbuilt accept/decline flow
- *              (design conflict C2), and that name stopped being true once it
- *              held real conversations. Renaming it also frees "Requests" for the
- *              connection-request flow D2 actually describes.
- * Version:     0.15.0
+ *              THREE DESTINATIONS PLUS A CALL TO ACTION, which is the shape of the
+ *              redesign. Match was a peer of the other tabs and is now the primary
+ *              button: it is the thing the product exists to do, and a link in a row
+ *              of four said the opposite. Profile left the bar entirely for the user
+ *              menu at the far right.
+ *
+ *              The mobile bar keeps five items rather than mirroring this. A phone
+ *              has no room for a dropdown in a fixed 56px bar, so Profile stays a
+ *              destination there and Match stays a tab — the alternative is a
+ *              hamburger, which hides the two things people use most.
+ *
+ *              Groups became a destination here and needed a page: `/groups` lists
+ *              the groups you are in. Groups are still created and discovered on a
+ *              course page, because a group belongs to a course.
+ * Version:     0.16.0
  *
  * Modifications:
+ *     0.16.0 - 2026-08-10 - Redesign: Courses/Groups/Messages, Match as the CTA,
+ *                           Profile moved into the user menu
  *     0.15.0 - 2026-08-10 - Join-request badge on Courses (Phase 5)
  *     0.13.0 - 2026-08-10 - Requests renamed to Messages
  *     0.12.0 - 2026-08-10 - Unread badge on Requests (Phase 3)
@@ -23,7 +33,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { GraduationCap, MessageSquare, Sparkles, UserRound } from 'lucide-react';
+import { GraduationCap, MessageSquare, Sparkles, UserRound, Users } from 'lucide-react';
 
 import {
   UnreadDot,
@@ -33,15 +43,21 @@ import {
 } from '@/components/layout/unread-badge';
 import { cn } from '@/lib/utils';
 
+/**
+ * The centred menu, left to right as specified.
+ *
+ * The join-request badge moved from Courses to Groups with this redesign. Requests
+ * are group requests, and a badge on Courses meant a student had to guess which of
+ * the two tabs was asking for their attention.
+ */
 const DESTINATIONS = [
-  { href: '/dashboard', label: 'Match', icon: Sparkles },
-  /* Carries the admin's pending join requests, which is where they act on them. */
-  { href: '/courses', label: 'Courses', icon: GraduationCap, requests: true },
-  /* The only destination that carries a count, hence the flag rather than a
-     lookup by href in the render. */
+  { href: '/courses', label: 'Courses', icon: GraduationCap },
+  { href: '/groups', label: 'Groups', icon: Users, requests: true },
   { href: '/messages', label: 'Messages', icon: MessageSquare, badge: true },
-  { href: '/settings', label: 'Profile', icon: UserRound },
 ] as const;
+
+/** Match is the call to action, so it is not in DESTINATIONS. */
+const MATCH_HREF = '/dashboard';
 
 export interface NavProps {
   /** Unread total from the server, so the badge is right on first paint. */
@@ -66,8 +82,44 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 /**
- * Horizontal navigation for the desktop header.
+ * The glowing pill that leads to the matches screen.
  *
+ * A gradient plus a coloured shadow in the same hue, which is what reads as "glow"
+ * — a blur behind the element would bleed past the pill's edge on the glass header.
+ *
+ * Reads the pathname itself rather than taking it as a prop, so the server layout
+ * that renders it does not have to become a client component to know.
+ *
+ * @returns The link element.
+ */
+export function MatchButton() {
+  const pathname = usePathname();
+  const active = isActive(pathname, MATCH_HREF);
+
+  return (
+    <Link
+      href={MATCH_HREF}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'focus-visible:ring-brand/35 flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-label-md whitespace-nowrap text-white transition-all focus-visible:ring-4 focus-visible:outline-none',
+        'bg-[linear-gradient(135deg,var(--color-grape-bright)_0%,var(--color-brand-bright)_55%,var(--color-brand)_100%)]',
+        'shadow-[0_4px_14px_-2px_color-mix(in_oklab,var(--color-brand)_55%,transparent)]',
+        'hover:brightness-110 hover:shadow-[0_6px_18px_-2px_color-mix(in_oklab,var(--color-brand)_65%,transparent)]',
+        active && 'ring-brand/30 ring-4',
+      )}
+    >
+      <Sparkles className="size-4" aria-hidden="true" />
+      Match
+    </Link>
+  );
+}
+
+/**
+ * The centred menu for the desktop header.
+ *
+ * @param unreadCount         - Server-rendered unread total.
+ * @param pendingRequestCount - Server-rendered pending join requests.
+ * @param viewerId            - The signed-in student.
  * @returns The nav element.
  */
 export function DesktopNav({ unreadCount, pendingRequestCount, viewerId }: NavProps) {
@@ -93,8 +145,8 @@ export function DesktopNav({ unreadCount, pendingRequestCount, viewerId }: NavPr
                 : 'text-on-surface-variant hover:bg-surface-container-high',
             )}
           >
-            {/* Relative wrapper on the ICON, not the link: the badge belongs
-                over the icon, as in the reference, not over the whole pill. */}
+            {/* Relative wrapper on the ICON, not the link: the badge belongs over
+                the icon, not over the whole pill. */}
             <span className="relative flex">
               <Icon className="size-4" aria-hidden="true" />
               {'badge' in destination ? <UnreadDot count={unread} /> : null}
@@ -118,6 +170,9 @@ export function DesktopNav({ unreadCount, pendingRequestCount, viewerId }: NavPr
  * Fixed bottom bar for mobile, with the design's dot indicator on the active
  * destination.
  *
+ * @param unreadCount         - Server-rendered unread total.
+ * @param pendingRequestCount - Server-rendered pending join requests.
+ * @param viewerId            - The signed-in student.
  * @returns The nav element.
  */
 export function MobileNav({ unreadCount, pendingRequestCount, viewerId }: NavProps) {
@@ -125,12 +180,23 @@ export function MobileNav({ unreadCount, pendingRequestCount, viewerId }: NavPro
   const unread = useUnreadCount(unreadCount, viewerId);
   const requests = usePendingRequestCount(pendingRequestCount, viewerId);
 
+  /*
+   * Five, not three. The desktop header hides Profile in a dropdown and promotes
+   * Match to a button; neither fits a fixed bottom bar, so on a phone both stay
+   * destinations. Same routes, same badges, different affordance.
+   */
+  const mobileDestinations = [
+    { href: MATCH_HREF, label: 'Match', icon: Sparkles },
+    ...DESTINATIONS,
+    { href: '/settings', label: 'Profile', icon: UserRound },
+  ] as const;
+
   return (
     <nav
       aria-label="Main"
-      className="glass shadow-nav fixed bottom-0 left-0 z-50 flex w-full items-center justify-around rounded-t-xl px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden"
+      className="glass shadow-nav fixed bottom-0 left-0 z-50 flex w-full items-center justify-around rounded-t-xl px-2 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden"
     >
-      {DESTINATIONS.map((destination) => {
+      {mobileDestinations.map((destination) => {
         const { href, label, icon: Icon } = destination;
         const active = isActive(pathname, href);
 
@@ -148,10 +214,10 @@ export function MobileNav({ unreadCount, pendingRequestCount, viewerId }: NavPro
               * The dimming sits on the icon and label, NOT on the link.
               *
               * An inactive tab is faded to 60%, and CSS opacity applies to every
-              * descendant with no way for a child to opt out. With the class on
-              * the link, the unread badge would be faded too — on the one tab
-              * where it matters most, since Messages is inactive precisely when
-              * a student needs to notice something arrived.
+              * descendant with no way for a child to opt out. With the class on the
+              * link, the unread badge would be faded too — on the one tab where it
+              * matters most, since a student notices a badge precisely when they are
+              * somewhere else.
               */}
             <span
               className={cn(
@@ -164,10 +230,7 @@ export function MobileNav({ unreadCount, pendingRequestCount, viewerId }: NavPro
               {/* The active dot. Decorative — aria-current already says which. */}
               <span
                 aria-hidden="true"
-                className={cn(
-                  'size-1 rounded-full',
-                  active ? 'bg-grape' : 'bg-transparent',
-                )}
+                className={cn('size-1 rounded-full', active ? 'bg-grape' : 'bg-transparent')}
               />
             </span>
 
