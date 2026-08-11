@@ -8,9 +8,10 @@
  *              sections on the page fails independently — an oversize photo must
  *              not discard preference edits the student made in the same visit,
  *              and a rejected city must not undo a new photo.
- * Version:     0.14.0
+ * Version:     0.19.0
  *
  * Modifications:
+ *     0.19.0 - 2026-08-11 - updateAvailability, for the week editor dialog
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
  */
 
@@ -19,6 +20,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
+import { availabilitySchema } from '@/features/onboarding/schema';
 import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES, uploadAvatar } from '@/features/profile/avatar';
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
 import { createClient, requireUser } from '@/lib/supabase/server';
@@ -226,5 +228,76 @@ export async function updateGlobalPreferences(
     return ok(undefined);
   } catch (error) {
     return toActionError(error, 'profile.updateGlobalPreferences');
+  }
+}
+
+/**
+ * Replaces the student's hand-drawn week.
+ *
+ * The same write as onboarding step 4, minus the two things that only make
+ * sense the first time through: it does not stamp `onboarding_completed_at`,
+ * and it does not redirect. A student editing their week from the Profile tab
+ * is already set up and expects to stay where they are.
+ *
+ * Only `manual` rows are replaced. Slots synced from a calendar belong to the
+ * integration, and the uniqueness constraint keys on `source` precisely so this
+ * delete cannot reach them (decision D7).
+ *
+ * @param previous - Prior result, required by useActionState and unused.
+ * @param formData - Carries one `slots` entry per selected block.
+ * @returns Success, or a failure.
+ */
+export async function updateAvailability(
+  previous: ActionResult<void> | null,
+  formData: FormData,
+): Promise<ActionResult<void>> {
+  try {
+    const user = await requireUser();
+    const supabase = await createClient();
+
+    const input = availabilitySchema.parse({
+      slots: multi(formData, 'slots').map((raw) => {
+        const [dayOfWeek, startsAt, endsAt] = raw.split('|');
+        return { dayOfWeek, startsAt, endsAt };
+      }),
+    });
+
+    const { error: clearError } = await supabase
+      .from('availability_slots')
+      .delete()
+      .eq('profile_id', user.id)
+      .eq('source', 'manual');
+
+    if (clearError) {
+      return fail(ERROR_CODES.UNEXPECTED, 'We could not save your week. Try again.');
+    }
+
+    /* An empty week is a legitimate answer — the student cleared it. Skipping
+       the insert is the whole difference, not an early return. */
+    if (input.slots.length > 0) {
+      const { error } = await supabase.from('availability_slots').insert(
+        input.slots.map((slot) => ({
+          profile_id: user.id,
+          day_of_week: slot.dayOfWeek,
+          starts_at: slot.startsAt,
+          ends_at: slot.endsAt,
+          source: 'manual' as const,
+        })),
+      );
+
+      if (error) {
+        return fail(ERROR_CODES.UNEXPECTED, 'We could not save your week. Try again.');
+      }
+    }
+
+    /* Overlapping hours are the largest single part of a match score, so every
+       screen that ranks anyone is now stale. */
+    revalidatePath('/settings');
+    revalidatePath('/dashboard');
+    revalidatePath('/courses');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'profile.updateAvailability');
   }
 }

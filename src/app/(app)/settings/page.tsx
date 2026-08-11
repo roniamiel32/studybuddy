@@ -3,16 +3,17 @@
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The Profile tab — photo, personal details, and the global study
  *              preferences every course inherits.
- * Version:     0.14.0
+ * Version:     0.19.0
  *
  * Modifications:
+ *     0.19.0 - 2026-08-11 - The week is edited in place, not in onboarding
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
  */
 
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { AvailabilityDialog } from '@/components/profile/availability-dialog';
 import { AvatarForm } from '@/components/profile/avatar-form';
 import {
   GlobalPreferencesForm,
@@ -20,7 +21,11 @@ import {
 } from '@/components/profile/preferences-section';
 import { hasOverride } from '@/features/courses/course-view';
 import { getMyCourses } from '@/features/courses/queries';
-import { getOnboardingProfile, getMyPreferences } from '@/features/onboarding/queries';
+import {
+  getMyAvailability,
+  getOnboardingProfile,
+  getMyPreferences,
+} from '@/features/onboarding/queries';
 import { signOut } from '@/features/auth/actions';
 import { Button } from '@/components/ui/button';
 
@@ -32,10 +37,11 @@ export const metadata: Metadata = { title: 'Profile' };
  * @returns The page element.
  */
 export default async function SettingsPage() {
-  const [profile, preferences, courses] = await Promise.all([
+  const [profile, preferences, courses, slots] = await Promise.all([
     getOnboardingProfile(),
     getMyPreferences(),
     getMyCourses(),
+    getMyAvailability(),
   ]);
 
   /* Preferences are set in onboarding step 3; without them this page has nothing
@@ -45,6 +51,15 @@ export default async function SettingsPage() {
   }
 
   const overriddenCourseCount = courses.filter((course) => hasOverride(course.override)).length;
+
+  /*
+   * PostgreSQL returns `time` as "08:00:00"; the grid keys on "08:00". Only
+   * manual slots are editable here — synced ones are owned by the calendar
+   * integration and must not be silently rewritten by this form.
+   */
+  const selectedSlots = slots
+    .filter((slot) => slot.source === 'manual')
+    .map((slot) => `${slot.day_of_week}|${slot.starts_at.slice(0, 5)}|${slot.ends_at.slice(0, 5)}`);
 
   return (
     <>
@@ -89,11 +104,9 @@ export default async function SettingsPage() {
           <p className="text-on-surface-variant mt-1 mb-4 text-body-md text-pretty">
             Overlapping free hours are the largest single part of a match score.
           </p>
-          {/* Reuses the onboarding step rather than duplicating the grid. The
-              editor is the same editor; only the way out of it differs. */}
-          <Link href="/onboarding/availability" className="clay-btn-secondary rounded-md px-4 py-2 text-label-md">
-            Edit your free time
-          </Link>
+          {/* Reuses the onboarding grid rather than duplicating it. The editor
+              is the same editor; only the way out of it differs. */}
+          <AvailabilityDialog defaultSelected={selectedSlots} />
         </section>
 
         <section aria-labelledby="account-heading" className="clay-card p-6">
