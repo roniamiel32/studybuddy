@@ -225,7 +225,7 @@ test.describe('running a study group', () => {
     expect(data?.max_participants).toBe(6);
   });
 
-  test('a member can be promoted, and only the founder can undo it', async ({ page }) => {
+  test('an admin can promote a member', async ({ page }) => {
     await signIn(page, founderEmail);
     await page.goto(`/groups/${groupId}`);
 
@@ -243,24 +243,32 @@ test.describe('running a study group', () => {
     });
 
     expect((await storedRoles())[memberId]).toBe('admin');
+  });
 
+  test('the new admin is offered nothing against the founder', async ({ page }) => {
     /*
-     * THE RANK RULE ON SCREEN. The new admin is looking at the founder, and is
-     * offered nothing: no demotion, no removal. The triggers refuse both anyway,
-     * but a button that appears and then errors is its own kind of broken.
+     * THE RANK RULE ON SCREEN. The triggers refuse both of these whatever the UI
+     * does, but a button that appears and then errors is its own kind of broken.
+     *
+     * Its own test rather than a third act of the promotion one: three sign-ins
+     * and a promotion do not fit in a single test's budget, and the failure that
+     * produced was a timeout in the middle of setup rather than anything about
+     * ranks.
      */
     await signIn(page, memberEmail);
     await page.goto(`/groups/${groupId}`);
 
-    await expect(page.getByText('Founder')).toBeVisible();
+    /* exact, because the fixture is called "Fiona Founder" and the rank chip is
+       called "Founder" — without it this matches the name as well as the chip. */
+    await expect(page.getByText('Founder', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Step down' })).toHaveCount(0);
-    await expect(
-      page.getByRole('button', { name: /Remove Fiona Founder/ }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Remove Fiona Founder/ })).toHaveCount(0);
+  });
 
-    /* The founder can undo it. */
+  test('only the founder can undo a promotion', async ({ page }) => {
     await signIn(page, founderEmail);
     await page.goto(`/groups/${groupId}`);
+
     await page.getByRole('button', { name: 'Step down' }).click();
 
     await expect(page.getByRole('button', { name: 'Make admin' })).toBeVisible({
@@ -270,7 +278,7 @@ test.describe('running a study group', () => {
     expect((await storedRoles())[memberId]).toBe('member');
   });
 
-  test('inviting asks rather than adds, and the student decides', async ({ page }) => {
+  test('inviting asks rather than adds', async ({ page }) => {
     await signIn(page, founderEmail);
     await page.goto(`/groups/${groupId}`);
 
@@ -293,8 +301,9 @@ test.describe('running a study group', () => {
      */
     const roles = await storedRoles();
     expect(roles[outsiderId]).toBeUndefined();
+  });
 
-    /* They see it, and only they can accept it. */
+  test('only the invited student can accept it', async ({ page }) => {
     await signIn(page, outsiderEmail);
     await page.goto('/groups');
 

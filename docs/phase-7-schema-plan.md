@@ -570,6 +570,25 @@ demo data survive.
 | Inviting a classmate | `components/groups/invite-panel.tsx` |
 | Answering an invitation | `components/groups/invitation-inbox.tsx` |
 
+**Run the e2e suite against a production build.** `playwright.config.ts` starts
+the dev server, which compiles each route and each server action on first
+request — a first save in the group settings dialog measured 35 seconds of
+Turbopack and 7 milliseconds of database, and that lands as a timeout that looks
+like a broken feature. Building once and pointing the suite at `npm start` took
+the full run from six minutes with scattered failures to 1.3 minutes green:
+
+```bash
+npm run build && PORT=3200 npm start
+PLAYWRIGHT_BASE_URL=http://localhost:3200 npx playwright test
+```
+
+Two further things that make the suite trustworthy, both learned the hard way:
+never run two suites at once (they share one dev server and one database — the
+config already sets `workers: 1` for this reason), and remember that a run killed
+part-way leaves its fixture students behind. Their display names are fixed, so
+the next run finds two "Yuval Partner" buttons and fails on a strict-mode
+violation that has nothing to do with the code.
+
 Three decisions worth recording:
 
 **The scheduler dialog is not inside the composer.** A form cannot contain

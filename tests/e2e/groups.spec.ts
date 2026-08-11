@@ -303,8 +303,18 @@ test.describe('study groups', () => {
 
     await dialog.getByRole('button', { name: 'Send and reject' }).click();
 
-    /* The request is gone from the list. */
-    await expect(page.getByText('Polite Applicant')).toHaveCount(0, { timeout: 15_000 });
+    /*
+     * The request is gone from the REQUESTS list — scoped there deliberately.
+     *
+     * Their name legitimately reappears elsewhere on this page since Phase 7B:
+     * rejecting does not leave a live request, so they become someone the admin
+     * could invite. That is the point of rejecting being reversible by asking,
+     * and a page-wide "their name is nowhere" assertion would now fail on a
+     * feature working correctly.
+     */
+    await expect(
+      page.getByRole('list', { name: 'Pending requests' }).getByText('Polite Applicant'),
+    ).toHaveCount(0, { timeout: 15_000 });
 
     /*
      * THE ASSERTION THAT MATTERS: the rejected student has a message about it, in
@@ -373,7 +383,11 @@ test.describe('study groups', () => {
       .fill('Sorry! We have settled on just the two of us for this one.');
     await dialog.getByRole('button', { name: 'Send and reject' }).click();
 
-    await expect(page.getByText('Polite Applicant')).toHaveCount(0, { timeout: 15_000 });
+    /* Scoped to the requests list, as above: a rejected applicant is someone the
+       admin could now invite, so their name reappears in the invite panel. */
+    await expect(
+      page.getByRole('list', { name: 'Pending requests' }).getByText('Polite Applicant'),
+    ).toHaveCount(0, { timeout: 15_000 });
 
     const { data: messages } = await asApplicant
       .from('messages')

@@ -2,7 +2,7 @@
  * File:        src/app/(app)/students/[profileId]/page.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: A student's profile.
- * Version:     0.18.1
+ * Version:     0.18.2
  */
 
 import type { Metadata } from 'next';
@@ -22,6 +22,7 @@ import { MessageButton } from '@/components/matching/message-button';
 import { MatchAvatar } from '@/components/matching/match-avatar';
 import { RatePartnerDialog } from '@/components/profiles/rate-partner-dialog';
 import { Chip } from '@/components/ui/chip';
+import { ExpandableList } from '@/components/ui/expandable-list';
 import {
   connectionsSummary,
   preferenceSections,
@@ -157,7 +158,7 @@ export default async function StudentProfilePage({
       </section>
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
-        {/* ---- What you have in common -------------------------------------- */}
+        {/* ---- What you have in common (or Your Classes if viewing self) ---- */}
         <div className="flex flex-col gap-6 lg:col-span-5">
           {!profile.isSelf ? (
             <section aria-labelledby="common-heading" className="clay-card p-5">
@@ -191,9 +192,10 @@ export default async function StudentProfilePage({
                 Shared courses
               </h3>
               {profile.sharedCourses.length > 0 ? (
-                <ul aria-label="Shared courses" className="flex flex-col gap-2">
-                  {profile.sharedCourses.map((course) => (
-                    <li key={course.offeringId}>
+                <ExpandableList
+                  limit={2}
+                  items={profile.sharedCourses.map((course) => (
+                    <div key={course.offeringId}>
                       <Link
                         href={`/courses/${course.offeringId}`}
                         className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
@@ -206,9 +208,9 @@ export default async function StudentProfilePage({
                           </span>
                         </span>
                       </Link>
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                />
               ) : (
                 <p className="text-on-surface-variant text-body-md">
                   No courses in common this semester.
@@ -219,9 +221,10 @@ export default async function StudentProfilePage({
                 Shared groups
               </h3>
               {profile.sharedGroups.length > 0 ? (
-                <ul aria-label="Shared groups" className="flex flex-col gap-2">
-                  {profile.sharedGroups.map((group) => (
-                    <li key={group.id}>
+                <ExpandableList
+                  limit={2}
+                  items={profile.sharedGroups.map((group) => (
+                    <div key={group.id}>
                       <Link
                         href={`/groups/${group.id}`}
                         className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
@@ -235,16 +238,80 @@ export default async function StudentProfilePage({
                           </span>
                         </span>
                       </Link>
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                />
               ) : (
                 <p className="text-on-surface-variant text-body-md">
                   You are not in a study group together.
                 </p>
               )}
             </section>
-          ) : null}
+          ) : (
+            <section aria-labelledby="my-classes-heading" className="clay-card p-5">
+              <h2 id="my-classes-heading" className="font-heading text-headline-md">
+                Your classes
+              </h2>
+
+              <h3 className="text-on-surface-variant mt-5 mb-2 text-label-md tracking-wider uppercase">
+                Your courses
+              </h3>
+              {profile.sharedCourses.length > 0 ? (
+                <ExpandableList
+                  limit={2}
+                  items={profile.sharedCourses.map((course) => (
+                    <div key={course.offeringId}>
+                      <Link
+                        href={`/courses/${course.offeringId}`}
+                        className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
+                      >
+                        <BookOpen className="text-brand size-4 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-label-md block truncate">{course.name}</span>
+                          <span className="text-outline block text-label-sm font-normal">
+                            {course.code}
+                          </span>
+                        </span>
+                      </Link>
+                    </div>
+                  ))}
+                />
+              ) : (
+                <p className="text-on-surface-variant text-body-md">
+                  You haven't added any courses yet.
+                </p>
+              )}
+
+              <h3 className="text-on-surface-variant mt-5 mb-2 text-label-md tracking-wider uppercase">
+                Your groups
+              </h3>
+              {profile.sharedGroups.length > 0 ? (
+                <ExpandableList
+                  limit={2}
+                  items={profile.sharedGroups.map((group) => (
+                    <div key={group.id}>
+                      <Link
+                        href={`/groups/${group.id}`}
+                        className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
+                      >
+                        <Users className="text-brand size-4 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-label-md block truncate">{group.name}</span>
+                          <span className="text-outline block text-label-sm font-normal">
+                            {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
+                          </span>
+                        </span>
+                      </Link>
+                    </div>
+                  ))}
+                />
+              ) : (
+                <p className="text-on-surface-variant text-body-md">
+                  You are not in any study groups.
+                </p>
+              )}
+            </section>
+          )}
         </div>
 
         {/* ---- How they study, and who they have studied with --------------- */}
