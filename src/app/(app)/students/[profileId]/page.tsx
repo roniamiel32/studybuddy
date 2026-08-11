@@ -34,7 +34,7 @@ export const metadata: Metadata = { title: 'Profile' };
 /**
  * 0-40: #FF6B7D
  * 41-79: #FF8A50
- * 80-100: #c5d9c9
+ * 80-100: #4f7b58ff
  */
 function getCompatibilityColor(score: number): string {
   if (score <= 40) return '#FF6B7D';

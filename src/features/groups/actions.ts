@@ -71,6 +71,7 @@ export async function createGroup(
     });
 
     if (error) {
+      console.error('TEMP createGroup insert error', JSON.stringify(error));
       /* The policy and the consistency trigger both refuse a course the student
          does not take, which is the only likely cause here. */
       return fail(
