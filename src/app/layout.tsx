@@ -14,7 +14,6 @@
 
 import type { Metadata } from 'next';
 import { Nunito, Plus_Jakarta_Sans } from 'next/font/google';
-import { ThemeProvider } from 'next-themes';
 
 import './globals.css';
 
@@ -56,12 +55,9 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${headingFont.variable} ${plusJakartaSans.variable} h-full antialiased`}
-      suppressHydrationWarning
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {children}
-        </ThemeProvider>
+        {children}
       </body>
     </html>
   );
