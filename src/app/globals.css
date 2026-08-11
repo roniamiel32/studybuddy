@@ -279,7 +279,7 @@
   }
 
   .clay-btn-secondary:hover {
-    background-color: var(--color-grape-fixed);
+    background-color: var(--color-brand-fixed);
   }
 
   .clay-btn-secondary:active {
