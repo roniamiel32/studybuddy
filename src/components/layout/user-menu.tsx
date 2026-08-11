@@ -4,11 +4,7 @@
  * Description: The consolidated user area at the far right of the header: a
  *              stadium-shaped control holding the avatar, the student's first name
  *              and a chevron, which opens a menu with Profile, Dark Mode toggle, and Sign out.
- * Version:     0.17.0
- *
- * Modifications:
- *     0.17.0 - 2026-08-10 - Added dark/light mode toggle inside the user menu
- *     0.16.0 - 2026-08-10 - Initial implementation
+ * Version:     0.17.1
  */
 
 'use client';
@@ -22,6 +18,7 @@ import { ChevronDown, LogOut, Moon, Sun, UserRound } from 'lucide-react';
 import { ProfileBadge } from '@/components/layout/profile-badge';
 
 export interface UserMenuProps {
+  viewerId: string;
   fullName: string | null;
   avatarUrl: string | null;
   /** The sign-out server action, passed in so this stays a client component. */
@@ -31,12 +28,13 @@ export interface UserMenuProps {
 /**
  * Renders the user area and its dropdown.
  *
+ * @param viewerId  - The ID of the signed-in student.
  * @param fullName  - The student's saved name, for the label and the initial.
  * @param avatarUrl - Their photo, if any.
  * @param signOut   - The sign-out action.
  * @returns The menu element.
  */
-export function UserMenu({ fullName, avatarUrl, signOut }: UserMenuProps) {
+export function UserMenu({ viewerId, fullName, avatarUrl, signOut }: UserMenuProps) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
@@ -89,7 +87,7 @@ export function UserMenu({ fullName, avatarUrl, signOut }: UserMenuProps) {
 
       <div className="border-outline-variant/40 absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-lg border bg-white shadow-clay-lifted">
         <Link
-          href="/settings"
+          href={`/students/${viewerId}`}
           className="text-on-surface-variant hover:bg-surface-container-high focus-visible:ring-brand/35 flex items-center gap-2.5 px-4 py-3 text-label-md transition-colors focus-visible:ring-4 focus-visible:outline-none focus-visible:-outline-offset-2"
         >
           <UserRound className="size-4" aria-hidden="true" />

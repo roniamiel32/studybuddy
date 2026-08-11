@@ -188,7 +188,7 @@ export function MobileNav({ unreadCount, pendingRequestCount, viewerId }: NavPro
   const mobileDestinations = [
     { href: MATCH_HREF, label: 'Match', icon: Sparkles },
     ...DESTINATIONS,
-    { href: '/settings', label: 'Profile', icon: UserRound },
+    { href: '/students/${viewerId}', label: 'Profile', icon: UserRound },
   ] as const;
 
   return (
