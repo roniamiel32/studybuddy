@@ -96,7 +96,7 @@ export default function LandingPage() {
             </div>
 
             <p className="text-on-surface-variant mt-5 text-body-md">
-              Already have an account?{' '}
+             Already have an account?{' '}
               <Link
                 href="/login"
                 className="text-brand rounded-sm font-semibold underline underline-offset-4 focus-visible:ring-4 focus-visible:ring-brand/35 focus-visible:outline-none"

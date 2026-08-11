@@ -43,10 +43,11 @@ function group(overrides: Partial<StudyGroupView> = {}): StudyGroupView {
     adminName: 'Maya',
     createdAt: '2026-08-10T09:00:00.000Z',
     members: [
-      { profileId: 'admin', fullName: 'Maya', avatarUrl: null, isAdmin: true },
-      { profileId: 'member', fullName: 'Tamar', avatarUrl: null, isAdmin: false },
+      { profileId: 'admin', fullName: 'Maya', avatarUrl: null, isAdmin: true, isFounder: true },
+      { profileId: 'member', fullName: 'Tamar', avatarUrl: null, isAdmin: false, isFounder: false },
     ],
     isAdmin: false,
+    isFounder: false,
     isMember: false,
     myRequestStatus: null,
     pendingRequests: [],
@@ -63,9 +64,9 @@ describe('placesLeft and isFull', () => {
   it('reports a full group', () => {
     const full = group({
       members: [
-        { profileId: 'a', fullName: 'A', avatarUrl: null, isAdmin: true },
-        { profileId: 'b', fullName: 'B', avatarUrl: null, isAdmin: false },
-        { profileId: 'c', fullName: 'C', avatarUrl: null, isAdmin: false },
+        { profileId: 'a', fullName: 'A', avatarUrl: null, isAdmin: true, isFounder: true },
+        { profileId: 'b', fullName: 'B', avatarUrl: null, isAdmin: false, isFounder: false },
+        { profileId: 'c', fullName: 'C', avatarUrl: null, isAdmin: false, isFounder: false },
       ],
     });
 
@@ -81,9 +82,9 @@ describe('placesLeft and isFull', () => {
     const over = group({
       maxParticipants: 2,
       members: [
-        { profileId: 'a', fullName: 'A', avatarUrl: null, isAdmin: true },
-        { profileId: 'b', fullName: 'B', avatarUrl: null, isAdmin: false },
-        { profileId: 'c', fullName: 'C', avatarUrl: null, isAdmin: false },
+        { profileId: 'a', fullName: 'A', avatarUrl: null, isAdmin: true, isFounder: true },
+        { profileId: 'b', fullName: 'B', avatarUrl: null, isAdmin: false, isFounder: false },
+        { profileId: 'c', fullName: 'C', avatarUrl: null, isAdmin: false, isFounder: false },
       ],
     });
 
@@ -111,9 +112,9 @@ describe('canRequestToJoin', () => {
   it('refuses a full group', () => {
     const full = group({
       members: [
-        { profileId: 'a', fullName: 'A', avatarUrl: null, isAdmin: true },
-        { profileId: 'b', fullName: 'B', avatarUrl: null, isAdmin: false },
-        { profileId: 'c', fullName: 'C', avatarUrl: null, isAdmin: false },
+        { profileId: 'a', fullName: 'A', avatarUrl: null, isAdmin: true, isFounder: true },
+        { profileId: 'b', fullName: 'B', avatarUrl: null, isAdmin: false, isFounder: false },
+        { profileId: 'c', fullName: 'C', avatarUrl: null, isAdmin: false, isFounder: false },
       ],
     });
 
@@ -141,10 +142,22 @@ describe('joinBlockedReason', () => {
 
   it('distinguishes the reasons, because they are different situations', () => {
     /* A single greyed-out button would explain none of these. */
-    expect(joinBlockedReason(group({ isAdmin: true }))).toMatch(/created/i);
+    expect(joinBlockedReason(group({ isFounder: true }))).toMatch(/created/i);
     expect(joinBlockedReason(group({ isMember: true }))).toMatch(/in this group/i);
     expect(joinBlockedReason(group({ myRequestStatus: 'pending' }))).toMatch(/waiting/i);
     expect(joinBlockedReason(group({ status: 'closed' }))).toMatch(/not accepting/i);
+  });
+
+  it('does not tell a promoted admin they created the group', () => {
+    /*
+     * Since Phase 7A "admin" is a rank the founder can grant, so it no longer
+     * implies authorship. Telling someone they created a group they were invited
+     * to is a small lie in exactly the place students look to work out what
+     * happened.
+     */
+    expect(joinBlockedReason(group({ isAdmin: true, isMember: true }))).toMatch(
+      /in this group/i,
+    );
   });
 
   it('puts membership before a pending request', () => {
@@ -157,9 +170,9 @@ describe('joinBlockedReason', () => {
   it('reports a full group to a classmate who has not asked', () => {
     const full = group({
       members: [
-        { profileId: 'a', fullName: 'A', avatarUrl: null, isAdmin: true },
-        { profileId: 'b', fullName: 'B', avatarUrl: null, isAdmin: false },
-        { profileId: 'c', fullName: 'C', avatarUrl: null, isAdmin: false },
+        { profileId: 'a', fullName: 'A', avatarUrl: null, isAdmin: true, isFounder: true },
+        { profileId: 'b', fullName: 'B', avatarUrl: null, isAdmin: false, isFounder: false },
+        { profileId: 'c', fullName: 'C', avatarUrl: null, isAdmin: false, isFounder: false },
       ],
     });
 

@@ -302,8 +302,13 @@ async function getCompatibility(
 /**
  * Whether the viewer may rate this student, and what they said last time.
  *
- * Rating requires a conversation — the same rule the insert policy enforces. It is
- * checked here too so the button can be absent rather than failing when pressed.
+ * ASKS THE DATABASE THE SAME QUESTION THE POLICY ASKS, rather than reimplementing
+ * it. Phase 7D moved the rule from "you have a conversation" to "you finished a
+ * meeting together that neither of you cancelled", and it is enforced by both an
+ * INSERT policy and a trigger. A second copy of that condition written in
+ * TypeScript would be one schema change away from offering a button that the
+ * database then refuses — which is exactly the permission error this gate exists
+ * to prevent.
  *
  * @param supabase  - The caller's client.
  * @param viewerId  - The signed-in student.
@@ -315,15 +320,11 @@ async function getRatingState(
   viewerId: string,
   profileId: string,
 ): Promise<{ canRate: boolean; myRating: 'positive' | 'negative' | null }> {
-  const [{ data: conversation }, { data: rating }] = await Promise.all([
-    supabase
-      .from('conversations')
-      .select('id')
-      .or(
-        `and(participant_a.eq.${viewerId},participant_b.eq.${profileId}),` +
-          `and(participant_a.eq.${profileId},participant_b.eq.${viewerId})`,
-      )
-      .maybeSingle(),
+  const [{ data: metThem }, { data: rating }] = await Promise.all([
+    supabase.rpc('app_shared_completed_meeting', {
+      profile_a: viewerId,
+      profile_b: profileId,
+    }),
     supabase
       .from('study_ratings')
       .select('sentiment')
@@ -333,7 +334,7 @@ async function getRatingState(
   ]);
 
   return {
-    canRate: Boolean(conversation),
+    canRate: metThem === true,
     myRating: (rating?.sentiment as 'positive' | 'negative' | null) ?? null,
   };
 }

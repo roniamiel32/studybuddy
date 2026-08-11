@@ -104,7 +104,19 @@ export default async function StudentProfilePage({
                       myRating={profile.myRating}
                       courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
                     />
-                  ) : null}
+                  ) : (
+                    /*
+                     * The absence, explained. Since Phase 7D a rating needs a
+                     * finished meeting you both attended, which is not a rule
+                     * anyone can infer from a missing button — and the person
+                     * most likely to look for it is someone who has just spent
+                     * an hour messaging this classmate.
+                     */
+                    <p className="text-outline text-label-sm">
+                      You can rate {profile.fullName.split(' ')[0]} after a study session you
+                      both attend.
+                    </p>
+                  )}
                 </>
               )}
             </div>

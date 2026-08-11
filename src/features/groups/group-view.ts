@@ -21,7 +21,10 @@ export interface GroupMemberView {
   profileId: string;
   fullName: string;
   avatarUrl: string | null;
+  /** Any admin, of which a group may have several since Phase 7A. */
   isAdmin: boolean;
+  /** The one who created it. Cannot be demoted, and alone may demote. */
+  isFounder: boolean;
 }
 
 export interface GroupRequestView {
@@ -45,12 +48,15 @@ export interface StudyGroupView {
   description: string | null;
   maxParticipants: number;
   status: 'open' | 'closed';
-  adminId: string;
+  /** The founder. Null once their account is deleted. */
+  adminId: string | null;
   adminName: string;
   createdAt: string;
   members: GroupMemberView[];
-  /** True when the viewer administers this group. */
+  /** True when the viewer administers this group — one of possibly several. */
   isAdmin: boolean;
+  /** True when the viewer created it. The rank that may demote. */
+  isFounder: boolean;
   /** True when the viewer is in it, admin included. */
   isMember: boolean;
   /** The viewer's own live request, when they have one. */
@@ -178,10 +184,13 @@ export function canRequestToJoin(group: StudyGroupView): boolean {
  * @returns A short reason, or null when they can ask.
  */
 export function joinBlockedReason(group: StudyGroupView): string | null {
-  if (group.isAdmin) {
+  if (group.isFounder) {
     return 'You created this group';
   }
 
+  /* Checked before isAdmin, which is now a rank rather than authorship: an admin
+     who was promoted did not create the group, and being told they did would be
+     a small lie in a place students look to understand what happened. */
   if (group.isMember) {
     return 'You are in this group';
   }

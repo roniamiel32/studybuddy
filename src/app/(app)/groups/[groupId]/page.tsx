@@ -17,13 +17,20 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronRight, Crown, Users } from 'lucide-react';
+import { ChevronRight, Users } from 'lucide-react';
 
 import { ApplicantRow } from '@/components/groups/applicant-review-dialog';
 import { GroupChat } from '@/components/groups/group-chat';
-import { MatchAvatar } from '@/components/matching/match-avatar';
+import { GroupSettingsDialog } from '@/components/groups/group-settings-dialog';
+import { InvitePanel } from '@/components/groups/invite-panel';
+import { MemberRow } from '@/components/groups/member-row';
 import { Chip } from '@/components/ui/chip';
-import { getGroup, getGroupMessages } from '@/features/groups/queries';
+import {
+  getGroup,
+  getGroupMessages,
+  getInvitableClassmates,
+} from '@/features/groups/queries';
+import { getChatMeetings } from '@/features/meetings/queries';
 import { placesLeft } from '@/features/groups/group-view';
 import { getMyCourse } from '@/features/courses/queries';
 import { requireUser } from '@/lib/supabase/server';
@@ -49,9 +56,13 @@ export default async function GroupPage({
     notFound();
   }
 
-  const [messages, course] = await Promise.all([
+  const [messages, course, meetings, invitable] = await Promise.all([
     getGroupMessages(groupId),
     getMyCourse(group.courseOfferingId),
+    getChatMeetings({ groupId }),
+    /* Only an admin can act on this, and only an admin is shown it. The policy
+       refuses the insert either way — this just avoids the round trip. */
+    group.isAdmin ? getInvitableClassmates(groupId) : Promise.resolve([]),
   ]);
 
   const left = placesLeft(group);
@@ -110,30 +121,43 @@ export default async function GroupPage({
               </Chip>
             </div>
 
+            {group.isAdmin ? (
+              <div className="mb-4">
+                <GroupSettingsDialog
+                  groupId={group.id}
+                  name={group.name}
+                  description={group.description}
+                  maxParticipants={group.maxParticipants}
+                  memberCount={group.members.length}
+                />
+              </div>
+            ) : null}
+
             {/* Named, like every other list in the app: "list, 3 items" tells a
                 screen-reader user nothing about which list they are in. */}
             <ul aria-label="Members" className="flex flex-col gap-3">
               {group.members.map((member) => (
-                <li key={member.profileId} className="flex items-center gap-3">
-                  <MatchAvatar
-                    fullName={member.fullName}
-                    avatarUrl={member.avatarUrl}
-                    size={36}
-                    className="border-2"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-label-md">
-                    {member.profileId === user.id ? 'You' : member.fullName}
-                  </span>
-                  {member.isAdmin ? (
-                    <Chip tone="brand">
-                      <Crown className="size-3" aria-hidden="true" />
-                      Admin
-                    </Chip>
-                  ) : null}
-                </li>
+                <MemberRow
+                  key={member.profileId}
+                  groupId={group.id}
+                  member={member}
+                  viewerId={user.id}
+                  viewerIsAdmin={group.isAdmin}
+                  viewerIsFounder={group.isFounder}
+                />
               ))}
             </ul>
           </section>
+
+          {/* ---- Inviting ----------------------------------------------------- */}
+          {group.isAdmin ? (
+            <section aria-labelledby="invite-heading" className="clay-card p-5">
+              <h2 id="invite-heading" className="font-heading text-headline-md">
+                Invite a classmate
+              </h2>
+              <InvitePanel groupId={group.id} classmates={invitable} placesLeft={left} />
+            </section>
+          ) : null}
 
           {/* ---- The admin's requests ----------------------------------------- */}
           {group.isAdmin ? (
@@ -174,6 +198,9 @@ export default async function GroupPage({
             initialMessages={messages}
             viewerId={user.id}
             memberNames={memberNames}
+            meetings={meetings}
+            groupName={group.name}
+            courseCode={course?.code ?? null}
           />
         </div>
       </div>

@@ -19,10 +19,15 @@ import Link from 'next/link';
 import { Crown, MessagesSquare, Users } from 'lucide-react';
 
 import { ApplicantRow } from '@/components/groups/applicant-review-dialog';
+import { InvitationInbox } from '@/components/groups/invitation-inbox';
 import { MatchAvatar } from '@/components/matching/match-avatar';
 import { Chip } from '@/components/ui/chip';
 import { placesLeft } from '@/features/groups/group-view';
-import { getMyGroups, getMyPendingRequests } from '@/features/groups/queries';
+import {
+  getMyGroups,
+  getMyInvitations,
+  getMyPendingRequests,
+} from '@/features/groups/queries';
 
 export const metadata: Metadata = { title: 'Your groups' };
 
@@ -32,7 +37,11 @@ export const metadata: Metadata = { title: 'Your groups' };
  * @returns The page element.
  */
 export default async function GroupsPage() {
-  const [groups, pending] = await Promise.all([getMyGroups(), getMyPendingRequests()]);
+  const [groups, pending, invitations] = await Promise.all([
+    getMyGroups(),
+    getMyPendingRequests(),
+    getMyInvitations(),
+  ]);
 
   return (
     <>
@@ -47,7 +56,11 @@ export default async function GroupsPage() {
         </p>
       </div>
 
-      {/* Requests first: they are the thing waiting on the student to act. */}
+      {/* Invitations above requests: only this student can answer one, so it is
+          the item most likely to be blocking somebody else. */}
+      <InvitationInbox invitations={invitations} />
+
+      {/* Requests next: they are the thing waiting on the student to act. */}
       {pending.length > 0 ? (
         <section aria-labelledby="waiting-heading" className="clay-card mb-6 p-5">
           <div className="mb-1 flex items-center justify-between gap-3">

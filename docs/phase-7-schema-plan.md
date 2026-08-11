@@ -558,13 +558,46 @@ demo data survive.
    meeting card is expected to render from the `meetings` table in both the group
    chat and the DM thread, which needs no change to either message table.
 
+## The frontend, as built
+
+| Surface | Where |
+|---|---|
+| Calendar icon beside Send, both chats | `chat-room.tsx`, `group-chat.tsx` |
+| The intersection picker | `components/meetings/schedule-meeting-dialog.tsx` |
+| Booked sessions, RSVP and cancellation | `components/meetings/meeting-strip.tsx` |
+| Group settings — name, blurb, size | `components/groups/group-settings-dialog.tsx` |
+| Ranks, promotion, removal | `components/groups/member-row.tsx` |
+| Inviting a classmate | `components/groups/invite-panel.tsx` |
+| Answering an invitation | `components/groups/invitation-inbox.tsx` |
+
+Three decisions worth recording:
+
+**The scheduler dialog is not inside the composer.** A form cannot contain
+another form, and the composer is one, so the chat owns the trigger button and
+the dialog is a sibling. It also remounts on every open — a second open re-asks
+for the free hours instead of showing the ones it found ten minutes ago.
+
+**Slot times are 24-hour, unlike the message timestamps beside them.** They came
+out of the weekly grid, where the student picked them from rows labelled "12–14".
+Rendering the same hour back as "2:00 PM" would make them translate between two
+clocks to check the picker had understood.
+
+**A session is not a message.** It is rendered from the `meetings` table above
+the thread, because it changes after it is posted — people drop out, it is called
+off, it finishes and becomes rateable — and a message is a record of what someone
+said at a moment. That also meant neither message table needed a column.
+
 ## Still open
 
-- **The rating UI gates on the old rule.** The profile still offers "Rate your
-  session" as soon as a conversation exists, which the database now refuses
-  without a finished meeting. The button needs to follow
-  `app_shared_completed_meeting`, or a student will meet a permission error where
-  they expected a dialog. Frontend work, not schema.
 - **Nothing prunes a group whose founder left but whose members remain.** That
   group keeps running with its co-admins, which is the intent — but the founder
   rank is gone for good, so no one can demote anyone in it again.
+- **The rating dialog still lands on the profile, not the session.** Rating is
+  offered per person once any shared meeting has finished; `study_ratings` keeps
+  one row per pair, so a second session updates the first answer rather than
+  adding to it. Rating a specific past session is `group_meeting_ratings`, which
+  the group chat does not yet surface.
+- **Realtime does not cover the meeting strip.** `meetings` and
+  `meeting_attendees` are in the publication, but the strip renders from the
+  server and refreshes on revalidation — so a session booked by the other person
+  appears on their next navigation rather than instantly.
