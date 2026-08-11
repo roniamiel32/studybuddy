@@ -1,4 +1,4 @@
-/**
+ /**
  * File:        src/features/groups/group-view.ts
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The shape of a study group as the UI consumes it, the canned

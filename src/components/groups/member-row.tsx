@@ -14,16 +14,17 @@
  *              The founder's crown is filled and an admin's is outlined. One rank
  *              can grant the other, so drawing them identically would make
  *              "why can I not demote them?" unanswerable from the screen.
- * Version:     0.19.0
+ * Version:     0.19.1
  *
  * Modifications:
  *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7A)
+ *     0.19.1 - 2026-08-11 - Added inline confirmation for member removal
  */
 
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertCircle, Crown, Loader2, Shield, UserMinus } from 'lucide-react';
+import { AlertCircle, Crown, Loader2, Shield, UserMinus, Check, X } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
 import { Chip } from '@/components/ui/chip';
@@ -55,6 +56,9 @@ export function MemberRow({
 }: MemberRowProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  
+  // הסטייט החדש שמנהל את תצוגת האישור
+  const [isConfirmingRemove, setIsConfirmingRemove] = useState(false);
 
   const isSelf = member.profileId === viewerId;
 
@@ -129,20 +133,45 @@ export function MemberRow({
               }
               className="text-on-surface-variant hover:text-brand focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
             >
-              Step down
+              Remove admin
             </button>
           ) : null}
 
           {canRemove ? (
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => act(() => removeMember({ groupId, profileId: member.profileId }))}
-              aria-label={`Remove ${member.fullName} from the group`}
-              className="text-outline hover:text-destructive focus-visible:ring-brand/35 rounded-md p-1 transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
-            >
-              <UserMinus className="size-4" aria-hidden="true" />
-            </button>
+            isConfirmingRemove ? (
+              <span className="flex items-center gap-1.5 ml-1">
+                <span className="text-label-sm text-outline pr-1">Remove?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    act(() => removeMember({ groupId, profileId: member.profileId }));
+                    setIsConfirmingRemove(false);
+                  }}
+                  className="text-red-500 hover:text-red-700 transition-colors focus-visible:outline-none p-1"
+                  aria-label="Confirm removal"
+                >
+                  <Check className="size-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmingRemove(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors focus-visible:outline-none p-1"
+                  aria-label="Cancel removal"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setIsConfirmingRemove(true)}
+                aria-label={`Remove ${member.fullName} from the group`}
+                className="text-outline hover:text-destructive focus-visible:ring-brand/35 rounded-md p-1 transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
+              >
+                <UserMinus className="size-4" aria-hidden="true" />
+              </button>
+            )
           ) : null}
         </span>
       ) : null}

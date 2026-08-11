@@ -3,20 +3,17 @@
  * Authors:     Roni Amiel & Eden Bitran
  * Description: One study group on a course page: who is in it, how much room is
  *              left, and the one action available to this viewer.
- *
- *              The action differs per viewer and so does the reason it is absent.
- *              "Full", "you already asked" and "not accepting requests" are three
- *              different situations, and a single greyed-out button would explain
- *              none of them — so the blocked reason is printed instead of implied.
- * Version:     0.15.0
+ * Version:     0.15.1
  *
  * Modifications:
  *     0.15.0 - 2026-08-10 - Initial implementation (Phase 5)
+ *     0.15.1 - 2026-08-11 - Added router refresh on join request success
  */
 
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AlertCircle, Crown, Loader2, MessagesSquare, UserPlus, Users } from 'lucide-react';
 
@@ -41,7 +38,14 @@ export interface GroupCardProps {
  * @returns The list item element.
  */
 export function GroupCard({ group }: GroupCardProps) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(requestToJoin, null);
+
+  useEffect(() => {
+    if (state && state.ok) {
+      router.refresh();
+    }
+  }, [state, router]);
 
   const error = state && !state.ok ? state.error : null;
   const left = placesLeft(group);
@@ -71,8 +75,6 @@ export function GroupCard({ group }: GroupCardProps) {
         </p>
       ) : null}
 
-      {/* Faces, not just a number: a group is people, and the avatars are what
-          make it look like one worth joining. */}
       <ul aria-label="Members" className="mb-3 flex flex-wrap items-center gap-1.5">
         {group.members.slice(0, 6).map((member) => (
           <li key={member.profileId} title={member.fullName}>
@@ -101,8 +103,6 @@ export function GroupCard({ group }: GroupCardProps) {
         {group.status === 'closed' ? <Chip tone="neutral">Closed</Chip> : null}
 
         {group.isAdmin && group.pendingRequests.length > 0 ? (
-          /* The admin's notification, where the group is. The nav badge tells them
-             something is waiting; this says which group. */
           <Chip tone="sunset">
             {group.pendingRequests.length}{' '}
             {group.pendingRequests.length === 1 ? 'request' : 'requests'} waiting
