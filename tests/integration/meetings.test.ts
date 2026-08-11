@@ -277,7 +277,6 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
     it('creates the meeting with everyone on it', async () => {
       const { data, error } = await clients.ada.rpc('rpc_create_meeting', {
         p_conversation_id: conversationId,
-        p_group_id: null,
         p_title: 'Past papers',
         p_starts_at: `${nextSunday()}T12:00:00+03:00`,
         p_ends_at: `${nextSunday()}T14:00:00+03:00`,
@@ -346,7 +345,6 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
     it('refuses a second meeting that clashes with it', async () => {
       const { error } = await clients.ada.rpc('rpc_create_meeting', {
         p_conversation_id: conversationId,
-        p_group_id: null,
         p_title: 'Double booked',
         p_starts_at: `${nextSunday()}T13:00:00+03:00`,
         p_ends_at: `${nextSunday()}T15:00:00+03:00`,
@@ -359,7 +357,6 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
     it('refuses a meeting in the past', async () => {
       const { error } = await clients.ada.rpc('rpc_create_meeting', {
         p_conversation_id: conversationId,
-        p_group_id: null,
         p_title: 'Yesterday',
         p_starts_at: new Date(Date.now() - 172_800_000).toISOString(),
         p_ends_at: new Date(Date.now() - 165_600_000).toISOString(),
@@ -371,7 +368,6 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
     it('refuses booking into a chat the caller is not in', async () => {
       const { error } = await clients.outsider.rpc('rpc_create_meeting', {
         p_conversation_id: conversationId,
-        p_group_id: null,
         p_title: 'Gatecrash',
         p_starts_at: `${nextSunday()}T18:00:00+03:00`,
         p_ends_at: `${nextSunday()}T20:00:00+03:00`,
@@ -401,7 +397,6 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
     beforeAll(async () => {
       const { data } = await clients.ada.rpc('rpc_create_meeting', {
         p_conversation_id: conversationId,
-        p_group_id: null,
         p_title: 'Cancellable',
         p_starts_at: `${nextSunday()}T14:00:00+03:00`,
         p_ends_at: `${nextSunday()}T16:00:00+03:00`,
@@ -495,7 +490,6 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
     beforeAll(async () => {
       const { data } = await clients.ada.rpc('rpc_create_meeting', {
         p_group_id: groupId,
-        p_conversation_id: null,
         p_title: 'Group session that happened',
         p_starts_at: `${nextSunday()}T20:00:00+03:00`,
         p_ends_at: `${nextSunday()}T22:00:00+03:00`,
@@ -556,7 +550,6 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
        */
       const privateMeeting = await clients.ada.rpc('rpc_create_meeting', {
         p_conversation_id: conversationId,
-        p_group_id: null,
         p_title: 'Just the two of us',
         p_starts_at: `${nextSunday()}T14:00:00+03:00`,
         p_ends_at: `${nextSunday()}T16:00:00+03:00`,

@@ -79,7 +79,7 @@ test.describe('signup and onboarding', () => {
     // ---- Sign up -----------------------------------------------------------
     await page.goto('/signup');
     await page.getByLabel('University email').fill(email);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Create account' }).click();
 
     await expect(page).toHaveURL(/\/onboarding$/);
@@ -197,7 +197,7 @@ test.describe('signup and onboarding', () => {
      * way they do for a student typing.
      */
     await page.getByLabel('University email').pressSequentially(email);
-    await page.getByLabel('Password').fill('short');
+    await page.getByLabel('Password', { exact: true }).fill('short');
 
     /* State really holds it before the action runs. */
     await expect(page.getByLabel('University email')).toHaveValue(email);
@@ -211,7 +211,7 @@ test.describe('signup and onboarding', () => {
     // address too. The email is controlled and survives; the password is not,
     // and is cleared for retyping.
     await expect(page.getByLabel('University email')).toHaveValue(email);
-    await expect(page.getByLabel('Password')).toHaveValue('');
+    await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
   });
 
   test('accepts any academic address, provisioning the institution on first sight', async ({
@@ -226,7 +226,7 @@ test.describe('signup and onboarding', () => {
 
     await page.goto('/signup');
     await page.getByLabel('University email').fill(email);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Create account' }).click();
 
     await expect(page).toHaveURL(/\/onboarding$/);
@@ -246,7 +246,7 @@ test.describe('signup and onboarding', () => {
 
     await page.goto('/signup');
     await page.getByLabel('University email').fill(email);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Create account' }).click();
 
     await expect(page).toHaveURL(/\/onboarding$/);
@@ -262,7 +262,7 @@ test.describe('signup and onboarding', () => {
 
     await page.goto('/signup');
     await page.getByLabel('University email').fill(email);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Create account' }).click();
     await expect(page).toHaveURL(/\/onboarding$/);
 
@@ -307,7 +307,7 @@ test.describe('signup and onboarding', () => {
   test('rejects an address that is not a university one', async ({ page }) => {
     await page.goto('/signup');
     await page.getByLabel('University email').fill('someone@gmail.com');
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Create account' }).click();
 
     // Scoped to the form's own error element: Next renders a live-region route
@@ -331,7 +331,7 @@ test.describe('signup and onboarding', () => {
 
     await page.goto('/signup');
     await page.getByLabel('University email').fill(email);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Create account' }).click();
     await expect(page).toHaveURL(/\/onboarding$/);
 

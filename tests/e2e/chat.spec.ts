@@ -181,7 +181,7 @@ test.describe('conversations', () => {
   test('sending a message opens a conversation with an opener already in it', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('University email').fill(mineEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
@@ -206,7 +206,7 @@ test.describe('conversations', () => {
   test('a message from the other student arrives without a reload', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('University email').fill(mineEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
@@ -251,7 +251,7 @@ test.describe('conversations', () => {
   test('the unread badge appears live, and clears when the thread is opened', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('University email').fill(mineEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
@@ -297,7 +297,7 @@ test.describe('conversations', () => {
   test('a reply typed in the composer is sent and shown', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('University email').fill(mineEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
@@ -322,7 +322,7 @@ test.describe('conversations', () => {
   test('a conversation belonging to someone else is a 404, not a forbidden', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('University email').fill(mineEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 

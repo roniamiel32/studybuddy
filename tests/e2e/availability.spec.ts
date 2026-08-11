@@ -114,7 +114,7 @@ test.describe('editing free time from the Profile tab', () => {
   async function signIn(page: Page) {
     await page.goto('/login');
     await page.getByLabel('University email').pressSequentially(email);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
   }

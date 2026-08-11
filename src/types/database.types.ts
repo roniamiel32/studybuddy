@@ -1410,9 +1410,9 @@ export type Database = {
       rpc_cancel_meeting: { Args: { p_meeting_id: string }; Returns: undefined }
       rpc_create_meeting: {
         Args: {
-          p_conversation_id: string
+          p_conversation_id?: string
           p_ends_at: string
-          p_group_id: string
+          p_group_id?: string
           p_location?: string
           p_starts_at: string
           p_title: string

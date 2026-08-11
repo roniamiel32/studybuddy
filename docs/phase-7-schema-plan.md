@@ -16,7 +16,7 @@ Modifications:
 This closes **conflict C5** (session scheduling), open since §8.4, and extends the
 C4 study-group schema from Phase 5.
 
-Four migrations, in dependency order:
+Six migrations as built, in dependency order:
 
 | # | File | What it does |
 |---|---|---|
@@ -24,9 +24,48 @@ Four migrations, in dependency order:
 | B | `20260811110000_group_invitations.sql` | Admins add members by invitation, not by insert |
 | C | `20260811120000_meetings.sql` | Meetings, RSVPs, the availability intersection, derived busy time |
 | D | `20260811130000_verified_ratings.sql` | Ratings require a shared attended meeting; group ratings |
+| E | `20260811140000_deleted_message_authors.sql` | Pre-existing bug: a group-chat author could not delete their account |
+| F | `20260811150000_empty_group_cleanup.sql` | A group with no members left stops existing |
 
 A and B are independently shippable. C and D should land together — D tightens a
-rule that only C can satisfy.
+rule that only C can satisfy. E and F were not in the approved plan; see
+"Corrections made while building" below for why they exist.
+
+## Corrections made while building
+
+**The one-live-request index does NOT gain `kind`.** The plan said it would. It
+must not: keyed on `(group_id, requester_id)` alone, a student cannot hold a
+pending request and a pending invite at once — which matters because the invitee
+decides invites, so the pair would otherwise let them approve their own way in
+while their request was still waiting on an admin.
+
+**`admin_id` is still authorisation.** The plan demoted it to pure provenance.
+The answer to open question 1 — only the founder may demote — put it back in the
+authorisation path, and made `freeze_study_group()` necessary: admins can edit
+their group, UPDATE reaches every column, and an admin who could write `admin_id`
+would simply make themselves the founder.
+
+**Three bugs, one mine.**
+
+1. *Introduced here, caught by the e2e suite.* `admin_id` is `on delete set null`,
+   so deleting a founder's account makes PostgreSQL run
+   `update study_groups set admin_id = null`. The first version of
+   `freeze_study_group()` refused that, and refusing it made the account deletion
+   fail — a student who once created a group could never leave the product. The
+   freeze now allows the transition to NULL and only to NULL.
+2. *Pre-existing, migration E.* `study_group_messages.sender_id` is
+   `on delete set null` while the Phase 5 CHECK demanded a sender on every human
+   message. Anyone who had spoken in a group chat could not delete their account,
+   and the e2e suites had been quietly failing to clean up after themselves for
+   some time as a result.
+3. *A consequence of A, migration F.* With `admin_id` nullable, a group could
+   outlive every one of its members and sit in the course listing advertising a
+   join button nobody could ever answer.
+
+**`rpc_create_meeting` takes its scope arguments last, both defaulting to NULL.**
+PostgREST resolves an overload from the argument names actually sent, and the type
+generator types a parameter without a default as required and non-nullable — so
+without the defaults every caller had to send a null its own types rejected.
 
 ---
 
@@ -501,23 +540,31 @@ demo data survive.
 
 ---
 
-## Open questions
+## Open questions — answered 2026-08-11
 
-1. **Can an admin demote another admin, or only promote?** "Exactly the same
-   rights" implies yes, but it means the person who founded the group can be
-   demoted by someone they promoted an hour ago. A `founder cannot be demoted`
-   rule is one line in the trigger if you want it.
-2. **Direct add, or invitation?** Migration B assumes invitation, to preserve the
-   consent rule Phase 5 wrote down. Direct add is smaller and matches the
-   requirement more literally.
-3. **When does a meeting become rateable — `ends_at` or `starts_at`?** The plan
-   uses `ends_at <= now()`, so the session is over rather than merely begun.
-4. **Should a meeting cancelled by its creator (`status = 'cancelled'`) count for
-   ratings?** The plan says no: nobody attended it.
-5. **Is a DM meeting between two people who are *not* in a shared course
-   allowed?** `meetings.course_offering_id` is nullable, so yes as drafted.
-6. **The chat needs to show the meeting.** `study_group_messages` has
-   `is_system`; `messages` (DM) has no such column and requires a sender. Two
-   options: add `is_system` to `messages` and relax `sender_id`, or render the
-   meeting card in the thread from the `meetings` table in both places. The plan
-   assumes the second — no migration, and one renderer instead of two.
+1. **Can an admin demote another admin, or only promote?** *Answered: the founder
+   is untouchable; only the founder demotes.* Built, including the two routes
+   around it — an admin cannot remove another admin from the group, and cannot
+   rewrite `admin_id` to claim the rank.
+2. **Direct add, or invitation?** *Answered: invitation.* The Phase 5 consent rule
+   stands.
+3. **When does a meeting become rateable?** `ends_at <= now()` — the session is
+   over rather than merely begun.
+4. **Does a cancelled meeting count for ratings?** No: nobody attended it.
+5. **A DM meeting between two people not in a shared course?** Allowed;
+   `meetings.course_offering_id` is nullable.
+6. **The chat needs to show the meeting.** Still open, and now a frontend
+   decision rather than a schema one: no migration was written for it. The
+   meeting card is expected to render from the `meetings` table in both the group
+   chat and the DM thread, which needs no change to either message table.
+
+## Still open
+
+- **The rating UI gates on the old rule.** The profile still offers "Rate your
+  session" as soon as a conversation exists, which the database now refuses
+  without a finished meeting. The button needs to follow
+  `app_shared_completed_meeting`, or a student will meet a permission error where
+  they expected a dialog. Frontend work, not schema.
+- **Nothing prunes a group whose founder left but whose members remain.** That
+  group keeps running with its co-admins, which is the intent — but the founder
+  rank is gone for good, so no one can demote anyone in it again.

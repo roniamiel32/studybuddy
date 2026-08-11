@@ -669,12 +669,17 @@ grant execute on function public.rpc_my_schedule(timestamptz, timestamptz) to au
 -- participant, in sorted order, makes the second wait and then fail the check
 -- honestly. Sorted, because two bookings sharing two participants in opposite
 -- orders would otherwise deadlock.
+-- Both scope arguments default to NULL so a caller names only the one they mean.
+-- Not cosmetic: PostgREST resolves an overload from the argument names actually
+-- sent, and the generated TypeScript types a parameter without a default as a
+-- required non-nullable string — so without these defaults every caller has to
+-- send an explicit null that its own types reject.
 create or replace function public.rpc_create_meeting(
-  p_conversation_id uuid,
-  p_group_id uuid,
   p_title text,
   p_starts_at timestamptz,
   p_ends_at timestamptz,
+  p_conversation_id uuid default null,
+  p_group_id uuid default null,
   p_location text default null
 )
 returns uuid
@@ -750,8 +755,8 @@ $$;
 comment on function public.rpc_create_meeting is
   'Books a session for everyone in a chat, atomically. Takes an advisory lock per participant in sorted order so two people booking the same slot cannot both win, and so two overlapping bookings cannot deadlock.';
 
-revoke execute on function public.rpc_create_meeting(uuid, uuid, text, timestamptz, timestamptz, text) from public;
-grant execute on function public.rpc_create_meeting(uuid, uuid, text, timestamptz, timestamptz, text) to authenticated;
+revoke execute on function public.rpc_create_meeting(text, timestamptz, timestamptz, uuid, uuid, text) from public;
+grant execute on function public.rpc_create_meeting(text, timestamptz, timestamptz, uuid, uuid, text) to authenticated;
 
 -- Call the whole session off. Frees the slot for every attendee at once.
 --
