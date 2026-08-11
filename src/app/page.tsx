@@ -20,6 +20,7 @@ import { ArrowRight, CalendarSync, HeartHandshake, Sparkles, Target, Users } fro
 import { PhoneShowcase } from '@/components/marketing/phone-showcase';
 import { Logo } from '@/components/ui/logo';
 import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 /** The four claims, each tied to something the system actually does. */
 const FEATURES = [
@@ -59,7 +60,13 @@ export default function LandingPage() {
     <div className=" flex min-h-full flex-col">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         <Logo />
-        <Link href="/login" className={buttonVariants({ variant: 'outline', size: 'sm', pill: true })}>
+        <Link
+          href="/login"
+          className={cn(
+            buttonVariants({ variant: 'outline', size: 'sm', pill: false }),
+            "transition-colors hover:!bg-[var(--color-brand-fixed)] hover:!text-brand hover:!border-[var(--color-brand-fixed)]"
+          )}
+        >
           Sign in
         </Link>
       </header>

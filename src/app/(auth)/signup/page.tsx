@@ -28,8 +28,6 @@ export default function SignUpPage() {
     <>
       <h1 className="font-heading text-headline-lg">Create your account</h1>
       <p className="text-on-surface-variant mt-2 mb-7 text-body-md text-pretty">
-        Four short steps and you will be looking at study partners in your own
-        courses.
       </p>
 
       <CredentialForm mode="signup" action={signUp} />
