@@ -114,7 +114,7 @@ test.describe('matches dashboard', () => {
   test('shows a real classmate with a real score', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('University email').fill(viewerEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
@@ -137,7 +137,7 @@ test.describe('matches dashboard', () => {
 
     await page.goto('/login');
     await page.getByLabel('University email').fill(viewerEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
@@ -150,7 +150,7 @@ test.describe('matches dashboard', () => {
   test('navigation reflects where you are', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('University email').fill(viewerEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 

@@ -34,7 +34,7 @@ const GROUP_SELECT = `
   admin_id,
   created_at,
   admin:profiles!study_groups_admin_id_fkey ( full_name ),
-  study_group_members ( profile_id, joined_at, profiles ( full_name, avatar_url ) )
+  study_group_members ( profile_id, joined_at, role, profiles ( full_name, avatar_url ) )
 `;
 
 interface GroupRow {
@@ -44,12 +44,13 @@ interface GroupRow {
   description: string | null;
   max_participants: number;
   status: 'open' | 'closed';
-  admin_id: string;
+  admin_id: string | null;
   created_at: string;
   admin: { full_name: string | null } | null;
   study_group_members: Array<{
     profile_id: string;
     joined_at: string;
+    role: 'member' | 'admin';
     profiles: { full_name: string | null; avatar_url: string | null } | null;
   }>;
 }
@@ -120,15 +121,26 @@ function toGroupView(
   requests: GroupRequestView[],
   myStatus: StudyGroupView['myRequestStatus'],
 ): StudyGroupView {
+  /*
+   * ADMIN COMES FROM THE MEMBERSHIP ROW, not from admin_id. Since Phase 7A a
+   * group can have several admins and admin_id names only the founder — reading
+   * it here would show the crown on exactly one of them.
+   */
   const members = row.study_group_members
     .map((member) => ({
       profileId: member.profile_id,
       fullName: member.profiles?.full_name ?? 'Classmate',
       avatarUrl: member.profiles?.avatar_url ?? null,
-      isAdmin: member.profile_id === row.admin_id,
+      isAdmin: member.role === 'admin',
+      isFounder: row.admin_id !== null && member.profile_id === row.admin_id,
     }))
-    /* The admin first, then everyone else by name. */
-    .sort((a, b) => Number(b.isAdmin) - Number(a.isAdmin) || a.fullName.localeCompare(b.fullName));
+    /* The founder first, then the other admins, then everyone else by name. */
+    .sort(
+      (a, b) =>
+        Number(b.isFounder) - Number(a.isFounder) ||
+        Number(b.isAdmin) - Number(a.isAdmin) ||
+        a.fullName.localeCompare(b.fullName),
+    );
 
   return {
     id: row.id,
@@ -138,10 +150,11 @@ function toGroupView(
     maxParticipants: row.max_participants,
     status: row.status,
     adminId: row.admin_id,
-    adminName: row.admin?.full_name ?? 'Classmate',
+    adminName: row.admin?.full_name ?? 'a former member',
     createdAt: row.created_at,
     members,
-    isAdmin: row.admin_id === viewerId,
+    isAdmin: members.some((member) => member.profileId === viewerId && member.isAdmin),
+    isFounder: row.admin_id !== null && row.admin_id === viewerId,
     isMember: members.some((member) => member.profileId === viewerId),
     myRequestStatus: myStatus,
     pendingRequests: requests,
@@ -191,6 +204,7 @@ export async function getCourseGroups(offeringId: string): Promise<StudyGroupVie
       .from('group_requests')
       .select(REQUEST_SELECT)
       .eq('status', 'pending')
+      .eq('kind', 'request')
       .in('group_id', groupIds)
       .order('created_at', { ascending: true }),
   ]);
@@ -255,6 +269,7 @@ export async function getMyGroups(): Promise<StudyGroupView[]> {
     .from('group_requests')
     .select(REQUEST_SELECT)
     .eq('status', 'pending')
+    .eq('kind', 'request')
     .in('group_id', groupIds)
     .order('created_at', { ascending: true });
 
@@ -303,6 +318,7 @@ export async function getGroup(groupId: string): Promise<StudyGroupView | null> 
       .select(REQUEST_SELECT)
       .eq('group_id', groupId)
       .eq('status', 'pending')
+      .eq('kind', 'request')
       .order('created_at', { ascending: true }),
   ]);
 
@@ -373,6 +389,11 @@ export async function getGroupMessages(groupId: string): Promise<GroupMessageVie
  * the caller sent or administers, and `status = 'pending'` plus "not mine" leaves
  * exactly the ones they have to act on.
  *
+ * THE KIND FILTER IS NOT OPTIONAL since Phase 7B. An invitation is a row in this
+ * same table whose requester is the student being invited — so without it, an
+ * admin who invites three classmates is immediately told that three people are
+ * asking to join, and clicking through finds nothing to decide.
+ *
  * @returns The pending count across every group they administer.
  */
 export async function getPendingRequestCount(): Promise<number> {
@@ -383,9 +404,87 @@ export async function getPendingRequestCount(): Promise<number> {
     .from('group_requests')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'pending')
+    .eq('kind', 'request')
     .neq('requester_id', user.id);
 
   return count ?? 0;
+}
+
+/**
+ * Invitations waiting on the caller's own answer.
+ *
+ * The mirror of the count above: rows in the same table, pending, addressed to
+ * them. Only they can answer one — that is the consent rule Phase 7B is built on.
+ *
+ * @returns Invitations, newest first.
+ */
+export async function getMyInvitations(): Promise<GroupRequestView[]> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from('group_requests')
+    .select(REQUEST_SELECT)
+    .eq('status', 'pending')
+    .eq('kind', 'invite')
+    .eq('requester_id', user.id)
+    .order('created_at', { ascending: false });
+
+  return ((data ?? []) as unknown as RequestRow[]).map(toRequestView);
+}
+
+/**
+ * Classmates an admin could still invite into a group.
+ *
+ * Everyone enrolled in the group's course, minus the members and minus anyone
+ * who already has a live request or invitation — the same set the insert policy
+ * will accept, worked out here so the list never offers a name that then fails.
+ *
+ * @param groupId - The group being staffed.
+ * @returns Classmates who could be asked, by name.
+ */
+export async function getInvitableClassmates(
+  groupId: string,
+): Promise<Array<{ profileId: string; fullName: string; avatarUrl: string | null }>> {
+  const supabase = await createClient();
+
+  const { data: group } = await supabase
+    .from('study_groups')
+    .select('course_offering_id, study_group_members ( profile_id )')
+    .eq('id', groupId)
+    .maybeSingle();
+
+  if (!group) {
+    return [];
+  }
+
+  const { data: live } = await supabase
+    .from('group_requests')
+    .select('requester_id')
+    .eq('group_id', groupId)
+    .in('status', ['pending', 'approved']);
+
+  const taken = new Set<string>([
+    ...(group.study_group_members ?? []).map((member) => member.profile_id),
+    ...(live ?? []).map((row) => row.requester_id),
+  ]);
+
+  const { data: classmates } = await supabase
+    .from('enrollments')
+    .select('profile_id, profiles ( full_name, avatar_url, is_discoverable )')
+    .eq('course_offering_id', group.course_offering_id);
+
+  return ((classmates ?? []) as unknown as Array<{
+    profile_id: string;
+    profiles: { full_name: string | null; avatar_url: string | null } | null;
+  }>)
+    .filter((row) => !taken.has(row.profile_id) && row.profiles !== null)
+    .map((row) => ({
+      profileId: row.profile_id,
+      fullName: row.profiles?.full_name ?? 'Classmate',
+      avatarUrl: row.profiles?.avatar_url ?? null,
+    }))
+    .sort((a, b) => a.fullName.localeCompare(b.fullName));
 }
 
 /**
@@ -401,6 +500,9 @@ export async function getMyPendingRequests(): Promise<GroupRequestView[]> {
     .from('group_requests')
     .select(REQUEST_SELECT)
     .eq('status', 'pending')
+    /* Requests only. An invitation lives in this table too, and its requester is
+       the student being invited — see getPendingRequestCount. */
+    .eq('kind', 'request')
     .neq('requester_id', user.id)
     .order('created_at', { ascending: false });
 

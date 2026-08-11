@@ -2,7 +2,7 @@
  * File:        src/components/groups/invite-panel.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: "Invite a classmate" — the admin's side of adding someone.
- * Version:     0.19.1
+ * Version:     0.20.0
  */
 
 'use client';
@@ -20,10 +20,11 @@ const VISIBLE_LIMIT = 6;
 export interface InvitePanelProps {
   groupId: string;
   classmates: Array<{ profileId: string; fullName: string; avatarUrl: string | null }>;
+  members?: Array<{ profileId: string; fullName: string; avatarUrl: string | null }>;
   placesLeft: number;
 }
 
-export function InvitePanel({ groupId, classmates, placesLeft }: InvitePanelProps) {
+export function InvitePanel({ groupId, classmates, members = [], placesLeft }: InvitePanelProps) {
   const [invited, setInvited] = useState<InvitePanelProps['classmates']>([]);
   const [pendingFor, setPendingFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,10 +48,16 @@ export function InvitePanel({ groupId, classmates, placesLeft }: InvitePanelProp
     });
   };
 
+  /* שילוב של תלמידים פנויים, מוזמנים, וחברים שכבר קיימים בקבוצה כדי שיופיעו בחיפוש */
   const listed = [
     ...classmates,
     ...invited.filter(
       (person) => !classmates.some((classmate) => classmate.profileId === person.profileId),
+    ),
+    ...members.filter(
+      (member) => 
+        !classmates.some((c) => c.profileId === member.profileId) &&
+        !invited.some((i) => i.profileId === member.profileId)
     ),
   ].sort((a, b) => a.fullName.localeCompare(b.fullName));
 
@@ -71,7 +78,6 @@ export function InvitePanel({ groupId, classmates, placesLeft }: InvitePanelProp
         They decide whether to join — an invitation is a request in the other direction.
       </p>
 
-      {/* תיבת החיפוש תוצג תמיד מעכשיו, גם אם הרשימה ריקה */}
       <div className="mb-4 flex flex-col gap-2">
         <Label htmlFor="invite-search">Find a classmate</Label>
         <Input
@@ -98,9 +104,8 @@ export function InvitePanel({ groupId, classmates, placesLeft }: InvitePanelProp
 
       <ul aria-label="Classmates you can invite" className="flex flex-col gap-3">
         {visible.map((classmate) => {
-          const asked = invited.some(
-            (person) => person.profileId === classmate.profileId,
-          );
+          const isMember = members.some((m) => m.profileId === classmate.profileId);
+          const asked = invited.some((person) => person.profileId === classmate.profileId);
 
           return (
             <li key={classmate.profileId} className="flex items-center gap-3">
@@ -115,7 +120,12 @@ export function InvitePanel({ groupId, classmates, placesLeft }: InvitePanelProp
                 {classmate.fullName}
               </span>
 
-              {asked ? (
+              {isMember ? (
+                <span className="text-green-600 flex items-center gap-1.5 text-label-sm font-medium">
+                  <Check className="size-4" aria-hidden="true" />
+                  In group
+                </span>
+              ) : asked ? (
                 <span className="text-brand flex items-center gap-1.5 text-label-sm">
                   <Check className="size-4" aria-hidden="true" />
                   Invited — waiting for them

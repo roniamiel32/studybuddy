@@ -18,6 +18,7 @@ import { notFound } from 'next/navigation';
 
 import { ChatRoom } from '@/components/chat/chat-room';
 import { getConversation, getMessages } from '@/features/chat/queries';
+import { getChatMeetings } from '@/features/meetings/queries';
 import { requireUser } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: 'Conversation' };
@@ -41,9 +42,17 @@ export default async function ConversationPage({
     notFound();
   }
 
-  const messages = await getMessages(conversationId);
+  const [messages, meetings] = await Promise.all([
+    getMessages(conversationId),
+    getChatMeetings({ conversationId }),
+  ]);
 
   return (
-    <ChatRoom conversation={conversation} initialMessages={messages} viewerId={user.id} />
+    <ChatRoom
+      conversation={conversation}
+      initialMessages={messages}
+      viewerId={user.id}
+      meetings={meetings}
+    />
   );
 }

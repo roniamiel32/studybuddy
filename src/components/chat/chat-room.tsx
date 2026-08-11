@@ -30,10 +30,13 @@
 import { useActionState, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, ArrowLeft, Loader2, Send } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CalendarPlus, Loader2, Send } from 'lucide-react';
 
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { MeetingStrip } from '@/components/meetings/meeting-strip';
+import { ScheduleMeetingDialog } from '@/components/meetings/schedule-meeting-dialog';
+import type { MeetingView } from '@/features/meetings/meeting-view';
 import {
   groupMessagesByDay,
   type ChatMessageView,
@@ -47,6 +50,8 @@ export interface ChatRoomProps {
   conversation: ConversationView;
   initialMessages: ChatMessageView[];
   viewerId: string;
+  /** Sessions booked from this thread, newest first. */
+  meetings: MeetingView[];
 }
 
 /** Shapes a database row into the view model. One place, two callers. */
@@ -94,8 +99,23 @@ function mergeMessages(
  * @param viewerId        - The signed-in student.
  * @returns The chat room element.
  */
-export function ChatRoom({ conversation, initialMessages, viewerId }: ChatRoomProps) {
+export function ChatRoom({
+  conversation,
+  initialMessages,
+  viewerId,
+  meetings,
+}: ChatRoomProps) {
   const router = useRouter();
+  /*
+   * Owned here rather than by the dialog, because the trigger has to live inside
+   * the composer <form> and the dialog contains a form of its own — and a form
+   * cannot legally contain another one.
+   */
+  const [schedulerOpen, setSchedulerOpen] = useState(false);
+  /* Bumped on every open, and used as the dialog's key: it remounts, so a
+     second open re-asks for the free hours instead of showing the ones it
+     found ten minutes ago. */
+  const [schedulerSession, setSchedulerSession] = useState(0);
   /* Unique per instance: one channel per name on a memoised client. */
   const channelId = useId();
   /* Socket arrivals only. The history lives in initialMessages. */
@@ -272,6 +292,10 @@ export function ChatRoom({ conversation, initialMessages, viewerId }: ChatRoomPr
         </div>
       </header>
 
+      {/* Above the messages rather than among them: a session is a standing fact
+          about this thread, not something someone said at a moment. */}
+      <MeetingStrip meetings={meetings} />
+
       {/* ---- Messages ------------------------------------------------------- */}
       <div ref={canvasRef} className="bg-surface-container-low/40 flex-1 overflow-y-auto p-4">
         {messages.length === 0 ? (
@@ -357,6 +381,20 @@ export function ChatRoom({ conversation, initialMessages, viewerId }: ChatRoomPr
             />
           </div>
 
+          {/* Secondary to Send, and deliberately: scheduling is the rarer act,
+              and two filled circles side by side would compete. */}
+          <button
+            type="button"
+            onClick={() => {
+              setSchedulerSession((current) => current + 1);
+              setSchedulerOpen(true);
+            }}
+            aria-label="Schedule a meeting"
+            className="border-outline-variant/60 text-on-surface-variant hover:border-brand hover:text-brand focus-visible:ring-brand/35 mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-full border bg-white transition-colors focus-visible:ring-4 focus-visible:outline-none"
+          >
+            <CalendarPlus className="size-5" aria-hidden="true" />
+          </button>
+
           <button
             type="submit"
             /* Nothing to send is not an error worth reporting — just closed. */
@@ -372,6 +410,15 @@ export function ChatRoom({ conversation, initialMessages, viewerId }: ChatRoomPr
           </button>
         </div>
       </form>
+
+      <ScheduleMeetingDialog
+        key={schedulerSession}
+        open={schedulerOpen}
+        onClose={() => setSchedulerOpen(false)}
+        conversationId={conversation.id}
+        withLabel={conversation.partnerName}
+        courseCode={conversation.courseCode}
+      />
     </div>
   );
 }

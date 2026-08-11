@@ -163,7 +163,7 @@ test.describe('student profiles', () => {
     await page.context().clearCookies();
     await page.goto('/login');
     await page.getByLabel('University email').pressSequentially(email);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
   }
@@ -198,22 +198,72 @@ test.describe('student profiles', () => {
     await expect(page).toHaveURL(new RegExp(`/students/${partnerId}$`));
   });
 
-  test('rating is offered only after you have talked', async ({ page }) => {
+  test('rating is offered only after a session you both attended', async ({ page }) => {
     await signIn(page, viewerEmail);
     await page.goto(`/students/${partnerId}`);
 
-    /* No conversation yet, so the control is absent rather than disabled. */
+    /* No meeting yet, so the control is absent — and the absence says why. */
     await expect(page.getByRole('button', { name: /Rate your session/ })).toHaveCount(0);
+    await expect(page.getByText(/after a study session you both attend/)).toBeVisible();
 
-    /* Start one the way a student would. */
+    /*
+     * TALKING IS NO LONGER ENOUGH, and this is the assertion that says so.
+     * Until Phase 7D a conversation unlocked the button; now the database
+     * refuses a rating without a finished meeting, so a button appearing here
+     * would be a permission error waiting to happen.
+     */
     await page.getByRole('button', { name: /Send message to Pavel Partner/ }).click();
     await expect(page).toHaveURL(/\/messages\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
     await page.goto(`/students/${partnerId}`);
-    await expect(page.getByRole('button', { name: /Rate your session/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Rate your session/ })).toHaveCount(0);
   });
 
   test('a positive rating appears publicly on their profile', async ({ page }) => {
+    /*
+     * The session they are rating.
+     *
+     * Since Phase 7D a rating needs a meeting both of them attended and finished
+     * — a conversation is no longer sufficient evidence. Booked into the thread
+     * the previous test opened, then backdated: check_meeting_consistency refuses
+     * a meeting that STARTS in the past, deliberately and only on insert, so this
+     * is the supported way to arrive at a session that has already happened.
+     */
+    const { data: thread } = await db
+      .from('conversations')
+      .select('id')
+      .or(`participant_a.eq.${viewerId},participant_b.eq.${viewerId}`)
+      .limit(1)
+      .single();
+
+    const { data: meeting, error: meetingError } = await db
+      .from('meetings')
+      .insert({
+        university_id: RUNI_ID,
+        conversation_id: thread!.id,
+        created_by: viewerId,
+        title: 'Revision session',
+        starts_at: new Date(Date.now() + 86_400_000).toISOString(),
+        ends_at: new Date(Date.now() + 93_600_000).toISOString(),
+      })
+      .select('id')
+      .single();
+
+    expect(meetingError).toBeNull();
+
+    await db.from('meeting_attendees').insert([
+      { meeting_id: meeting!.id, profile_id: viewerId, rsvp: 'going' },
+      { meeting_id: meeting!.id, profile_id: partnerId, rsvp: 'going' },
+    ]);
+
+    await db
+      .from('meetings')
+      .update({
+        starts_at: new Date(Date.now() - 10_800_000).toISOString(),
+        ends_at: new Date(Date.now() - 3_600_000).toISOString(),
+      })
+      .eq('id', meeting!.id);
+
     await signIn(page, viewerEmail);
     await page.goto(`/students/${partnerId}`);
 

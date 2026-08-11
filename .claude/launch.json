@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "studybuddy-prod-e2e",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start", "--", "--port", "3200"],
+      "port": 3200
     }
   ]
 }

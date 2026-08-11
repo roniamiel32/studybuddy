@@ -31,6 +31,42 @@ export const createGroupSchema = z.object({
 
 export const requestToJoinSchema = z.object({ groupId: z.uuid() });
 
+export const updateGroupSchema = z.object({
+  groupId: z.uuid(),
+  name: z
+    .string()
+    .trim()
+    .min(3, 'Give the group a name of at least three characters.')
+    .max(80, 'Keep the name under 80 characters.'),
+  description: z.string().trim().max(400, 'Keep the description under 400 characters.').optional(),
+  maxParticipants: z.coerce
+    .number()
+    .int()
+    .min(MIN_PARTICIPANTS, `A group needs room for at least ${MIN_PARTICIPANTS} people.`)
+    .max(MAX_PARTICIPANTS, `Keep it to ${MAX_PARTICIPANTS} people or fewer.`),
+});
+
+export const memberRoleSchema = z.object({
+  groupId: z.uuid(),
+  profileId: z.uuid(),
+  role: z.enum(['member', 'admin']),
+});
+
+export const removeMemberSchema = z.object({
+  groupId: z.uuid(),
+  profileId: z.uuid(),
+});
+
+export const inviteToGroupSchema = z.object({
+  groupId: z.uuid(),
+  profileId: z.uuid(),
+});
+
+export const decideInvitationSchema = z.object({
+  requestId: z.uuid(),
+  accept: z.boolean(),
+});
+
 export const decideRequestSchema = z
   .object({
     requestId: z.uuid(),

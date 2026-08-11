@@ -496,6 +496,61 @@ export type Database = {
           },
         ]
       }
+      group_meeting_ratings: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          meeting_id: string
+          note: string | null
+          rater_id: string
+          sentiment: Database["public"]["Enums"]["rating_sentiment"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          meeting_id: string
+          note?: string | null
+          rater_id: string
+          sentiment: Database["public"]["Enums"]["rating_sentiment"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          meeting_id?: string
+          note?: string | null
+          rater_id?: string
+          sentiment?: Database["public"]["Enums"]["rating_sentiment"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_meeting_ratings_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_meeting_ratings_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_meeting_ratings_rater_id_fkey"
+            columns: ["rater_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_requests: {
         Row: {
           created_at: string
@@ -504,6 +559,8 @@ export type Database = {
           decision_note: string | null
           group_id: string
           id: string
+          invited_by: string | null
+          kind: Database["public"]["Enums"]["group_request_kind"]
           requester_id: string
           status: Database["public"]["Enums"]["group_request_status"]
         }
@@ -514,6 +571,8 @@ export type Database = {
           decision_note?: string | null
           group_id: string
           id?: string
+          invited_by?: string | null
+          kind?: Database["public"]["Enums"]["group_request_kind"]
           requester_id: string
           status?: Database["public"]["Enums"]["group_request_status"]
         }
@@ -524,6 +583,8 @@ export type Database = {
           decision_note?: string | null
           group_id?: string
           id?: string
+          invited_by?: string | null
+          kind?: Database["public"]["Enums"]["group_request_kind"]
           requester_id?: string
           status?: Database["public"]["Enums"]["group_request_status"]
         }
@@ -540,6 +601,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_requests_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -655,6 +723,139 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_attendees: {
+        Row: {
+          created_at: string
+          meeting_id: string
+          profile_id: string
+          responded_at: string | null
+          rsvp: Database["public"]["Enums"]["meeting_rsvp"]
+        }
+        Insert: {
+          created_at?: string
+          meeting_id: string
+          profile_id: string
+          responded_at?: string | null
+          rsvp?: Database["public"]["Enums"]["meeting_rsvp"]
+        }
+        Update: {
+          created_at?: string
+          meeting_id?: string
+          profile_id?: string
+          responded_at?: string | null
+          rsvp?: Database["public"]["Enums"]["meeting_rsvp"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_attendees_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attendees_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meetings: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          conversation_id: string | null
+          course_offering_id: string | null
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          group_id: string | null
+          id: string
+          location: string | null
+          starts_at: string
+          status: Database["public"]["Enums"]["meeting_status"]
+          title: string
+          university_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          conversation_id?: string | null
+          course_offering_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          group_id?: string | null
+          id?: string
+          location?: string | null
+          starts_at: string
+          status?: Database["public"]["Enums"]["meeting_status"]
+          title: string
+          university_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          conversation_id?: string | null
+          course_offering_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          group_id?: string | null
+          id?: string
+          location?: string | null
+          starts_at?: string
+          status?: Database["public"]["Enums"]["meeting_status"]
+          title?: string
+          university_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meetings_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_course_offering_id_fkey"
+            columns: ["course_offering_id"]
+            isOneToOne: false
+            referencedRelation: "course_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
             referencedColumns: ["id"]
           },
         ]
@@ -842,16 +1043,19 @@ export type Database = {
           group_id: string
           joined_at: string
           profile_id: string
+          role: Database["public"]["Enums"]["study_group_role"]
         }
         Insert: {
           group_id: string
           joined_at?: string
           profile_id: string
+          role?: Database["public"]["Enums"]["study_group_role"]
         }
         Update: {
           group_id?: string
           joined_at?: string
           profile_id?: string
+          role?: Database["public"]["Enums"]["study_group_role"]
         }
         Relationships: [
           {
@@ -914,7 +1118,7 @@ export type Database = {
       }
       study_groups: {
         Row: {
-          admin_id: string
+          admin_id: string | null
           course_offering_id: string
           created_at: string
           description: string | null
@@ -925,7 +1129,7 @@ export type Database = {
           university_id: string
         }
         Insert: {
-          admin_id: string
+          admin_id?: string | null
           course_offering_id: string
           created_at?: string
           description?: string | null
@@ -936,7 +1140,7 @@ export type Database = {
           university_id: string
         }
         Update: {
-          admin_id?: string
+          admin_id?: string | null
           course_offering_id?: string
           created_at?: string
           description?: string | null
@@ -975,6 +1179,7 @@ export type Database = {
           course_offering_id: string | null
           created_at: string
           id: string
+          meeting_id: string | null
           note: string | null
           ratee_id: string
           rater_id: string
@@ -985,6 +1190,7 @@ export type Database = {
           course_offering_id?: string | null
           created_at?: string
           id?: string
+          meeting_id?: string | null
           note?: string | null
           ratee_id: string
           rater_id: string
@@ -995,6 +1201,7 @@ export type Database = {
           course_offering_id?: string | null
           created_at?: string
           id?: string
+          meeting_id?: string | null
           note?: string | null
           ratee_id?: string
           rater_id?: string
@@ -1007,6 +1214,13 @@ export type Database = {
             columns: ["course_offering_id"]
             isOneToOne: false
             referencedRelation: "course_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_ratings_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
             referencedColumns: ["id"]
           },
           {
@@ -1072,6 +1286,7 @@ export type Database = {
           is_active: boolean
           name: string
           slug: string
+          timezone: string
         }
         Insert: {
           country_code?: string
@@ -1081,6 +1296,7 @@ export type Database = {
           is_active?: boolean
           name: string
           slug: string
+          timezone?: string
         }
         Update: {
           country_code?: string
@@ -1090,6 +1306,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           slug?: string
+          timezone?: string
         }
         Relationships: []
       }
@@ -1150,8 +1367,16 @@ export type Database = {
         Args: { target_group_id: string }
         Returns: boolean
       }
+      app_is_group_founder: {
+        Args: { target_group_id: string }
+        Returns: boolean
+      }
       app_is_group_member: {
         Args: { target_group_id: string }
+        Returns: boolean
+      }
+      app_is_meeting_attendee: {
+        Args: { target_meeting_id: string }
         Returns: boolean
       }
       app_overlap_minutes: {
@@ -1166,12 +1391,32 @@ export type Database = {
         Args: { target_profile_id: string }
         Returns: number
       }
+      app_shared_completed_meeting: {
+        Args: { profile_a: string; profile_b: string }
+        Returns: boolean
+      }
       app_shared_days: {
         Args: { profile_a: string; profile_b: string }
         Returns: number[]
       }
+      app_university_timezone: {
+        Args: { target_profile_id: string }
+        Returns: string
+      }
       rpc_approve_group_request: {
         Args: { p_request_id: string }
+        Returns: string
+      }
+      rpc_cancel_meeting: { Args: { p_meeting_id: string }; Returns: undefined }
+      rpc_create_meeting: {
+        Args: {
+          p_conversation_id?: string
+          p_ends_at: string
+          p_group_id?: string
+          p_location?: string
+          p_starts_at: string
+          p_title: string
+        }
         Returns: string
       }
       rpc_find_candidates: {
@@ -1205,6 +1450,37 @@ export type Database = {
           year_of_study: number
         }[]
       }
+      rpc_meeting_slots: {
+        Args: {
+          p_conversation_id?: string
+          p_days?: number
+          p_from?: string
+          p_group_id?: string
+        }
+        Returns: {
+          ends_at: string
+          participant_count: number
+          starts_at: string
+        }[]
+      }
+      rpc_my_schedule: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: {
+          conversation_id: string
+          course_offering_id: string
+          ends_at: string
+          group_id: string
+          location: string
+          meeting_id: string
+          other_attendees: number
+          starts_at: string
+          title: string
+        }[]
+      }
+      rpc_reject_group_request: {
+        Args: { p_note?: string; p_request_id: string }
+        Returns: string
+      }
     }
     Enums: {
       ai_status: "ok" | "error" | "rate_limited" | "invalid_output"
@@ -1220,11 +1496,15 @@ export type Database = {
       course_source: "seed" | "registrar" | "ai_generated" | "placeholder"
       degree_level: "bachelors" | "masters" | "phd"
       enrollment_intent: "need_help" | "want_partner" | "can_tutor"
+      group_request_kind: "request" | "invite"
       group_request_status: "pending" | "approved" | "rejected"
       group_size_choice: "small" | "large"
+      meeting_rsvp: "going" | "cancelled"
+      meeting_status: "scheduled" | "cancelled"
       rating_sentiment: "positive" | "negative"
       study_environment: "discussion" | "quiet"
       study_format: "in_person" | "remote"
+      study_group_role: "member" | "admin"
       study_group_status: "open" | "closed"
       time_block: "morning" | "noon" | "evening"
     }
@@ -1371,11 +1651,15 @@ export const Constants = {
       course_source: ["seed", "registrar", "ai_generated", "placeholder"],
       degree_level: ["bachelors", "masters", "phd"],
       enrollment_intent: ["need_help", "want_partner", "can_tutor"],
+      group_request_kind: ["request", "invite"],
       group_request_status: ["pending", "approved", "rejected"],
       group_size_choice: ["small", "large"],
+      meeting_rsvp: ["going", "cancelled"],
+      meeting_status: ["scheduled", "cancelled"],
       rating_sentiment: ["positive", "negative"],
       study_environment: ["discussion", "quiet"],
       study_format: ["in_person", "remote"],
+      study_group_role: ["member", "admin"],
       study_group_status: ["open", "closed"],
       time_block: ["morning", "noon", "evening"],
     },

@@ -35,6 +35,7 @@ import {
   deleteStudents,
   hasLocalDb,
   offeringIdByCode,
+  seedCompletedMeeting,
   signInAs,
 } from './helpers/db';
 
@@ -75,6 +76,7 @@ describeDb('Study ratings: Row Level Security', () => {
   let bystander: SupabaseClient<Database>;
 
   let offeringId = '';
+  const conversationIds: Record<string, string> = {};
 
   beforeAll(async () => {
     for (const key of Object.keys(emails) as Array<keyof typeof emails>) {
@@ -135,11 +137,14 @@ describeDb('Study ratings: Row Level Security', () => {
     bystander = await signInAs(emails.bystander);
 
     /*
-     * Conversations, because the insert policy requires one. This is also the rule
-     * that stops drive-by ratings, so seeding it is part of the scenario rather
-     * than a workaround.
+     * A conversation with all three, INCLUDING the bystander.
+     *
+     * Until Phase 7D a conversation was the evidence a rating rested on. It is
+     * not any more, and the bystander is here to prove it: they have talked to
+     * the rater and nothing else, so if a rating about them ever succeeds, the
+     * rule has silently reverted.
      */
-    for (const partner of [ids.liked, ids.disliked]) {
+    for (const partner of [ids.liked, ids.disliked, ids.bystander]) {
       const created = await rater
         .from('conversations')
         .insert({
@@ -154,6 +159,21 @@ describeDb('Study ratings: Row Level Security', () => {
       if (created.error) {
         throw new Error(`conversation seed failed: ${created.error.message}`);
       }
+
+      conversationIds[partner] = created.data.id;
+    }
+
+    /*
+     * The evidence the rule now asks for: a finished meeting both of them
+     * attended. Seeded for the two students who get rated, and deliberately not
+     * for the bystander.
+     */
+    for (const partner of [ids.liked, ids.disliked]) {
+      await seedCompletedMeeting(admin, {
+        universityId: RUNI_ID,
+        participants: [ids.rater, partner],
+        conversationId: conversationIds[partner],
+      });
     }
   }, 90_000);
 
@@ -187,10 +207,12 @@ describeDb('Study ratings: Row Level Security', () => {
       expect(error).toBeNull();
     });
 
-    it('refuses a rating about someone you have never talked to', async () => {
+    it('refuses a rating about someone you have only TALKED to', async () => {
       /*
-       * The conversation requirement. Without it this is a drive-by rating system:
-       * anyone could quietly mark any classmate as someone to avoid.
+       * The Phase 7D rule, and the reason this test reads the way it does. The
+       * rater and the bystander have a conversation — which was sufficient
+       * evidence until this migration — and no meeting. A pass here would mean
+       * the rule had quietly reverted to the weaker one.
        */
       const { error } = await rater.from('study_ratings').insert({
         rater_id: ids.rater,
@@ -230,6 +252,111 @@ describeDb('Study ratings: Row Level Security', () => {
       });
 
       expect(error).not.toBeNull();
+    });
+  });
+
+  // ===========================================================================
+  // The Phase 7D rule, from every angle a determined student could try.
+  // ===========================================================================
+
+  describe('a rating cannot exist without a meeting that happened', () => {
+    it('refuses a rating when the meeting has not finished yet', async () => {
+      /* Booked, both going, still in the future. Attendance is not attendance
+         until the session is over — otherwise you could rate on the way in. */
+      const { data: future } = await admin
+        .from('meetings')
+        .insert({
+          university_id: RUNI_ID,
+          conversation_id: conversationIds[ids.bystander],
+          created_by: ids.rater,
+          title: 'Not yet happened',
+          starts_at: new Date(Date.now() + 86_400_000).toISOString(),
+          ends_at: new Date(Date.now() + 93_600_000).toISOString(),
+        })
+        .select('id')
+        .single();
+
+      await admin.from('meeting_attendees').insert([
+        { meeting_id: future!.id, profile_id: ids.rater, rsvp: 'going' },
+        { meeting_id: future!.id, profile_id: ids.bystander, rsvp: 'going' },
+      ]);
+
+      const { error } = await rater.from('study_ratings').insert({
+        rater_id: ids.rater,
+        ratee_id: ids.bystander,
+        sentiment: 'positive',
+      });
+
+      expect(error?.code).toBe(RLS_DENIED);
+
+      await admin.from('meetings').delete().eq('id', future!.id);
+    });
+
+    it('refuses a rating when the other person CANCELLED', async () => {
+      /*
+       * The forfeit rule. They were invited, the session happened, and they
+       * pulled out — so there is no shared history to rate, in either direction.
+       */
+      const meetingId = await seedCompletedMeeting(admin, {
+        universityId: RUNI_ID,
+        participants: [ids.rater, ids.bystander],
+        conversationId: conversationIds[ids.bystander],
+      });
+
+      await admin
+        .from('meeting_attendees')
+        .update({ rsvp: 'cancelled' })
+        .eq('meeting_id', meetingId)
+        .eq('profile_id', ids.bystander);
+
+      const { error } = await rater.from('study_ratings').insert({
+        rater_id: ids.rater,
+        ratee_id: ids.bystander,
+        sentiment: 'positive',
+      });
+
+      expect(error?.code).toBe(RLS_DENIED);
+
+      await admin.from('meetings').delete().eq('id', meetingId);
+    });
+
+    it('refuses REPOINTING an existing rating at someone never met', async () => {
+      /*
+       * The hole Phase 6 left open, and the reason the rule is a trigger as well
+       * as a policy. The UPDATE policy checks only `rater_id = auth.uid()`, so
+       * this row is legitimately the rater's to edit — and without the trigger,
+       * editing it is a rating of the bystander with no meeting behind it.
+       */
+      const { error } = await rater
+        .from('study_ratings')
+        .update({ ratee_id: ids.bystander })
+        .eq('rater_id', ids.rater)
+        .eq('ratee_id', ids.liked);
+
+      expect(error).not.toBeNull();
+
+      /* And it did not move. */
+      const { data } = await rater
+        .from('study_ratings')
+        .select('id')
+        .eq('ratee_id', ids.bystander);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    it('refuses even the SERVICE ROLE, which bypasses every policy', async () => {
+      /*
+       * "The database must strictly enforce that it is impossible." RLS does not
+       * apply to this role — every server action holding the service key runs as
+       * it — so if the rule lived only in a policy, this insert would succeed and
+       * the guarantee would be worth nothing.
+       */
+      const { error } = await admin.from('study_ratings').insert({
+        rater_id: ids.bystander,
+        ratee_id: ids.liked,
+        sentiment: 'positive',
+      });
+
+      expect(error?.code).toBe(RLS_DENIED);
     });
   });
 

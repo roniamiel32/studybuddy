@@ -83,6 +83,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </span>
 
             <UserMenu
+              viewerId={user.id}
               fullName={profile.fullName}
               avatarUrl={profile.avatarUrl}
               signOut={signOut}

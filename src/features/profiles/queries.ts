@@ -138,13 +138,13 @@ function minutesBetween(startsAt: string, endsAt: string): number {
 }
 
 /**
- * Courses the viewer and this student are both taking.
+ * Courses the viewer and this student are both taking (or own courses if viewing self).
  *
  * @param supabase  - The caller's client.
  * @param viewerId  - The signed-in student.
  * @param profileId - The student being viewed.
  * @param isSelf    - True when they are the same person.
- * @returns Shared courses, or an empty list on your own profile.
+ * @returns Shared courses, or own courses on own profile.
  */
 async function getSharedCourses(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -153,8 +153,19 @@ async function getSharedCourses(
   isSelf: boolean,
 ): Promise<SharedCourseView[]> {
   if (isSelf) {
-    /* "Shared with yourself" is not a thing. Their own courses are on /courses. */
-    return [];
+    /* Fetch all of the user's own courses */
+    const { data } = await supabase
+      .from('enrollments')
+      .select('course_offering_id, course_offerings!inner(courses!inner(code, name))')
+      .eq('profile_id', profileId);
+
+    return (data ?? [])
+      .map((row) => ({
+        offeringId: row.course_offering_id,
+        code: row.course_offerings.courses.code,
+        name: row.course_offerings.courses.name,
+      }))
+      .sort((a, b) => a.code.localeCompare(b.code));
   }
 
   const { data } = await supabase
@@ -177,13 +188,13 @@ async function getSharedCourses(
 }
 
 /**
- * Study groups the viewer and this student both belong to.
+ * Study groups the viewer and this student both belong to (or own groups if viewing self).
  *
  * @param supabase  - The caller's client.
  * @param viewerId  - The signed-in student.
  * @param profileId - The student being viewed.
  * @param isSelf    - True when they are the same person.
- * @returns Shared groups, or an empty list on your own profile.
+ * @returns Shared groups, or own groups on own profile.
  */
 async function getSharedGroups(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -192,7 +203,28 @@ async function getSharedGroups(
   isSelf: boolean,
 ): Promise<SharedGroupView[]> {
   if (isSelf) {
-    return [];
+    /* Fetch all of the user's own groups */
+    const { data } = await supabase
+      .from('study_group_members')
+      .select('group_id')
+      .eq('profile_id', profileId);
+
+    const myGroupIds = (data ?? []).map((row) => row.group_id);
+
+    if (myGroupIds.length === 0) {
+      return [];
+    }
+
+    const { data: groups } = await supabase
+      .from('study_groups')
+      .select('id, name, study_group_members(profile_id)')
+      .in('id', myGroupIds);
+
+    return (groups ?? []).map((group) => ({
+      id: group.id,
+      name: group.name,
+      memberCount: (group.study_group_members as Array<{ profile_id: string }>).length,
+    }));
   }
 
   const { data } = await supabase
@@ -302,8 +334,13 @@ async function getCompatibility(
 /**
  * Whether the viewer may rate this student, and what they said last time.
  *
- * Rating requires a conversation — the same rule the insert policy enforces. It is
- * checked here too so the button can be absent rather than failing when pressed.
+ * ASKS THE DATABASE THE SAME QUESTION THE POLICY ASKS, rather than reimplementing
+ * it. Phase 7D moved the rule from "you have a conversation" to "you finished a
+ * meeting together that neither of you cancelled", and it is enforced by both an
+ * INSERT policy and a trigger. A second copy of that condition written in
+ * TypeScript would be one schema change away from offering a button that the
+ * database then refuses — which is exactly the permission error this gate exists
+ * to prevent.
  *
  * @param supabase  - The caller's client.
  * @param viewerId  - The signed-in student.
@@ -315,15 +352,11 @@ async function getRatingState(
   viewerId: string,
   profileId: string,
 ): Promise<{ canRate: boolean; myRating: 'positive' | 'negative' | null }> {
-  const [{ data: conversation }, { data: rating }] = await Promise.all([
-    supabase
-      .from('conversations')
-      .select('id')
-      .or(
-        `and(participant_a.eq.${viewerId},participant_b.eq.${profileId}),` +
-          `and(participant_a.eq.${profileId},participant_b.eq.${viewerId})`,
-      )
-      .maybeSingle(),
+  const [{ data: metThem }, { data: rating }] = await Promise.all([
+    supabase.rpc('app_shared_completed_meeting', {
+      profile_a: viewerId,
+      profile_b: profileId,
+    }),
     supabase
       .from('study_ratings')
       .select('sentiment')
@@ -333,7 +366,7 @@ async function getRatingState(
   ]);
 
   return {
-    canRate: Boolean(conversation),
+    canRate: metThem === true,
     myRating: (rating?.sentiment as 'positive' | 'negative' | null) ?? null,
   };
 }

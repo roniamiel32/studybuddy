@@ -24,8 +24,11 @@
 
 import { useActionState, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, Loader2, Send } from 'lucide-react';
+import { AlertCircle, CalendarPlus, Loader2, Send } from 'lucide-react';
 
+import { MeetingStrip } from '@/components/meetings/meeting-strip';
+import { ScheduleMeetingDialog } from '@/components/meetings/schedule-meeting-dialog';
+import type { MeetingView } from '@/features/meetings/meeting-view';
 import { groupMessageSchema } from '@/features/groups/schema';
 import { postGroupMessage } from '@/features/groups/actions';
 import { formatMessageTime } from '@/features/chat/chat-view';
@@ -39,6 +42,12 @@ export interface GroupChatProps {
   viewerId: string;
   /** Profile id to display name, for messages that arrive over the socket. */
   memberNames: Record<string, string>;
+  /** Sessions booked from this group, soonest first. */
+  meetings: MeetingView[];
+  /** Named in the scheduler's copy. */
+  groupName: string;
+  /** Seeds the session title. */
+  courseCode: string | null;
 }
 
 /** Shapes a database row into the view model. */
@@ -94,8 +103,23 @@ function mergeMessages(
  * @param memberNames     - Profile id to display name.
  * @returns The chat element.
  */
-export function GroupChat({ groupId, initialMessages, viewerId, memberNames }: GroupChatProps) {
+export function GroupChat({
+  groupId,
+  initialMessages,
+  viewerId,
+  memberNames,
+  meetings,
+  groupName,
+  courseCode,
+}: GroupChatProps) {
   const router = useRouter();
+  /* Owned here: the trigger sits inside the composer <form>, and the dialog
+     carries a form of its own. */
+  const [schedulerOpen, setSchedulerOpen] = useState(false);
+  /* Bumped on every open, and used as the dialog's key: it remounts, so a
+     second open re-asks for the free hours instead of showing the ones it
+     found ten minutes ago. */
+  const [schedulerSession, setSchedulerSession] = useState(0);
   const channelId = useId();
   const [live, setLive] = useState<GroupMessageView[]>([]);
   const [state, formAction, pending] = useActionState(postGroupMessage, null);
@@ -170,6 +194,10 @@ export function GroupChat({ groupId, initialMessages, viewerId, memberNames }: G
       >
         Group chat
       </h2>
+
+      {/* Above the messages: a session is a standing fact about this group, not
+          something someone said at a moment. */}
+      <MeetingStrip meetings={meetings} />
 
       <div
         ref={canvasRef}
@@ -281,6 +309,19 @@ export function GroupChat({ groupId, initialMessages, viewerId, memberNames }: G
             />
           </div>
 
+          {/* Secondary to Send, matching the one-to-one composer. */}
+          <button
+            type="button"
+            onClick={() => {
+              setSchedulerSession((current) => current + 1);
+              setSchedulerOpen(true);
+            }}
+            aria-label="Schedule a meeting"
+            className="border-outline-variant/60 text-on-surface-variant hover:border-brand hover:text-brand focus-visible:ring-brand/35 mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-full border bg-white transition-colors focus-visible:ring-4 focus-visible:outline-none"
+          >
+            <CalendarPlus className="size-5" aria-hidden="true" />
+          </button>
+
           <button
             type="submit"
             disabled={pending || draft.trim().length === 0}
@@ -295,6 +336,15 @@ export function GroupChat({ groupId, initialMessages, viewerId, memberNames }: G
           </button>
         </div>
       </form>
+
+      <ScheduleMeetingDialog
+        key={schedulerSession}
+        open={schedulerOpen}
+        onClose={() => setSchedulerOpen(false)}
+        groupId={groupId}
+        withLabel={groupName}
+        courseCode={courseCode}
+      />
     </section>
   );
 }

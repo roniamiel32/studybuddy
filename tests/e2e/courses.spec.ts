@@ -204,7 +204,7 @@ test.describe('courses and profile', () => {
   async function signIn(page: import('@playwright/test').Page) {
     await page.goto('/login');
     await page.getByLabel('University email').pressSequentially(mineEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
   }

@@ -96,6 +96,7 @@ export function RatePartnerDialog({
       <Button
         type="button"
         variant={myRating === 'positive' ? 'outline' : 'secondary'}
+        className={myRating === 'positive' ? 'border-2 border-brand text-brand hover:bg-brand/5 hover:text-brand font-medium text-sm h-10' : 'font-medium text-sm h-10'}
         onClick={() => {
           setChoice(myRating ?? 'positive');
           setOpen(true);
@@ -103,7 +104,7 @@ export function RatePartnerDialog({
       >
         {myRating === 'positive' ? (
           <>
-            <Check aria-hidden="true" />
+            <Check className="size-4" aria-hidden="true" />
             You studied together
           </>
         ) : myRating === 'negative' ? (
@@ -111,12 +112,12 @@ export function RatePartnerDialog({
              "you rated them badly" — because they may be looking at this in front
              of someone. */
           <>
-            <EyeOff aria-hidden="true" />
+            <EyeOff className="size-4" aria-hidden="true" />
             Your private note
           </>
         ) : (
           <>
-            <Star aria-hidden="true" />
+            <Star className="size-4" aria-hidden="true" />
             Rate your session
           </>
         )}

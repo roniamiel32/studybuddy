@@ -1,0 +1,58 @@
+/**
+ * File:        src/features/meetings/schema.ts
+ * Authors:     Roni Amiel & Eden Bitran
+ * Description: Validation for the meeting writes. Bounds mirror the database
+ *              CHECK constraints, so a rejection arrives as a message rather than
+ *              a 500.
+ * Version:     0.19.0
+ *
+ * Modifications:
+ *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
+ */
+
+import { z } from 'zod';
+
+/**
+ * Exactly one scope, matching the meetings_one_scope CHECK.
+ *
+ * A meeting belongs to the chat it was booked from, and the two chats are
+ * different tables — so "neither" and "both" are equally wrong here.
+ */
+const scope = z
+  .object({
+    conversationId: z.uuid().optional(),
+    groupId: z.uuid().optional(),
+  })
+  .refine(
+    (value) => Boolean(value.conversationId) !== Boolean(value.groupId),
+    'A meeting belongs to exactly one chat.',
+  );
+
+export const meetingSlotsSchema = scope.and(
+  z.object({
+    /** How far ahead to look. Bounded to match the RPC's own clamp. */
+    days: z.coerce.number().int().min(1).max(60).default(14),
+  }),
+);
+
+export const createMeetingSchema = scope.and(
+  z.object({
+    title: z
+      .string()
+      .trim()
+      .min(3, 'Give the session a name of at least three characters.')
+      .max(120, 'Keep the name under 120 characters.'),
+    location: z.string().trim().max(200, 'Keep the place under 200 characters.').optional(),
+    startsAt: z.iso.datetime({ offset: true }),
+    endsAt: z.iso.datetime({ offset: true }),
+  }),
+);
+
+export const meetingIdSchema = z.object({ meetingId: z.uuid() });
+
+export const setRsvpSchema = z.object({
+  meetingId: z.uuid(),
+  going: z.boolean(),
+});
+
+export type CreateMeetingInput = z.infer<typeof createMeetingSchema>;
