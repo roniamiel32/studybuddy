@@ -96,25 +96,7 @@ export function UserMenu({ fullName, avatarUrl, signOut }: UserMenuProps) {
           Profile
         </Link>
 
-        {/* כפתור מעבר בין דארק מוד ללייט מוד */}
-        <button
-          type="button"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="text-on-surface-variant hover:bg-surface-container-high focus-visible:ring-brand/35 flex w-full items-center gap-2.5 border-t border-outline-variant/40 px-4 py-3 text-left text-label-md transition-colors focus-visible:ring-4 focus-visible:outline-none"
-        >
-          {theme === 'dark' ? (
-            <>
-              <Sun className="size-4 text-amber-500" aria-hidden="true" />
-              Light mode
-            </>
-          ) : (
-            <>
-              <Moon className="size-4 text-purple-600" aria-hidden="true" />
-              Dark mode
-            </>
-          )}
-        </button>
-
+        
         <form action={signOut} className="border-outline-variant/40 border-t">
           <button
             type="submit"
