@@ -8,6 +8,7 @@
  * Version:     0.6.1
  *
  * Modifications:
+ *     0.23.0 - 2026-08-12 - "Keep me signed in" on the sign-in form (Phase 9A)
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  *     0.6.1 - 2026-08-11 - Added show/hide password toggle and forgot password link
  */
@@ -134,6 +135,24 @@ export function CredentialForm({ mode, action }: CredentialFormProps) {
           </p>
         ) : null}
       </div>
+
+      {!isSignUp ? (
+        <label className="flex cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            name="rememberMe"
+            defaultChecked
+            className="accent-brand size-4"
+          />
+          <span>
+            <span className="block text-label-md">Keep me signed in</span>
+            <span className="text-outline block text-label-sm font-normal">
+              Leave this off on a shared computer and you will be signed out when the
+              browser closes.
+            </span>
+          </span>
+        </label>
+      ) : null}
 
       {error ? (
         <p

@@ -11,6 +11,7 @@
  * Version:     0.13.0
  *
  * Modifications:
+ *     0.23.0 - 2026-08-12 - Registration now ends at the emailed code (Phase 9A)
  *     0.13.0 - 2026-08-10 - Typed rather than filled in the preservation test,
  *                           which was flaking on WebKit
  *     0.11.0 - 2026-08-09 - Placeholder catalog and the course requirement
@@ -19,7 +20,9 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+import { waitForVerificationCode } from './helpers/mailbox';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -38,6 +41,33 @@ function newStudentEmail(): string {
   const email = `e2e-${unique}@post.runi.ac.il`;
   created.push(email);
   return email;
+}
+
+/**
+ * Registers a student and confirms the address, ending in onboarding.
+ *
+ * SINCE PHASE 9A THIS IS TWO STEPS, not one. Sign-up leaves the student on the
+ * code screen with no session at all — the account exists but cannot be used —
+ * and the code has to come out of the mail server, because reading it is the
+ * only thing that proves the email template still carries one.
+ *
+ * @param page  - The Playwright page.
+ * @param email - The address to register.
+ * @returns Nothing; leaves the browser on /onboarding.
+ */
+async function registerStudent(page: Page, email: string) {
+  await page.goto('/signup');
+  await page.getByLabel('University email').fill(email);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Create account' }).click();
+
+  await expect(page).toHaveURL(/\/verify-email/);
+
+  const code = await waitForVerificationCode(email);
+  await page.getByLabel('Verification code').fill(code);
+  await page.getByRole('button', { name: 'Confirm my account' }).click();
+
+  await expect(page).toHaveURL(/\/onboarding$/);
 }
 
 test.afterAll(async () => {
@@ -76,13 +106,9 @@ test.describe('signup and onboarding', () => {
   }) => {
     const email = newStudentEmail();
 
-    // ---- Sign up -----------------------------------------------------------
-    await page.goto('/signup');
-    await page.getByLabel('University email').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
-    await page.getByRole('button', { name: 'Create account' }).click();
+    // ---- Sign up, and confirm the address ----------------------------------
+    await registerStudent(page, email);
 
-    await expect(page).toHaveURL(/\/onboarding$/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('about you');
 
     // Shown, but read-only: derived from the email domain, never chosen.
@@ -224,12 +250,8 @@ test.describe('signup and onboarding', () => {
     const email = `e2e-${unique}@newcollege.edu`;
     created.push(email);
 
-    await page.goto('/signup');
-    await page.getByLabel('University email').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
-    await page.getByRole('button', { name: 'Create account' }).click();
+    await registerStudent(page, email);
 
-    await expect(page).toHaveURL(/\/onboarding$/);
     // The institution name is derived from the domain.
     await expect(page.getByLabel('University')).toHaveValue('Newcollege');
 
@@ -244,12 +266,8 @@ test.describe('signup and onboarding', () => {
     const email = `dana.levi${Date.now()}@post.runi.ac.il`;
     created.push(email);
 
-    await page.goto('/signup');
-    await page.getByLabel('University email').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
-    await page.getByRole('button', { name: 'Create account' }).click();
+    await registerStudent(page, email);
 
-    await expect(page).toHaveURL(/\/onboarding$/);
     await expect(page.getByLabel('Your name')).toHaveValue('Dana Levi');
 
     // A guess, not a decision — it must remain editable.
@@ -260,11 +278,7 @@ test.describe('signup and onboarding', () => {
   test('offers the chosen degree its own courses, and only those', async ({ page }) => {
     const email = newStudentEmail();
 
-    await page.goto('/signup');
-    await page.getByLabel('University email').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
-    await page.getByRole('button', { name: 'Create account' }).click();
-    await expect(page).toHaveURL(/\/onboarding$/);
+    await registerStudent(page, email);
 
     await page.getByLabel('Your name').fill('Law Student');
     await page.getByLabel('Degree level').selectOption('bachelors');
@@ -329,11 +343,7 @@ test.describe('signup and onboarding', () => {
   }) => {
     const email = newStudentEmail();
 
-    await page.goto('/signup');
-    await page.getByLabel('University email').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
-    await page.getByRole('button', { name: 'Create account' }).click();
-    await expect(page).toHaveURL(/\/onboarding$/);
+    await registerStudent(page, email);
 
     // Skipping ahead is not possible while setup is incomplete.
     await page.goto('/dashboard');

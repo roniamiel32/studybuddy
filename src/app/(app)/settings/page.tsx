@@ -6,6 +6,7 @@
  * Version:     0.19.0
  *
  * Modifications:
+ *     0.23.0 - 2026-08-12 - Change password and delete account (Phase 9A)
  *     0.19.0 - 2026-08-11 - The week is edited in place, not in onboarding
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
  */
@@ -15,6 +16,8 @@ import { redirect } from 'next/navigation';
 
 import { AvailabilityDialog } from '@/components/profile/availability-dialog';
 import { AvatarForm } from '@/components/profile/avatar-form';
+import { ChangePasswordForm } from '@/components/profile/change-password-form';
+import { DeleteAccountSection } from '@/components/profile/delete-account-section';
 import {
   GlobalPreferencesForm,
   ProfileDetailsForm,
@@ -109,6 +112,8 @@ export default async function SettingsPage() {
           <AvailabilityDialog defaultSelected={selectedSlots} />
         </section>
 
+        <ChangePasswordForm />
+
         <section aria-labelledby="account-heading" className="clay-card p-6">
           <h2 id="account-heading" className="font-heading text-headline-md">
             Account
@@ -122,6 +127,10 @@ export default async function SettingsPage() {
             </Button>
           </form>
         </section>
+
+        {/* Last on the page, deliberately: the destructive action should be the
+            thing you have to scroll past everything else to reach. */}
+        <DeleteAccountSection />
       </div>
     </>
   );
