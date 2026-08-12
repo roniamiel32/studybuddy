@@ -21,7 +21,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { AlertCircle, CalendarClock, Loader2, MapPin, Users, X } from 'lucide-react';
 
 import { cancelMeeting, setMeetingRsvp } from '@/features/meetings/actions';
@@ -59,9 +59,26 @@ export function MeetingStrip({ meetings }: MeetingStripProps) {
  * @returns The list item.
  */
 function MeetingCard({ meeting }: { meeting: MeetingView }) {
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`dismissed-meeting-${meeting.id}`) !== 'true';
+    }
+    return true;
+  });
+
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  const handleDismiss = () => {
+    setIsVisible(false);
+    localStorage.setItem(`dismissed-meeting-${meeting.id}`, 'true');
+  };
 
   const act = (run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
     setError(null);
@@ -75,7 +92,7 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
     });
   };
 
-  if (!isVisible) return null;
+  if (!isMounted || !isVisible) return null;
 
   return (
     <li
@@ -88,7 +105,7 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
     >
       {meeting.hasFinished ? (
         <button
-          onClick={() => setIsVisible(false)}
+          onClick={handleDismiss}
           className="absolute right-2 top-2 text-outline hover:text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 rounded-sm"
           aria-label="Dismiss meeting"
         >
