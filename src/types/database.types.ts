@@ -164,6 +164,39 @@ export type Database = {
           },
         ]
       }
+      comment_likes: {
+        Row: {
+          comment_id: string
+          created_at: string
+          profile_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          profile_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_likes_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "post_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comment_likes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       connection_requests: {
         Row: {
           addressee_id: string
@@ -914,6 +947,7 @@ export type Database = {
       notifications: {
         Row: {
           actor_id: string | null
+          comment_id: string | null
           course_offering_id: string | null
           created_at: string
           group_id: string | null
@@ -924,9 +958,11 @@ export type Database = {
           recipient_id: string
           secondary_id: string | null
           type: Database["public"]["Enums"]["notification_type"]
+          wall_post_id: string | null
         }
         Insert: {
           actor_id?: string | null
+          comment_id?: string | null
           course_offering_id?: string | null
           created_at?: string
           group_id?: string | null
@@ -937,9 +973,11 @@ export type Database = {
           recipient_id: string
           secondary_id?: string | null
           type: Database["public"]["Enums"]["notification_type"]
+          wall_post_id?: string | null
         }
         Update: {
           actor_id?: string | null
+          comment_id?: string | null
           course_offering_id?: string | null
           created_at?: string
           group_id?: string | null
@@ -950,6 +988,7 @@ export type Database = {
           recipient_id?: string
           secondary_id?: string | null
           type?: Database["public"]["Enums"]["notification_type"]
+          wall_post_id?: string | null
         }
         Relationships: [
           {
@@ -957,6 +996,13 @@ export type Database = {
             columns: ["actor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "post_comments"
             referencedColumns: ["id"]
           },
           {
@@ -994,6 +1040,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "notifications_wall_post_id_fkey"
+            columns: ["wall_post_id"]
+            isOneToOne: false
+            referencedRelation: "wall_posts"
+            referencedColumns: ["id"]
+          },
         ]
       }
       post_comments: {
@@ -1002,6 +1055,7 @@ export type Database = {
           body: string
           created_at: string
           id: string
+          parent_comment_id: string | null
           post_id: string
           updated_at: string
         }
@@ -1010,6 +1064,7 @@ export type Database = {
           body: string
           created_at?: string
           id?: string
+          parent_comment_id?: string | null
           post_id: string
           updated_at?: string
         }
@@ -1018,6 +1073,7 @@ export type Database = {
           body?: string
           created_at?: string
           id?: string
+          parent_comment_id?: string | null
           post_id?: string
           updated_at?: string
         }
@@ -1027,6 +1083,13 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_comments_parent_comment_id_fkey"
+            columns: ["parent_comment_id"]
+            isOneToOne: false
+            referencedRelation: "post_comments"
             referencedColumns: ["id"]
           },
           {
@@ -1564,6 +1627,10 @@ export type Database = {
         Returns: number
       }
       app_array_jaccard: { Args: { a: unknown; b: unknown }; Returns: number }
+      app_can_see_comment: {
+        Args: { target_comment_id: string }
+        Returns: boolean
+      }
       app_can_see_group: { Args: { target_group_id: string }; Returns: boolean }
       app_can_see_profile: {
         Args: { target_profile_id: string }
@@ -1741,6 +1808,14 @@ export type Database = {
         | "new_match"
         | "birthday"
         | "match_suggestion"
+        | "wall_post"
+        | "post_like"
+        | "post_comment"
+        | "post_share"
+        | "comment_reply"
+        | "comment_like"
+        | "group_invite"
+        | "rate_partner"
       rating_sentiment: "positive" | "negative"
       study_environment: "discussion" | "quiet"
       study_format: "in_person" | "remote"
@@ -1904,6 +1979,14 @@ export const Constants = {
         "new_match",
         "birthday",
         "match_suggestion",
+        "wall_post",
+        "post_like",
+        "post_comment",
+        "post_share",
+        "comment_reply",
+        "comment_like",
+        "group_invite",
+        "rate_partner",
       ],
       rating_sentiment: ["positive", "negative"],
       study_environment: ["discussion", "quiet"],
