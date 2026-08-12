@@ -2,22 +2,6 @@
  * File:        src/components/groups/group-chat.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The group's chat.
- *
- *              Same shape as the one-to-one room from Phase 3, with two
- *              differences that matter. Received messages carry the sender's name,
- *              because in a group "who said that" is not implied by the side of the
- *              screen. And a system message — the "Welcome X to the group!" line —
- *              is rendered as a centred event rather than as a bubble, because
- *              nobody said it.
- *
- *              State holds only rows that arrived over the socket; the history stays
- *              in the server-rendered prop and the two merge by id at render. That
- *              removes the usual bug in this shape of component — seeding state from
- *              props and then having to re-sync it.
- * Version:     0.15.0
- *
- * Modifications:
- *     0.15.0 - 2026-08-10 - Initial implementation (Phase 5)
  */
 
 'use client';
@@ -40,17 +24,13 @@ export interface GroupChatProps {
   groupId: string;
   initialMessages: GroupMessageView[];
   viewerId: string;
-  /** Profile id to display name, for messages that arrive over the socket. */
   memberNames: Record<string, string>;
-  /** Sessions booked from this group, soonest first. */
   meetings: MeetingView[];
-  /** Named in the scheduler's copy. */
   groupName: string;
-  /** Seeds the session title. */
+  description?: string | null; // הוספנו את התיאור לכאן!
   courseCode: string | null;
 }
 
-/** Shapes a database row into the view model. */
 function toMessageView(
   row: Record<string, unknown>,
   memberNames: Record<string, string>,
@@ -61,12 +41,6 @@ function toMessageView(
     id: String(row.id),
     groupId: String(row.group_id),
     senderId,
-    /*
-     * The socket payload carries ids, not names — postgres_changes sends the row,
-     * not a join. The member map is what turns it back into a person, and a
-     * message from someone who joined since this page rendered falls back rather
-     * than showing a uuid.
-     */
     senderName: senderId ? (memberNames[senderId] ?? 'Classmate') : null,
     body: String(row.body),
     isSystem: Boolean(row.is_system),
@@ -74,13 +48,6 @@ function toMessageView(
   };
 }
 
-/**
- * Combines the server-rendered history with rows that arrived over the socket.
- *
- * @param history - Server-rendered messages.
- * @param live    - Rows received over Realtime.
- * @returns Every message, oldest first, each appearing once.
- */
 function mergeMessages(
   history: GroupMessageView[],
   live: GroupMessageView[],
@@ -94,15 +61,6 @@ function mergeMessages(
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-/**
- * Renders the group chat.
- *
- * @param groupId         - The group.
- * @param initialMessages - Server-rendered history.
- * @param viewerId        - The signed-in student.
- * @param memberNames     - Profile id to display name.
- * @returns The chat element.
- */
 export function GroupChat({
   groupId,
   initialMessages,
@@ -110,15 +68,11 @@ export function GroupChat({
   memberNames,
   meetings,
   groupName,
+  description,
   courseCode,
 }: GroupChatProps) {
   const router = useRouter();
-  /* Owned here: the trigger sits inside the composer <form>, and the dialog
-     carries a form of its own. */
   const [schedulerOpen, setSchedulerOpen] = useState(false);
-  /* Bumped on every open, and used as the dialog's key: it remounts, so a
-     second open re-asks for the free hours instead of showing the ones it
-     found ten minutes ago. */
   const [schedulerSession, setSchedulerSession] = useState(0);
   const channelId = useId();
   const [live, setLive] = useState<GroupMessageView[]>([]);
@@ -135,8 +89,6 @@ export function GroupChat({
   useEffect(() => {
     const supabase = createClient();
 
-    /* One channel per instance: a memoised client keeps one channel per name, and
-       a shared name throws when a second component subscribes to it. */
     const channel = supabase
       .channel(`group-${groupId}-${channelId}`)
       .on(
@@ -163,7 +115,6 @@ export function GroupChat({
     };
   }, [channelId, groupId, memberNames]);
 
-  /* Keep the newest message in view. */
   useEffect(() => {
     const canvas = canvasRef.current;
 
@@ -172,14 +123,11 @@ export function GroupChat({
     }
   }, [messages.length]);
 
-  /* Clear the composer during render, so the sent text does not linger for a frame
-     and read as a failed send. */
   if (state?.ok && state !== clearedFor) {
     setClearedFor(state);
     setDraft('');
   }
 
-  /* A refresh is the safety net if the socket is slow or has dropped. */
   useEffect(() => {
     if (clearedFor?.ok) {
       router.refresh();
@@ -188,20 +136,20 @@ export function GroupChat({
 
   return (
     <section aria-labelledby="group-chat-heading" className="clay-card flex flex-col overflow-hidden p-0">
+      
+      {/* כאן אנחנו מציגים את התיאור במקום המילה "Group chat" */}
       <h2
         id="group-chat-heading"
         className="border-outline-variant/30 font-heading border-b px-5 py-4 text-headline-md"
       >
-        Group chat
+        {description || 'Group chat'}
       </h2>
 
-      {/* Above the messages: a session is a standing fact about this group, not
-          something someone said at a moment. */}
       <MeetingStrip meetings={meetings} />
 
       <div
         ref={canvasRef}
-        className="bg-surface-container-low/40 flex max-h-96 min-h-56 flex-1 flex-col gap-3 overflow-y-auto p-4"
+        className="bg-surface-container-low/40 flex max-h-[600px] min-h-[400px] flex-1 flex-col gap-3 overflow-y-auto p-4"
       >
         {messages.length === 0 ? (
           <p className="text-on-surface-variant py-6 text-center text-body-md">
@@ -212,8 +160,6 @@ export function GroupChat({
         <ul className="flex flex-col gap-3">
           {messages.map((message) => {
             if (message.isSystem) {
-              /* An event, not a bubble. Nobody said it, so it is not attributed to
-                 anyone and it is not on either side of the screen. */
               return (
                 <li key={message.id} className="flex justify-center">
                   <span className="bg-brand-fixed/60 text-on-brand-fixed rounded-full px-3 py-1 text-label-sm">
@@ -230,8 +176,6 @@ export function GroupChat({
                 key={message.id}
                 className={cn('flex max-w-[85%] flex-col gap-0.5', fromMe && 'self-end')}
               >
-                {/* The sender's name, which a one-to-one thread does not need: in a
-                    group, the side of the screen does not tell you who spoke. */}
                 {!fromMe ? (
                   <span className="text-outline pl-1 text-label-sm font-normal">
                     {message.senderName ?? 'Classmate'}
@@ -293,7 +237,6 @@ export function GroupChat({
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
-                /* Enter sends, Shift+Enter breaks the line. */
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
 
@@ -309,7 +252,6 @@ export function GroupChat({
             />
           </div>
 
-          {/* Secondary to Send, matching the one-to-one composer. */}
           <button
             type="button"
             onClick={() => {
