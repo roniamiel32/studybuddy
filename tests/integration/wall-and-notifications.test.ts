@@ -57,11 +57,20 @@ describeDb('The wall, and the notification feed', () => {
     owner: `wall-owner-${stamp}@post.runi.ac.il`,
     /* Studied with the owner, so a connection. */
     friend: `wall-friend-${stamp}@post.runi.ac.il`,
-    /* Same course, never met them. */
+    /* Same course, never met them. Stays connected to NOBODY, which is what the
+       negative tests rest on — do not borrow them for anything else. */
     stranger: `wall-stranger-${stamp}@post.runi.ac.il`,
+    /* Connected to the friend and to nobody else: the one-end-only case that the
+       share rule has to refuse. */
+    acquaintance: `wall-acq-${stamp}@post.runi.ac.il`,
   };
 
-  const ids: Record<keyof typeof emails, string> = { owner: '', friend: '', stranger: '' };
+  const ids: Record<keyof typeof emails, string> = {
+    owner: '',
+    friend: '',
+    stranger: '',
+    acquaintance: '',
+  };
   const clients: Record<keyof typeof emails, SupabaseClient<Database>> = {} as never;
 
   let offeringId = '';
@@ -239,6 +248,172 @@ describeDb('The wall, and the notification feed', () => {
         .select('id');
 
       expect(data ?? []).toHaveLength(0);
+    });
+  });
+
+  // ===========================================================================
+  // Sharing, and the rule that runs the other way.
+  // ===========================================================================
+
+  describe('a shared post needs BOTH ends', () => {
+    it('is invisible to someone connected to only the sharer', async () => {
+      /*
+       * THE TEST THIS PART EXISTS FOR.
+       *
+       * The friend shares the owner's post onto their own wall. The acquaintance is
+       * connected to the friend — and to nobody else — so they must not see it.
+       * Passing a post along cannot widen the audience for words written to a
+       * smaller one, and the failure mode this catches is the natural one: a
+       * share treated like any other post on the sharer's wall.
+       */
+      const { data: original } = await admin
+        .from('wall_posts')
+        .insert({
+          profile_owner_id: ids.owner,
+          author_id: ids.owner,
+          body: 'Something the owner wrote for their own connections.',
+        })
+        .select('id')
+        .single();
+
+      const shared = await clients.friend.from('wall_posts').insert({
+        profile_owner_id: ids.friend,
+        author_id: ids.friend,
+        body: null,
+        original_post_id: original!.id,
+      });
+
+      expect(shared.error).toBeNull();
+
+      /* The stranger becomes a connection of the SHARER only. */
+      const conversation = await clients.acquaintance
+        .from('conversations')
+        .insert({
+          participant_a: ids.acquaintance,
+          participant_b: ids.friend,
+          university_id: RUNI_ID,
+          course_offering_id: offeringId,
+        })
+        .select('id')
+        .single();
+
+      await seedCompletedMeeting(admin, {
+        universityId: RUNI_ID,
+        participants: [ids.acquaintance, ids.friend],
+        conversationId: conversation.data!.id,
+      });
+
+      await clients.acquaintance.from('study_ratings').insert({
+        rater_id: ids.acquaintance,
+        ratee_id: ids.friend,
+        sentiment: 'positive',
+      });
+
+      /* Connected to the sharer, not to the author. Nothing. */
+      const { data: seen } = await clients.acquaintance
+        .from('wall_posts')
+        .select('id')
+        .eq('profile_owner_id', ids.friend)
+        .not('original_post_id', 'is', null);
+
+      expect(seen ?? []).toHaveLength(0);
+
+      /* And the sharer still sees it on their own wall. */
+      const { data: mine } = await clients.friend
+        .from('wall_posts')
+        .select('id')
+        .eq('profile_owner_id', ids.friend)
+        .not('original_post_id', 'is', null);
+
+      expect(mine).toHaveLength(1);
+    });
+
+    it('refuses a like on a shared post the caller cannot see', async () => {
+      /*
+       * Likes hang off posts, so they are a side channel unless they ask the same
+       * question. Without app_can_see_wall_post this insert would confirm the
+       * share exists.
+       */
+      const { data: share } = await admin
+        .from('wall_posts')
+        .select('id')
+        .eq('profile_owner_id', ids.friend)
+        .not('original_post_id', 'is', null)
+        .single();
+
+      const { error } = await clients.acquaintance.from('post_likes').insert({
+        post_id: share!.id,
+        profile_id: ids.acquaintance,
+      });
+
+      expect(error?.code).toBe(DENIED);
+    });
+
+    it('refuses sharing a share', async () => {
+      const { data: share } = await admin
+        .from('wall_posts')
+        .select('id')
+        .eq('profile_owner_id', ids.friend)
+        .not('original_post_id', 'is', null)
+        .single();
+
+      const { error } = await clients.owner.from('wall_posts').insert({
+        profile_owner_id: ids.owner,
+        author_id: ids.owner,
+        body: null,
+        original_post_id: share!.id,
+      });
+
+      expect(error).not.toBeNull();
+      expect(error?.message).toMatch(/original post/i);
+    });
+  });
+
+  describe('likes and comments', () => {
+    it('counts one like per person, however many times they press it', async () => {
+      const { data: post } = await admin
+        .from('wall_posts')
+        .insert({
+          profile_owner_id: ids.owner,
+          author_id: ids.owner,
+          body: 'A post to like.',
+        })
+        .select('id')
+        .single();
+
+      const first = await clients.friend
+        .from('post_likes')
+        .insert({ post_id: post!.id, profile_id: ids.friend });
+      expect(first.error).toBeNull();
+
+      /* The primary key, not the button, is what makes this impossible. */
+      const second = await clients.friend
+        .from('post_likes')
+        .insert({ post_id: post!.id, profile_id: ids.friend });
+      expect(second.error).not.toBeNull();
+    });
+
+    it('lets the wall owner remove a comment somebody else left', async () => {
+      const { data: post } = await admin
+        .from('wall_posts')
+        .select('id')
+        .eq('profile_owner_id', ids.owner)
+        .limit(1)
+        .single();
+
+      const { data: comment } = await clients.friend
+        .from('post_comments')
+        .insert({ post_id: post!.id, author_id: ids.friend, body: 'Nice one.' })
+        .select('id')
+        .single();
+
+      const { data } = await clients.owner
+        .from('post_comments')
+        .delete()
+        .eq('id', comment!.id)
+        .select('id');
+
+      expect(data).toHaveLength(1);
     });
   });
 

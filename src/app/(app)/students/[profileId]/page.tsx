@@ -34,6 +34,7 @@ import { WallFeed } from '@/components/profiles/wall-feed';
 import { Chip } from '@/components/ui/chip';
 import { connectionsSummary, profileSubtitle } from '@/features/profiles/profile-view';
 import { getStudentProfile } from '@/features/profiles/queries';
+import { requireUser } from '@/lib/supabase/server';
 import { canPostOnWall, getWallPosts } from '@/features/wall/queries';
 
 export const metadata: Metadata = { title: 'Profile' };
@@ -56,10 +57,13 @@ export default async function StudentProfilePage({
     notFound();
   }
 
-  const [posts, canPost] = await Promise.all([
+  const [posts, canPost, viewer] = await Promise.all([
     getWallPosts(profileId),
     canPostOnWall(profileId),
+    requireUser(),
   ]);
+
+  const viewerId = viewer.id;
 
   const firstName = profile.fullName.split(' ')[0];
 
@@ -168,6 +172,7 @@ export default async function StudentProfilePage({
             isSelf={profile.isSelf}
             canPost={canPost}
             posts={posts}
+            viewerId={viewerId}
           />
         </div>
       </div>

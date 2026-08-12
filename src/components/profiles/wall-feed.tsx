@@ -1,29 +1,34 @@
 /**
  * File:        src/components/profiles/wall-feed.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: The social wall — the composer, and what has been written.
+ * Description: The social wall — a composer card, then a card per post.
+ *
+ *              NO SECTION HEADING AND NO SURROUNDING CARD. The column is
+ *              transparent and every card is white, which is what makes a feed
+ *              read as a stack of separate objects rather than as a list inside
+ *              a panel. A "Your wall" title over it would frame the whole thing
+ *              as one component again.
  *
  *              THE COMPOSER IS ABSENT RATHER THAN DISABLED when the viewer is not
  *              a connection, and the reason is stated in its place. A greyed-out
  *              box explains nothing; "you can post here once you and Maya have
  *              studied together" names the one thing that would change it, and
  *              that thing is what the product wants them to do anyway.
- * Version:     0.20.0
+ * Version:     0.21.0
  *
  * Modifications:
+ *     0.21.0 - 2026-08-12 - Feed redesign: card per post (Phase 8C)
  *     0.20.0 - 2026-08-11 - Initial implementation (Phase 8B)
  */
 
 'use client';
 
-import { useActionState, useRef, useState, useTransition } from 'react';
-import Link from 'next/link';
-import { AlertCircle, Loader2, MessageSquare, Send, Trash2 } from 'lucide-react';
+import { useActionState, useState } from 'react';
+import { AlertCircle, Loader2, Send } from 'lucide-react';
 
-import { MatchAvatar } from '@/components/matching/match-avatar';
-import { createWallPost, removeWallPost } from '@/features/wall/actions';
+import { WallPostCard } from '@/components/profiles/wall-post-card';
+import { createWallPost } from '@/features/wall/actions';
 import { postBlockedReason, type WallPostView } from '@/features/wall/wall-view';
-import { timeAgo } from '@/features/notifications/notification-view';
 
 export interface WallFeedProps {
   profileOwnerId: string;
@@ -32,17 +37,24 @@ export interface WallFeedProps {
   isSelf: boolean;
   canPost: boolean;
   posts: WallPostView[];
+  viewerId: string;
 }
 
 /**
  * Renders the wall.
  *
  * @param props - Whose wall, who is looking, and what is on it.
- * @returns The section element.
+ * @returns The feed element.
  */
-export function WallFeed({ profileOwnerId, firstName, isSelf, canPost, posts }: WallFeedProps) {
+export function WallFeed({
+  profileOwnerId,
+  firstName,
+  isSelf,
+  canPost,
+  posts,
+  viewerId,
+}: WallFeedProps) {
   const [state, formAction, posting] = useActionState(createWallPost, null);
-  const formRef = useRef<HTMLFormElement>(null);
   const [draft, setDraft] = useState('');
 
   /* One success clears the box once, the same shape the chat composer uses. */
@@ -57,13 +69,13 @@ export function WallFeed({ profileOwnerId, firstName, isSelf, canPost, posts }: 
   const blocked = postBlockedReason({ isSelf, isConnection: canPost, firstName });
 
   return (
-    <section aria-labelledby="wall-heading" className="clay-card p-5">
-      <h2 id="wall-heading" className="font-heading text-headline-md">
-        {isSelf ? 'Your wall' : `${firstName}'s wall`}
-      </h2>
-
+    <section aria-label={isSelf ? 'Your wall' : `${firstName}'s wall`} className="flex flex-col gap-4">
+      {/* ---- The composer, its own card ----------------------------------- */}
       {canPost ? (
-        <form ref={formRef} action={formAction} className="mt-4">
+        <form
+          action={formAction}
+          className="rounded-xl border border-outline-variant/40 bg-white p-4 shadow-sm"
+        >
           <input type="hidden" name="profileOwnerId" value={profileOwnerId} />
 
           <label htmlFor="wall-body" className="sr-only">
@@ -78,9 +90,7 @@ export function WallFeed({ profileOwnerId, firstName, isSelf, canPost, posts }: 
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               maxLength={1000}
-              placeholder={
-                isSelf ? 'Say something...' : `Write something for ${firstName}...`
-              }
+              placeholder={isSelf ? 'Say something...' : `Write something for ${firstName}...`}
               className="text-on-surface placeholder:text-outline max-h-40 w-full resize-none bg-transparent py-1 text-[15px] outline-none"
             />
 
@@ -106,108 +116,28 @@ export function WallFeed({ profileOwnerId, firstName, isSelf, canPost, posts }: 
           ) : null}
         </form>
       ) : (
-        <p className="text-outline border-outline-variant/60 mt-4 rounded-md border border-dashed p-4 text-label-sm font-normal text-pretty">
+        <p className="text-outline rounded-xl border border-dashed border-outline-variant/60 p-4 text-label-sm font-normal text-pretty">
           {blocked}
         </p>
       )}
 
+      {/* ---- The posts, one card each ------------------------------------- */}
       {posts.length === 0 ? (
-        <p className="text-on-surface-variant bg-surface-container mt-4 rounded-md p-4 text-body-md text-pretty">
+        <p className="text-on-surface-variant rounded-xl border border-outline-variant/40 bg-white p-5 text-body-md text-pretty shadow-sm">
           {isSelf
             ? 'Nothing here yet. Anyone you have studied with can write on your wall.'
             : `Nothing on ${firstName}'s wall yet.`}
         </p>
       ) : (
-        <ul aria-label="Wall posts" className="mt-4 flex flex-col gap-3">
-          {posts.map((post) => (
-            <WallPost key={post.id} post={post} profileOwnerId={profileOwnerId} />
-          ))}
-        </ul>
+        posts.map((post) => (
+          <WallPostCard
+            key={post.id}
+            post={post}
+            profileOwnerId={profileOwnerId}
+            viewerId={viewerId}
+          />
+        ))
       )}
     </section>
   );
 }
-
-/**
- * One post, with removal when the viewer is entitled to it.
- *
- * @param post           - The post.
- * @param profileOwnerId - Whose wall it is on.
- * @returns The list item.
- */
-function WallPost({ post, profileOwnerId }: { post: WallPostView; profileOwnerId: string }) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  return (
-    <li className="border-outline-variant/50 rounded-md border bg-white p-3">
-      <div className="flex items-start gap-3">
-        <MatchAvatar
-          fullName={post.authorName}
-          avatarUrl={post.authorAvatarUrl}
-          size={36}
-          className="border-2"
-        />
-
-        <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-baseline gap-x-2">
-            {post.authorId ? (
-              <Link
-                href={`/students/${post.authorId}`}
-                className="hover:text-brand text-label-md transition-colors"
-              >
-                {post.authorName}
-              </Link>
-            ) : (
-              <span className="text-label-md">{post.authorName}</span>
-            )}
-            <span className="text-outline text-label-sm font-normal">
-              {timeAgo(post.createdAt)}
-            </span>
-          </p>
-
-          {/* whitespace-pre-line, so a wish written over three lines stays that
-              way. Plain text throughout — no markup, no links rendered. */}
-          <p className="text-on-surface mt-1 text-body-md whitespace-pre-line break-words">
-            {post.body}
-          </p>
-
-          {error ? (
-            <p role="alert" className="text-destructive mt-2 flex items-start gap-2 text-label-sm">
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              {error}
-            </p>
-          ) : null}
-        </div>
-
-        {post.canRemove ? (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => {
-              setError(null);
-              startTransition(async () => {
-                const result = await removeWallPost({ postId: post.id, profileOwnerId });
-
-                if (!result.ok) {
-                  setError(result.error.message);
-                }
-              });
-            }}
-            aria-label="Remove this post"
-            className="text-outline hover:text-destructive focus-visible:ring-brand/35 shrink-0 rounded-md p-1 transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
-          >
-            {pending ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Trash2 className="size-4" aria-hidden="true" />
-            )}
-          </button>
-        ) : null}
-      </div>
-    </li>
-  );
-}
-
-/** The icon the empty wall uses, exported so the page can title the section. */
-export const WallIcon = MessageSquare;

@@ -996,6 +996,81 @@ export type Database = {
           },
         ]
       }
+      post_comments: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          post_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          post_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "wall_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_likes: {
+        Row: {
+          created_at: string
+          post_id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          post_id: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          post_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "wall_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_likes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_contacts: {
         Row: {
           created_at: string
@@ -1427,25 +1502,31 @@ export type Database = {
       wall_posts: {
         Row: {
           author_id: string | null
-          body: string
+          body: string | null
           created_at: string
           id: string
+          is_edited: boolean | null
+          original_post_id: string | null
           profile_owner_id: string
           updated_at: string
         }
         Insert: {
           author_id?: string | null
-          body: string
+          body?: string | null
           created_at?: string
           id?: string
+          is_edited?: boolean | null
+          original_post_id?: string | null
           profile_owner_id: string
           updated_at?: string
         }
         Update: {
           author_id?: string | null
-          body?: string
+          body?: string | null
           created_at?: string
           id?: string
+          is_edited?: boolean | null
+          original_post_id?: string | null
           profile_owner_id?: string
           updated_at?: string
         }
@@ -1455,6 +1536,13 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wall_posts_original_post_id_fkey"
+            columns: ["original_post_id"]
+            isOneToOne: false
+            referencedRelation: "wall_posts"
             referencedColumns: ["id"]
           },
           {
@@ -1479,6 +1567,10 @@ export type Database = {
       app_can_see_group: { Args: { target_group_id: string }; Returns: boolean }
       app_can_see_profile: {
         Args: { target_profile_id: string }
+        Returns: boolean
+      }
+      app_can_see_wall_post: {
+        Args: { target_post_id: string }
         Returns: boolean
       }
       app_connection_birthday: {
@@ -1541,6 +1633,7 @@ export type Database = {
         Args: { target_profile_id: string }
         Returns: string
       }
+      app_wall_post_owner: { Args: { target_post_id: string }; Returns: string }
       rpc_approve_group_request: {
         Args: { p_request_id: string }
         Returns: string
