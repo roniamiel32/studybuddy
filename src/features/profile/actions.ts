@@ -301,3 +301,37 @@ export async function updateAvailability(
     return toActionError(error, 'profile.updateAvailability');
   }
 }
+
+/**
+ * Removes the student's profile photo.
+ *
+ * @param previous - Prior result, required by useActionState and unused.
+ * @returns Success, or a failure.
+ */
+export async function removeAvatar(
+  previous: ActionResult<void> | null,
+): Promise<ActionResult<void>> {
+  try {
+    const user = await requireUser();
+    const supabase = await createClient();
+
+    /* 
+     * Setting avatar_url to null in the database removes the photo 
+     * across the entire application shell.
+     */
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_url: null })
+      .eq('id', user.id);
+
+    if (error) {
+      return fail(ERROR_CODES.UNEXPECTED, 'We could not remove that photo. Try again.');
+    }
+
+    revalidatePath('/', 'layout');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'profile.removeAvatar');
+  }
+}

@@ -249,7 +249,7 @@ export function GroupChat({
                   <p className="text-[15px] whitespace-pre-wrap">{message.body}</p>
                 </div>
 
-                <span
+                <span suppressHydrationWarning
                   className={cn(
                     'text-outline text-[10px]',
                     fromMe ? 'self-end pr-1' : 'pl-1',
