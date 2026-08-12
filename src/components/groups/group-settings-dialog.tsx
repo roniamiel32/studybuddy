@@ -152,7 +152,7 @@ export function GroupSettingsDialog({
               id="group-max"
               name="maxParticipants"
               type="number"
-              defaultValue={maxParticipants}
+              defaultValue={maxParticipants ?? ''}
               /* The floor is the people already here. Stated as a bound the input
                  enforces AND as a sentence, because a number input silently
                  refusing to go lower explains nothing. */

@@ -158,7 +158,8 @@ export default async function GroupPage({
               <InvitePanel 
                 groupId={group.id} 
                 classmates={invitable} 
-                members={group.members} /* <--- התוספת שלנו */
+                members={group.members}
+                requests={group.pendingRequests}
                 placesLeft={left} 
               />
             </section>

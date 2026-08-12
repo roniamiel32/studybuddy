@@ -1,61 +1,77 @@
 /**
  * File:        src/components/groups/invite-panel.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: "Invite a classmate" — the admin's side of adding someone.
- *
- *              THE COPY DOES THE HONEST WORK. This does not add anyone; it asks.
- *              Phase 5 refused to let an admin put a student into a group chat
- *              without their say-so, and Phase 7B kept that promise by making an
- *              invitation a request in the other direction.
- * Version:     0.19.2
  */
 
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertCircle, Check, Loader2, UserPlus } from 'lucide-react';
+import { AlertCircle, Check, Loader2, UserPlus, X } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { inviteToGroup } from '@/features/groups/actions';
+import { decideRequest, inviteToGroup } from '@/features/groups/actions';
 
-/** How many names to show before asking them to narrow it down. */
 const VISIBLE_LIMIT = 6;
 
 export interface InvitePanelProps {
   groupId: string;
   classmates: Array<{ profileId: string; fullName: string; avatarUrl: string | null }>;
   members: Array<{ profileId: string; fullName: string; avatarUrl: string | null }>;
-  /** Whether there is room. A full group cannot take another invitation. */
+  requests: Array<{ id: string; requesterId: string }>;
   placesLeft: number;
 }
 
-/**
- * Renders the invitation list.
- *
- * @param props - The group, who could be asked, current members, and whether there is room.
- * @returns The section element.
- */
-export function InvitePanel({ groupId, classmates, members, placesLeft }: InvitePanelProps) {
+export function InvitePanel({
+  groupId,
+  classmates,
+  members,
+  requests,
+  placesLeft,
+}: InvitePanelProps) {
   const [invited, setInvited] = useState<InvitePanelProps['classmates']>([]);
   const [pendingFor, setPendingFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [, startTransition] = useTransition();
 
+  // 1. פונקציה להזמנת סטודנט לקבוצה
   const invite = (classmate: InvitePanelProps['classmates'][number]) => {
     setError(null);
     setPendingFor(classmate.profileId);
 
     startTransition(async () => {
       const result = await inviteToGroup({ groupId, profileId: classmate.profileId });
-
       setPendingFor(null);
-
       if (result.ok) {
         setInvited((current) => [...current, classmate]);
       } else {
+        setError(result.error.message);
+      }
+    });
+  };
+
+  // 2. פונקציה לאישור (V) או דחייה (X) של מי שביקש להצטרף
+  const handleDecision = (requestId: string, decision: 'approved' | 'rejected') => {
+    setError(null);
+    setPendingFor(requestId);
+
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.append('requestId', requestId);
+      formData.append('decision', decision);
+      
+      // אם דחינו את הבקשה, השרת דורש לדעת למה
+      if (decision === 'rejected') {
+        formData.append('reason', 'other');
+        formData.append('customMessage', 'The admin declined the request from the search panel.');
+      }
+
+      const result = await decideRequest(null, formData);
+      setPendingFor(null);
+      
+      if (result && !result.ok) {
         setError(result.error.message);
       }
     });
@@ -68,9 +84,10 @@ export function InvitePanel({ groupId, classmates, members, placesLeft }: Invite
     ),
   ].sort((a, b) => a.fullName.localeCompare(b.fullName));
 
+  // הרשימה תהיה ריקה עד שתקלידי משהו בחיפוש
   const matching = query.trim()
     ? listed.filter((person) => person.fullName.toLowerCase().includes(query.trim().toLowerCase()))
-    : listed;
+    : [];
 
   const visible = [
     ...matching.slice(0, VISIBLE_LIMIT),
@@ -85,7 +102,6 @@ export function InvitePanel({ groupId, classmates, members, placesLeft }: Invite
         They decide whether to join — an invitation is a request in the other direction.
       </p>
 
-      {/* תיבת החיפוש תמיד תוצג */}
       <div className="mb-4 flex flex-col gap-2">
         <Label htmlFor="invite-search">Find a classmate</Label>
         <Input
@@ -104,22 +120,23 @@ export function InvitePanel({ groupId, classmates, members, placesLeft }: Invite
         </p>
       ) : null}
 
-      {listed.length === 0 && !query ? (
-        <p className="text-on-surface-variant mt-2 mb-3 text-body-md text-pretty">
-          Everyone taking this course is either in the group already or has been asked.
-        </p>
-      ) : null}
-
       <ul aria-label="Classmates you can invite" className="flex flex-col gap-3">
         {visible.map((classmate) => {
-          // בדיקה האם המשתמש כבר חבר בקבוצה
           const isAlreadyMember = members.some(
-            (member) => member.profileId === classmate.profileId
+            (member) => member.profileId === classmate.profileId,
+          );
+
+          const pendingRequest = requests.find(
+            (req) => req.requesterId === classmate.profileId,
           );
 
           const asked = invited.some(
             (person) => person.profileId === classmate.profileId,
           );
+
+          const isProcessing =
+            pendingFor === classmate.profileId ||
+            (pendingRequest && pendingFor === pendingRequest.id);
 
           return (
             <li key={classmate.profileId} className="flex items-center gap-3">
@@ -134,16 +151,54 @@ export function InvitePanel({ groupId, classmates, members, placesLeft }: Invite
                 {classmate.fullName}
               </span>
 
+              {/* בדיקה 1: האם כבר בקבוצה? */}
               {isAlreadyMember ? (
-                // תווית עבור מי שכבר חבר בקבוצה
                 <span className="text-outline text-label-sm">
                   Already in the group
                 </span>
+              
+              /* בדיקה 2: האם ביקש להצטרף? אם כן -> מציגים V ו-X */
+              ) : pendingRequest ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-brand mr-1 text-label-sm font-medium">
+                    Wants to join
+                  </span>
+
+                  {isProcessing ? (
+                    <Loader2 className="size-4 animate-spin text-brand" aria-hidden="true" />
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        title="Approve request"
+                        disabled={pendingFor !== null}
+                        onClick={() => handleDecision(pendingRequest.id, 'approved')}
+                        className="text-brand hover:bg-brand/10 rounded-md p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 disabled:opacity-50"
+                      >
+                        <Check className="size-4" aria-hidden="true" />
+                      </button>
+
+                      <button
+                        type="button"
+                        title="Reject request"
+                        disabled={pendingFor !== null}
+                        onClick={() => handleDecision(pendingRequest.id, 'rejected')}
+                        className="text-destructive hover:bg-destructive/10 rounded-md p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/35 disabled:opacity-50"
+                      >
+                        <X className="size-4" aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              
+              /* בדיקה 3: האם אנחנו כבר הזמנו אותו? */
               ) : asked ? (
                 <span className="text-brand flex items-center gap-1.5 text-label-sm">
                   <Check className="size-4" aria-hidden="true" />
                   Invited — waiting for them
                 </span>
+              
+              /* בדיקה 4: סטודנט רגיל -> כפתור הזמנה */
               ) : (
                 <button
                   type="button"

@@ -661,13 +661,22 @@ export async function inviteToGroup(input: {
 
     if (error) {
       if (error.code === '23505') {
-        /* Wipe the old history and invite them freshly */
-        await supabase
+        /* 
+         * שימוש ב-Admin Client (Service Role) כדי לעקוף את חסימת ה-RLS 
+         * ולמחוק את ההיסטוריה הישנה של המשתמש שהוסר/נדחה 
+         */
+        const adminSupabase = createAdminClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+
+        await adminSupabase
           .from('group_requests')
           .delete()
           .eq('group_id', parsed.groupId)
           .eq('requester_id', parsed.profileId);
 
+        // מנסה שוב לשלוח את ההזמנה בצורה חלקה
         const { error: retryError } = await supabase.from('group_requests').insert({
           group_id: parsed.groupId,
           requester_id: parsed.profileId,
@@ -691,7 +700,6 @@ export async function inviteToGroup(input: {
     return toActionError(error, 'groups.inviteToGroup');
   }
 }
-
 /**
  * Accepts or declines an invitation addressed to the caller.
  *

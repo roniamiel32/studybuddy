@@ -358,13 +358,36 @@ export async function getRequest(requestId: string): Promise<GroupRequestView | 
  * @param groupId - The group.
  * @returns Messages, empty when the caller is not a member.
  */
+/**
+ * Messages in a group's chat, oldest first.
+ * Only fetches messages sent AFTER the current user joined the group.
+ *
+ * @param groupId - The group.
+ * @returns Messages, empty when the caller is not a member.
+ */
 export async function getGroupMessages(groupId: string): Promise<GroupMessageView[]> {
+  const user = await requireUser(); // <-- הוספנו את משיכת המשתמש הנוכחי
   const supabase = await createClient();
 
+  // 1. קודם נבדוק מתי בדיוק המשתמש הזה הצטרף לקבוצה
+  const { data: memberData, error: memberError } = await supabase
+    .from('study_group_members')
+    .select('joined_at')
+    .eq('group_id', groupId)
+    .eq('profile_id', user.id)
+    .maybeSingle();
+
+  // אם הוא לא חבר בקבוצה, נחזיר רשימה ריקה
+  if (memberError || !memberData) {
+    return [];
+  }
+
+  // 2. נשלוף רק את ההודעות שנשלחו אחרי או בדיוק ברגע ההצטרפות (gte = Greater Than or Equal)
   const { data, error } = await supabase
     .from('study_group_messages')
     .select('id, group_id, sender_id, body, is_system, created_at, profiles ( full_name )')
     .eq('group_id', groupId)
+    .gte('created_at', memberData.joined_at) // <--- הנה סינון ההיסטוריה!
     .order('created_at', { ascending: true });
 
   if (error || !data) {
@@ -473,7 +496,8 @@ export async function getInvitableClassmates(
     .from('group_requests')
     .select('requester_id')
     .eq('group_id', groupId)
-    .eq('status', 'pending');
+    .eq('status', 'pending')
+    .eq('kind', 'invite');
 
   // NOTE: Removed current members from the 'taken' Set
   const taken = new Set<string>([
