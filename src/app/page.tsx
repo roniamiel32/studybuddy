@@ -46,7 +46,7 @@ const FEATURES = [
     icon: HeartHandshake,
     tint: 'bg-[#f6ebf0] text-grape',
     title: 'The first message, written',
-    body: 'Accept a request and StudyBuddy opens WhatsApp with an opener that already mentions your shared course.',
+    body: 'Accept a request and StudyBuddy opens a chat with an opener that already mentions your shared course.',
   },
 ] as const;
 
