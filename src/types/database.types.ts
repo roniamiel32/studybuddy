@@ -911,6 +911,166 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          actor_id: string | null
+          course_offering_id: string | null
+          created_at: string
+          group_id: string | null
+          id: string
+          meeting_id: string | null
+          occurred_on: string
+          read_at: string | null
+          recipient_id: string
+          secondary_id: string | null
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Insert: {
+          actor_id?: string | null
+          course_offering_id?: string | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          meeting_id?: string | null
+          occurred_on?: string
+          read_at?: string | null
+          recipient_id: string
+          secondary_id?: string | null
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Update: {
+          actor_id?: string | null
+          course_offering_id?: string | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          meeting_id?: string | null
+          occurred_on?: string
+          read_at?: string | null
+          recipient_id?: string
+          secondary_id?: string | null
+          type?: Database["public"]["Enums"]["notification_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_course_offering_id_fkey"
+            columns: ["course_offering_id"]
+            isOneToOne: false
+            referencedRelation: "course_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_secondary_id_fkey"
+            columns: ["secondary_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_comments: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          post_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          post_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "wall_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_likes: {
+        Row: {
+          created_at: string
+          post_id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          post_id: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          post_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "wall_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_likes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_contacts: {
         Row: {
           created_at: string
@@ -1339,6 +1499,61 @@ export type Database = {
           },
         ]
       }
+      wall_posts: {
+        Row: {
+          author_id: string | null
+          body: string | null
+          created_at: string
+          id: string
+          is_edited: boolean | null
+          original_post_id: string | null
+          profile_owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          is_edited?: boolean | null
+          original_post_id?: string | null
+          profile_owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          is_edited?: boolean | null
+          original_post_id?: string | null
+          profile_owner_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wall_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wall_posts_original_post_id_fkey"
+            columns: ["original_post_id"]
+            isOneToOne: false
+            referencedRelation: "wall_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wall_posts_profile_owner_id_fkey"
+            columns: ["profile_owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1354,9 +1569,24 @@ export type Database = {
         Args: { target_profile_id: string }
         Returns: boolean
       }
+      app_can_see_wall_post: {
+        Args: { target_post_id: string }
+        Returns: boolean
+      }
+      app_connection_birthday: {
+        Args: { target_profile_id: string }
+        Returns: {
+          birth_day: number
+          birth_month: number
+        }[]
+      }
       app_current_university_id: { Args: never; Returns: string }
       app_is_connected_to: {
         Args: { other_profile_id: string }
+        Returns: boolean
+      }
+      app_is_connection: {
+        Args: { profile_a: string; profile_b: string }
         Returns: boolean
       }
       app_is_conversation_participant: {
@@ -1403,6 +1633,7 @@ export type Database = {
         Args: { target_profile_id: string }
         Returns: string
       }
+      app_wall_post_owner: { Args: { target_post_id: string }; Returns: string }
       rpc_approve_group_request: {
         Args: { p_request_id: string }
         Returns: string
@@ -1481,6 +1712,7 @@ export type Database = {
         Args: { p_note?: string; p_request_id: string }
         Returns: string
       }
+      rpc_sync_notifications: { Args: never; Returns: undefined }
     }
     Enums: {
       ai_status: "ok" | "error" | "rate_limited" | "invalid_output"
@@ -1501,6 +1733,14 @@ export type Database = {
       group_size_choice: "small" | "large"
       meeting_rsvp: "going" | "cancelled"
       meeting_status: "scheduled" | "cancelled"
+      notification_type:
+        | "group_request"
+        | "group_promotion"
+        | "meeting_scheduled"
+        | "meeting_cancelled"
+        | "new_match"
+        | "birthday"
+        | "match_suggestion"
       rating_sentiment: "positive" | "negative"
       study_environment: "discussion" | "quiet"
       study_format: "in_person" | "remote"
@@ -1656,6 +1896,15 @@ export const Constants = {
       group_size_choice: ["small", "large"],
       meeting_rsvp: ["going", "cancelled"],
       meeting_status: ["scheduled", "cancelled"],
+      notification_type: [
+        "group_request",
+        "group_promotion",
+        "meeting_scheduled",
+        "meeting_cancelled",
+        "new_match",
+        "birthday",
+        "match_suggestion",
+      ],
       rating_sentiment: ["positive", "negative"],
       study_environment: ["discussion", "quiet"],
       study_format: ["in_person", "remote"],

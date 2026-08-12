@@ -168,7 +168,7 @@ test.describe('student profiles', () => {
     await expect(page).toHaveURL(/\/dashboard$/);
   }
 
-  test('a profile shows who they are and what you share', async ({ page }) => {
+  test('a profile opens on the wall, not the study data', async ({ page }) => {
     await signIn(page, viewerEmail);
     await page.goto(`/students/${partnerId}`);
 
@@ -178,16 +178,49 @@ test.describe('student profiles', () => {
     await expect(page.getByText(/Computer Science · Year 2 · \d+/)).toBeVisible();
     await expect(page.getByText('Reichman University')).toBeVisible();
 
+    /* The wall and the connections, which is what Phase 8B made the default. */
+    await expect(page.getByRole('heading', { name: /wall/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Study connections' })).toBeVisible();
+
+    /*
+     * AND THE STUDY DATA IS NOT HERE. This is the assertion that says the
+     * restructure happened rather than merely that the wall was added — the
+     * heavy data moved behind "Learn more", and a profile still rendering it
+     * inline would mean the default view had quietly stayed the same.
+     */
+    await expect(page.getByRole('heading', { name: /How Pavel study/ })).toHaveCount(0);
+    await expect(page.getByText('Compatibility')).toHaveCount(0);
+  });
+
+  test('"Learn more" opens the study data, and the name leads back', async ({ page }) => {
+    await signIn(page, viewerEmail);
+    await page.goto(`/students/${partnerId}`);
+
+    await page.getByRole('link', { name: 'Learn more' }).click();
+    await expect(page).toHaveURL(new RegExp(`/students/${partnerId}/study-info$`));
+
     /* The onboarding answers. */
     await expect(page.getByRole('heading', { name: /How Pavel study/ })).toBeVisible();
     await expect(page.getByText('Morning')).toBeVisible();
     await expect(page.getByText('Quiet study')).toBeVisible();
     await expect(page.getByText('Not on Saturday')).toBeVisible();
 
-    /* Viewer context: the shared course, and a real compatibility score. */
-    await expect(page.getByRole('list', { name: 'Shared courses' })).toContainText('CS-3040');
+    /*
+     * Viewer context: the shared course, and a real compatibility score.
+     *
+     * Asserted by text rather than by the list's accessible name: ExpandableList
+     * renders plain divs, so there is no longer a labelled <ul> here. Worth
+     * knowing — a screen reader now hears these as loose links rather than as a
+     * list of shared courses.
+     */
+    await expect(page.getByText('CS-3040').first()).toBeVisible();
     await expect(page.getByText('Compatibility')).toBeVisible();
     await expect(page.getByText(/^\d+%$/)).toBeVisible();
+
+    /* The way home is the name, as specified — and the wall is what it opens. */
+    await page.getByRole('link', { name: 'Pavel Partner' }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/students/${partnerId}$`));
+    await expect(page.getByRole('heading', { name: /wall/i })).toBeVisible();
   });
 
   test('the profile is reachable from a match card', async ({ page }) => {

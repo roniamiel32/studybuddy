@@ -1,51 +1,46 @@
 /**
  * File:        src/app/(app)/students/[profileId]/page.tsx
  * Authors:     Roni Amiel & Eden Bitran
- * Description: A student's profile.
- * Version:     0.18.2
+ * Description: A student's profile — the wall, which is now the default view.
+ *
+ *              WHAT MOVED, AND WHY. Until Phase 8B this page was the study data:
+ *              compatibility, shared courses, how they study, shared groups. All
+ *              of it now lives at /study-info behind "Learn more", unchanged.
+ *              A profile is a social object first — you arrive knowing the name
+ *              and wanting the person, and you go looking for the study numbers
+ *              once you have decided you are interested.
+ *
+ *              WHAT STAYED: the header, and the study connections. Connections
+ *              are the one piece of study data that is also social — they are
+ *              people, and §15.5 makes them the thing this whole product is
+ *              trying to produce.
+ * Version:     0.20.0
+ *
+ * Modifications:
+ *     0.20.0 - 2026-08-11 - The wall becomes the default view (Phase 8B)
+ *     0.18.2 - 2026-08-11 - Expandable lists, action order
  */
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  BookOpen,
-  CalendarClock,
-  GraduationCap,
-  Handshake,
-  MapPin,
-  Pencil,
-  Sparkles,
-  Users,
-} from 'lucide-react';
+import { Pencil, Sparkles } from 'lucide-react';
 
-import { MessageButton } from '@/components/matching/message-button';
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { MessageButton } from '@/components/matching/message-button';
+import { ProfileHeader } from '@/components/profiles/profile-header';
 import { RatePartnerDialog } from '@/components/profiles/rate-partner-dialog';
+import { WallFeed } from '@/components/profiles/wall-feed';
 import { Chip } from '@/components/ui/chip';
-import { ExpandableList } from '@/components/ui/expandable-list';
-import {
-  connectionsSummary,
-  preferenceSections,
-  profileSubtitle,
-} from '@/features/profiles/profile-view';
+import { connectionsSummary, profileSubtitle } from '@/features/profiles/profile-view';
 import { getStudentProfile } from '@/features/profiles/queries';
+import { requireUser } from '@/lib/supabase/server';
+import { canPostOnWall, getWallPosts } from '@/features/wall/queries';
 
 export const metadata: Metadata = { title: 'Profile' };
 
 /**
- * 0-40: #FF6B7D
- * 41-79: #FF8A50
- * 80-100: #4f7b58ff
- */
-function getCompatibilityColor(score: number): string {
-  if (score <= 40) return '#FF6B7D';
-  if (score <= 79) return '#FF8A50';
-  return '#4f7b58ff';
-}
-
-/**
- * Renders a student's profile.
+ * Renders a student's profile wall.
  *
  * @param params - Route parameters carrying the profile id.
  * @returns The page element.
@@ -62,280 +57,60 @@ export default async function StudentProfilePage({
     notFound();
   }
 
-  const sections = preferenceSections(profile);
-  const connections = connectionsSummary(profile.positiveConnections.length);
+  const [posts, canPost, viewer] = await Promise.all([
+    getWallPosts(profileId),
+    canPostOnWall(profileId),
+    requireUser(),
+  ]);
+
+  const viewerId = viewer.id;
+
+  const firstName = profile.fullName.split(' ')[0];
 
   return (
     <>
-      {/* ---- Who they are --------------------------------------------------- */}
-      <section aria-labelledby="profile-heading" className="clay-card mb-6 overflow-hidden p-0">
-        <div
-          aria-hidden="true"
-          className="h-24 bg-[linear-gradient(135deg,var(--color-grape-bright)_0%,var(--color-brand-bright)_55%,var(--color-brand)_100%)]"
-        />
+      <ProfileHeader
+        profileId={profile.id}
+        fullName={profile.fullName}
+        avatarUrl={profile.avatarUrl}
+        subtitle={profileSubtitle(profile)}
+        universityName={profile.universityName}
+        city={profile.city}
+        weeklyFreeHours={profile.weeklyFreeHours}
+        connectionsSummary={connectionsSummary(profile.positiveConnections.length)}
+        actions={
+          profile.isSelf ? (
+            <Link
+              href="/settings"
+              className="clay-btn-secondary flex items-center gap-2 rounded-md px-4 py-2 text-label-md"
+            >
+              <Pencil className="size-4" aria-hidden="true" />
+              Edit your profile
+            </Link>
+          ) : (
+            <>
+              {profile.canRate ? (
+                <RatePartnerDialog
+                  rateeId={profile.id}
+                  rateeName={firstName}
+                  myRating={profile.myRating}
+                  courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
+                />
+              ) : null}
 
-        <div className="p-6">
-          {/* The avatar overlaps the banner, as a social profile does. */}
-          <div className="-mt-16 mb-4 flex flex-wrap items-end justify-between gap-4">
-            <MatchAvatar
-              fullName={profile.fullName}
-              avatarUrl={profile.avatarUrl}
-              size={96}
-              className="border-4"
-            />
-
-            <div className="flex flex-wrap items-center gap-2">
-              {profile.isSelf ? (
-                <Link
-                  href="/settings"
-                  className="clay-btn-secondary flex items-center gap-2 rounded-md px-4 py-2 text-label-md"
-                >
-                  <Pencil className="size-4" aria-hidden="true" />
-                  Edit your profile
-                </Link>
-              ) : (
-                <>
-                  {profile.canRate ? (
-                    <RatePartnerDialog
-                      rateeId={profile.id}
-                      rateeName={profile.fullName.split(' ')[0]}
-                      myRating={profile.myRating}
-                      courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
-                    />
-                  ) : null}
-
-                  <MessageButton
-                    partnerId={profile.id}
-                    courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
-                    partnerName={profile.fullName}
-                  />
-                </>
-              )}
-            </div>
-          </div>
-
-          <h1 id="profile-heading" className="font-heading text-[28px] leading-9 text-balance">
-            {profile.fullName}
-          </h1>
-          <p className="text-on-surface-variant mt-1 text-body-md">
-            {profileSubtitle(profile)}
-          </p>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Chip tone="brand">
-              <GraduationCap className="size-3" aria-hidden="true" />
-              {profile.universityName}
-            </Chip>
-            {profile.city ? (
-              <Chip tone="neutral">
-                <MapPin className="size-3" aria-hidden="true" />
-                {profile.city}
-              </Chip>
-            ) : null}
-            {profile.weeklyFreeHours > 0 ? (
-              <Chip tone="mint">
-                <CalendarClock className="size-3" aria-hidden="true" />
-                {profile.weeklyFreeHours}h free a week
-              </Chip>
-            ) : null}
-            {connections ? (
-              <Chip tone="sunset">
-                <Handshake className="size-3" aria-hidden="true" />
-                {connections}
-              </Chip>
-            ) : null}
-          </div>
-        </div>
-      </section>
+              <MessageButton
+                partnerId={profile.id}
+                courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
+                partnerName={profile.fullName}
+              />
+            </>
+          )
+        }
+      />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
-        {/* ---- What you have in common (or Your Classes if viewing self) ---- */}
+        {/* ---- Study connections -------------------------------------------- */}
         <div className="flex flex-col gap-6 lg:col-span-5">
-          {!profile.isSelf ? (
-            <section aria-labelledby="common-heading" className="clay-card p-5">
-              <h2 id="common-heading" className="font-heading text-headline-md">
-                You two
-              </h2>
-
-              {profile.compatibilityScore !== null ? (
-                <div className="border-outline-variant/30 bg-surface-container-low mt-4 rounded-lg border p-4">
-                  <p className="text-outline text-label-sm">Compatibility</p>
-                  <p
-                    className="font-heading text-headline-lg font-bold"
-                    style={{
-                      color: getCompatibilityColor(Math.round(profile.compatibilityScore)),
-                    }}
-                  >
-                    {Math.round(profile.compatibilityScore)}%
-                  </p>
-                  <p className="text-on-surface-variant text-label-sm font-normal">
-                    Best across your shared courses, from{' '}
-                    {profile.compatibilityCourseCode}.
-                  </p>
-                </div>
-              ) : (
-                <p className="text-on-surface-variant mt-3 text-body-md text-pretty">
-                  No compatibility score — you may not share a course this semester.
-                </p>
-              )}
-
-              <h3 className="text-on-surface-variant mt-5 mb-2 text-label-md tracking-wider uppercase">
-                Shared courses
-              </h3>
-              {profile.sharedCourses.length > 0 ? (
-                <ExpandableList
-                  limit={2}
-                  items={profile.sharedCourses.map((course) => (
-                    <div key={course.offeringId}>
-                      <Link
-                        href={`/courses/${course.offeringId}`}
-                        className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
-                      >
-                        <BookOpen className="text-brand size-4 shrink-0" aria-hidden="true" />
-                        <span className="min-w-0 flex-1">
-                          <span className="text-label-md block truncate">{course.name}</span>
-                          <span className="text-outline block text-label-sm font-normal">
-                            {course.code}
-                          </span>
-                        </span>
-                      </Link>
-                    </div>
-                  ))}
-                />
-              ) : (
-                <p className="text-on-surface-variant text-body-md">
-                  No courses in common this semester.
-                </p>
-              )}
-
-              <h3 className="text-on-surface-variant mt-5 mb-2 text-label-md tracking-wider uppercase">
-                Shared groups
-              </h3>
-              {profile.sharedGroups.length > 0 ? (
-                <ExpandableList
-                  limit={2}
-                  items={profile.sharedGroups.map((group) => (
-                    <div key={group.id}>
-                      <Link
-                        href={`/groups/${group.id}`}
-                        className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
-                      >
-                        <Users className="text-brand size-4 shrink-0" aria-hidden="true" />
-                        <span className="min-w-0 flex-1">
-                          <span className="text-label-md block truncate">{group.name}</span>
-                          <span className="text-outline block text-label-sm font-normal">
-                            {group.memberCount}{' '}
-                            {group.memberCount === 1 ? 'member' : 'members'}
-                          </span>
-                        </span>
-                      </Link>
-                    </div>
-                  ))}
-                />
-              ) : (
-                <p className="text-on-surface-variant text-body-md">
-                  You are not in a study group together.
-                </p>
-              )}
-            </section>
-          ) : (
-            <section aria-labelledby="my-classes-heading" className="clay-card p-5">
-              <h2 id="my-classes-heading" className="font-heading text-headline-md">
-                Your classes
-              </h2>
-
-              <h3 className="text-on-surface-variant mt-5 mb-2 text-label-md tracking-wider uppercase">
-                Your courses
-              </h3>
-              {profile.sharedCourses.length > 0 ? (
-                <ExpandableList
-                  limit={2}
-                  items={profile.sharedCourses.map((course) => (
-                    <div key={course.offeringId}>
-                      <Link
-                        href={`/courses/${course.offeringId}`}
-                        className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
-                      >
-                        <BookOpen className="text-brand size-4 shrink-0" aria-hidden="true" />
-                        <span className="min-w-0 flex-1">
-                          <span className="text-label-md block truncate">{course.name}</span>
-                          <span className="text-outline block text-label-sm font-normal">
-                            {course.code}
-                          </span>
-                        </span>
-                      </Link>
-                    </div>
-                  ))}
-                />
-              ) : (
-                <p className="text-on-surface-variant text-body-md">
-                  You haven't added any courses yet.
-                </p>
-              )}
-
-              <h3 className="text-on-surface-variant mt-5 mb-2 text-label-md tracking-wider uppercase">
-                Your groups
-              </h3>
-              {profile.sharedGroups.length > 0 ? (
-                <ExpandableList
-                  limit={2}
-                  items={profile.sharedGroups.map((group) => (
-                    <div key={group.id}>
-                      <Link
-                        href={`/groups/${group.id}`}
-                        className="border-outline-variant/60 hover:border-brand/60 focus-visible:ring-brand/35 flex items-center gap-3 rounded-md border bg-white p-3 transition-colors focus-visible:ring-4 focus-visible:outline-none"
-                      >
-                        <Users className="text-brand size-4 shrink-0" aria-hidden="true" />
-                        <span className="min-w-0 flex-1">
-                          <span className="text-label-md block truncate">{group.name}</span>
-                          <span className="text-outline block text-label-sm font-normal">
-                            {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
-                          </span>
-                        </span>
-                      </Link>
-                    </div>
-                  ))}
-                />
-              ) : (
-                <p className="text-on-surface-variant text-body-md">
-                  You are not in any study groups.
-                </p>
-              )}
-            </section>
-          )}
-        </div>
-
-        {/* ---- How they study, and who they have studied with --------------- */}
-        <div className="flex flex-col gap-6 lg:col-span-7">
-          <section aria-labelledby="preferences-heading" className="clay-card p-5">
-            <h2 id="preferences-heading" className="font-heading text-headline-md">
-              How {profile.isSelf ? 'you' : profile.fullName.split(' ')[0]} study
-            </h2>
-
-            {sections.length > 0 ? (
-              <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-                {sections.map((section) => (
-                  <div key={section.heading}>
-                    <dt className="text-outline mb-1.5 text-label-sm">{section.heading}</dt>
-                    <dd className="flex flex-wrap gap-1.5">
-                      {section.values.map((value) => (
-                        <Chip key={value.label} tone="neutral" icon={value.icon}>
-                          {value.label}
-                        </Chip>
-                      ))}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-on-surface-variant mt-3 text-body-md">
-                {profile.isSelf
-                  ? 'You have not answered the study questions yet.'
-                  : 'They have not answered the study questions yet.'}
-              </p>
-            )}
-          </section>
-
           <section aria-labelledby="connections-heading" className="clay-card p-5">
             <div className="mb-1 flex items-center justify-between gap-3">
               <h2 id="connections-heading" className="font-heading text-headline-md">
@@ -347,8 +122,7 @@ export default async function StudentProfilePage({
             </div>
 
             <p className="text-on-surface-variant mt-1 mb-4 text-body-md text-pretty">
-              Classmates who studied with{' '}
-              {profile.isSelf ? 'you' : profile.fullName.split(' ')[0]} and said it
+              Classmates who studied with {profile.isSelf ? 'you' : firstName} and said it
               went well.
             </p>
 
@@ -388,6 +162,18 @@ export default async function StudentProfilePage({
               </p>
             )}
           </section>
+        </div>
+
+        {/* ---- The wall ------------------------------------------------------ */}
+        <div className="flex flex-col gap-6 lg:col-span-7">
+          <WallFeed
+            profileOwnerId={profile.id}
+            firstName={firstName}
+            isSelf={profile.isSelf}
+            canPost={canPost}
+            posts={posts}
+            viewerId={viewerId}
+          />
         </div>
       </div>
     </>
