@@ -14,6 +14,7 @@ import {
   GraduationCap,
   Handshake,
   MapPin,
+  Pencil,
   Sparkles,
   Users,
 } from 'lucide-react';
@@ -87,17 +88,13 @@ export default async function StudentProfilePage({
               {profile.isSelf ? (
                 <Link
                   href="/settings"
-                  className="clay-btn-secondary rounded-md px-4 py-2 text-label-md"
+                  className="clay-btn-secondary flex items-center gap-2 rounded-md px-4 py-2 text-label-md"
                 >
+                  <Pencil className="size-4" aria-hidden="true" />
                   Edit your profile
                 </Link>
               ) : (
                 <>
-                  <MessageButton
-                    partnerId={profile.id}
-                    courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
-                    partnerName={profile.fullName}
-                  />
                   {profile.canRate ? (
                     <RatePartnerDialog
                       rateeId={profile.id}
@@ -105,19 +102,13 @@ export default async function StudentProfilePage({
                       myRating={profile.myRating}
                       courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
                     />
-                  ) : (
-                    /*
-                     * The absence, explained. Since Phase 7D a rating needs a
-                     * finished meeting you both attended, which is not a rule
-                     * anyone can infer from a missing button — and the person
-                     * most likely to look for it is someone who has just spent
-                     * an hour messaging this classmate.
-                     */
-                    <p className="text-outline text-label-sm">
-                      You can rate {profile.fullName.split(' ')[0]} after a study session you
-                      both attend.
-                    </p>
-                  )}
+                  ) : null}
+
+                  <MessageButton
+                    partnerId={profile.id}
+                    courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
+                    partnerName={profile.fullName}
+                  />
                 </>
               )}
             </div>
