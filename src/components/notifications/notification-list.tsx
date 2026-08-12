@@ -15,6 +15,7 @@
  * Version:     0.20.0
  *
  * Modifications:
+ *     0.22.0 - 2026-08-12 - Social and rating types, with a safe fallback
  *     0.20.0 - 2026-08-11 - Initial implementation (Phase 8A)
  */
 
@@ -25,10 +26,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Bell,
+  Cake,
   CalendarClock,
   CalendarX,
-  Cake,
+  Heart,
+  MailPlus,
+  MessageCircle,
+  MessageSquare,
+  PenLine,
+  Repeat2,
   Sparkles,
+  Star,
   UserPlus,
   Users,
 } from 'lucide-react';
@@ -47,15 +55,36 @@ export interface NotificationListProps {
   notifications: NotificationView[];
 }
 
-/** The icon for a type, when there is no person to show an avatar for. */
-const ICONS: Record<NotificationType, typeof Bell> = {
+/**
+ * The icon for a type, when there is no person to show an avatar for.
+ *
+ * PARTIAL AND FALLING BACK TO A BELL, deliberately. The enum lives in the
+ * database and gains values in a migration, so a build can be handed a type it
+ * has never heard of — and an exhaustive Record would only turn that into a
+ * compile error on the day someone adds one, while `ICONS[type]` returning
+ * undefined would crash the row at render. A bell is a fine thing for an
+ * unfamiliar notification to look like.
+ */
+const ICONS: Partial<Record<NotificationType, typeof Bell>> = {
+  // Groups
   group_request: Users,
   group_promotion: Sparkles,
+  group_invite: MailPlus,
+  // Meetings
   meeting_scheduled: CalendarClock,
   meeting_cancelled: CalendarX,
+  rate_partner: Star,
+  // Matching
   new_match: Sparkles,
-  birthday: Cake,
   match_suggestion: UserPlus,
+  // Social
+  birthday: Cake,
+  wall_post: PenLine,
+  post_like: Heart,
+  post_comment: MessageSquare,
+  post_share: Repeat2,
+  comment_reply: MessageCircle,
+  comment_like: Heart,
 };
 
 /**
@@ -73,7 +102,8 @@ export function NotificationList({ notifications }: NotificationListProps) {
   if (notifications.length === 0) {
     return (
       <p className="text-on-surface-variant bg-surface-container rounded-md p-5 text-body-md text-pretty">
-        Nothing yet. Join requests, new matches, sessions and birthdays will show up here.
+        Nothing yet. Requests, matches, sessions, birthdays and anything that happens on
+        your wall will show up here.
       </p>
     );
   }
@@ -101,8 +131,14 @@ export function NotificationList({ notifications }: NotificationListProps) {
       <ul aria-label="Notifications" className="flex flex-col gap-2">
         {notifications.map((notification) => {
           const copy = notificationCopy(notification);
-          const Icon = ICONS[notification.type];
 
+          /* A type this build does not know about is skipped rather than shown
+             half-rendered — see notificationCopy. */
+          if (!copy) {
+            return null;
+          }
+
+          const Icon = ICONS[notification.type] ?? Bell;
           const body = (
             <>
               {notification.actorId ? (
@@ -138,7 +174,7 @@ export function NotificationList({ notifications }: NotificationListProps) {
               ? 'border-outline-variant/50 bg-white'
               : /* Unread is tinted rather than dotted: the whole row is the
                    thing that is new, and a dot on a list of dots is noise. */
-                'border-brand/40 bg-brand-fixed/40',
+              'border-brand/40 bg-brand-fixed/40',
           );
 
           return (

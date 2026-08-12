@@ -18,6 +18,8 @@
  * Version:     0.20.0
  *
  * Modifications:
+ *     0.22.1 - 2026-08-12 - Take the comment back out of the select string, and
+ *                           report the error instead of rendering an empty feed
  *     0.20.0 - 2026-08-11 - Initial implementation (Phase 8A)
  */
 
@@ -27,6 +29,19 @@ import { createClient, requireUser } from '@/lib/supabase/server';
 
 import type { NotificationType, NotificationView } from './notification-view';
 
+/*
+ * The embeds `wall_posts` and `post_comments` carry whose wall the post is on —
+ * the only sensible destination for a like, a comment or a share, since there is
+ * no per-post page to link to.
+ *
+ * NO COMMENTS INSIDE THIS STRING. It is not code, it is the `select` query
+ * parameter PostgREST parses, and supabase-js strips the whitespace out of it
+ * before sending — so a block comment written here arrives as one unbroken run
+ * of letters in the middle of the field list, and fails the whole request with
+ * PGRST100. The failure is invisible from the page: the feed comes back empty
+ * and renders as "nothing yet", while the badge, which embeds nothing, counts on
+ * regardless.
+ */
 const NOTIFICATION_SELECT = `
   id,
   type,
@@ -39,7 +54,9 @@ const NOTIFICATION_SELECT = `
   actor:profiles!notifications_actor_id_fkey ( full_name, avatar_url ),
   secondary:profiles!notifications_secondary_id_fkey ( full_name ),
   study_groups ( name ),
-  meetings ( title )
+  meetings ( title ),
+  wall_posts ( profile_owner_id ),
+  post_comments ( post_id, wall_posts ( profile_owner_id ) )
 `;
 
 interface NotificationRow {
@@ -55,6 +72,8 @@ interface NotificationRow {
   secondary: { full_name: string | null } | null;
   study_groups: { name: string } | null;
   meetings: { title: string } | null;
+  wall_posts: { profile_owner_id: string } | null;
+  post_comments: { post_id: string; wall_posts: { profile_owner_id: string } | null } | null;
 }
 
 /**
@@ -76,6 +95,11 @@ function toNotificationView(row: NotificationRow): NotificationView {
     groupName: row.study_groups?.name ?? null,
     meetingId: row.meeting_id,
     meetingTitle: row.meetings?.title ?? null,
+    /* A comment carries its post's wall; a post carries its own. */
+    wallOwnerId:
+      row.wall_posts?.profile_owner_id ??
+      row.post_comments?.wall_posts?.profile_owner_id ??
+      null,
     isRead: row.read_at !== null,
     createdAt: row.created_at,
   };
@@ -95,12 +119,22 @@ export async function getMyNotifications(limit = 20): Promise<NotificationView[]
      rather than a page behind. */
   await supabase.rpc('rpc_sync_notifications');
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('notifications')
     .select(NOTIFICATION_SELECT)
     .eq('recipient_id', user.id)
     .order('created_at', { ascending: false })
     .limit(limit);
+
+  /*
+   * Reported rather than swallowed, for the same reason the wall reports its
+   * own: a malformed select returns null data and no rows, and an empty feed is
+   * indistinguishable from a feed that failed to load — except by the badge,
+   * which goes on showing a count for notifications the page will not display.
+   */
+  if (error) {
+    throw new Error(`Could not read your notifications: ${error.message}`);
+  }
 
   return ((data ?? []) as unknown as NotificationRow[]).map(toNotificationView);
 }

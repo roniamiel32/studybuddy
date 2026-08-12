@@ -12,17 +12,26 @@
  * Version:     0.20.0
  *
  * Modifications:
+ *     0.22.0 - 2026-08-12 - Social and rating types (Phase 8D)
  *     0.20.0 - 2026-08-11 - Initial implementation (Phase 8A)
  */
 
 export type NotificationType =
   | 'group_request'
   | 'group_promotion'
+  | 'group_invite'
   | 'meeting_scheduled'
   | 'meeting_cancelled'
+  | 'rate_partner'
   | 'new_match'
   | 'birthday'
-  | 'match_suggestion';
+  | 'match_suggestion'
+  | 'wall_post'
+  | 'post_like'
+  | 'post_comment'
+  | 'post_share'
+  | 'comment_reply'
+  | 'comment_like';
 
 export interface NotificationView {
   id: string;
@@ -38,6 +47,11 @@ export interface NotificationView {
   groupName: string | null;
   meetingId: string | null;
   meetingTitle: string | null;
+  /**
+   * Whose wall the post or comment sits on. There is no page for a single post,
+   * so this is where anything about one leads.
+   */
+  wallOwnerId: string | null;
   isRead: boolean;
   createdAt: string;
 }
@@ -53,51 +67,92 @@ export interface NotificationCopy {
 /**
  * Turns a notification into the sentence and link it renders as.
  *
+ * RETURNS NULL FOR A TYPE IT DOES NOT KNOW, and that is the interesting part.
+ * The enum lives in the database and gains values in a migration; a feed built
+ * before that migration will be handed rows it has never heard of. Falling
+ * through to null lets the list skip one row rather than throw and take the
+ * whole page — a student who cannot see one notification is inconvenienced, a
+ * student who cannot see the page is stuck.
+ *
  * @param notification - The notification.
- * @returns Its copy and destination.
+ * @returns Its copy and destination, or null if the type is unknown here.
  */
-export function notificationCopy(notification: NotificationView): NotificationCopy {
+export function notificationCopy(notification: NotificationView): NotificationCopy | null {
   const who = notification.actorName ?? 'A classmate';
   const other = notification.secondaryName ?? 'someone else';
   const group = notification.groupName ?? 'your group';
   const meeting = notification.meetingTitle ?? 'a session';
 
+  /* Anything about a post or a comment leads to the wall it sits on: there is no
+     page for a single post, and the wall is where the thing being talked about
+     actually is. */
+  const wall = notification.wallOwnerId ? `/students/${notification.wallOwnerId}` : null;
+  const actor = notification.actorId ? `/students/${notification.actorId}` : null;
+  const groupHref = notification.groupId ? `/groups/${notification.groupId}` : null;
+
   switch (notification.type) {
+    // ---- Groups ------------------------------------------------------------
     case 'group_request':
       return {
         message: `${who} asked to join ${group}.`,
         cta: 'Review the request',
-        href: notification.groupId ? `/groups/${notification.groupId}` : null,
+        href: groupHref,
       };
 
     case 'group_promotion':
       return {
         message: `You are now an admin of ${group}.`,
         cta: 'Open the group',
-        href: notification.groupId ? `/groups/${notification.groupId}` : null,
+        href: groupHref,
       };
 
+    case 'group_invite':
+      /* Answering happens in the inbox on /groups, not on the group's own page —
+         the invitee cannot open a group they have not joined. */
+      return {
+        message: `${who} invited you to join ${group}.`,
+        cta: 'Accept or decline',
+        href: '/groups',
+      };
+
+    // ---- Meetings ----------------------------------------------------------
     case 'meeting_scheduled':
       return {
         message: `${who} scheduled ${meeting}.`,
         cta: 'See when',
-        href: notification.groupId ? `/groups/${notification.groupId}` : '/dashboard',
+        href: groupHref ?? '/dashboard',
       };
 
     case 'meeting_cancelled':
       return {
         message: `${meeting} was called off.`,
         cta: null,
-        href: notification.groupId ? `/groups/${notification.groupId}` : '/dashboard',
+        href: groupHref ?? '/dashboard',
       };
 
+    case 'rate_partner':
+      return {
+        message: `You finished ${meeting} with ${who}.`,
+        cta: 'Say how it went',
+        href: actor,
+      };
+
+    // ---- Matching ----------------------------------------------------------
     case 'new_match':
       return {
         message: `${who} looks like a strong study match.`,
         cta: 'See their profile',
-        href: notification.actorId ? `/students/${notification.actorId}` : null,
+        href: actor,
       };
 
+    case 'match_suggestion':
+      return {
+        message: `${who} and ${other} could study well together.`,
+        cta: 'Suggest they connect',
+        href: actor,
+      };
+
+    // ---- Social ------------------------------------------------------------
     case 'birthday':
       /*
        * The CTA is the feature. A birthday you can only read is a fact; one that
@@ -106,15 +161,59 @@ export function notificationCopy(notification: NotificationView): NotificationCo
       return {
         message: `It is ${who}'s birthday today.`,
         cta: 'Wish them a happy birthday on their wall!',
-        href: notification.actorId ? `/students/${notification.actorId}` : null,
+        href: actor,
       };
 
-    case 'match_suggestion':
+    case 'wall_post':
       return {
-        message: `${who} and ${other} could study well together.`,
-        cta: 'Suggest they connect',
-        href: notification.actorId ? `/students/${notification.actorId}` : null,
+        message: `${who} wrote on your wall.`,
+        cta: 'Read it',
+        href: wall ?? actor,
       };
+
+    case 'post_like':
+      return {
+        message: `${who} liked your post.`,
+        cta: null,
+        href: wall,
+      };
+
+    case 'post_comment':
+      return {
+        message: `${who} commented on your post.`,
+        cta: 'Read the comment',
+        href: wall,
+      };
+
+    case 'post_share':
+      return {
+        message: `${who} shared your post.`,
+        cta: null,
+        href: wall ?? actor,
+      };
+
+    case 'comment_reply':
+      return {
+        message: `${who} replied to your comment.`,
+        cta: 'Read the reply',
+        href: wall,
+      };
+
+    case 'comment_like':
+      return {
+        message: `${who} liked your comment.`,
+        cta: null,
+        href: wall,
+      };
+
+    default:
+      /*
+       * A type the database has and this build does not. Deliberately silent:
+       * it happens between a migration landing and a deploy, it corrects itself,
+       * and a console full of warnings would not help the student looking at the
+       * page.
+       */
+      return null;
   }
 }
 

@@ -22,7 +22,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertCircle, CalendarClock, Loader2, MapPin, Users } from 'lucide-react';
+import { AlertCircle, CalendarClock, Loader2, MapPin, Users, X } from 'lucide-react';
 
 import { cancelMeeting, setMeetingRsvp } from '@/features/meetings/actions';
 import { formatMeetingWhen, type MeetingView } from '@/features/meetings/meeting-view';
@@ -59,6 +59,7 @@ export function MeetingStrip({ meetings }: MeetingStripProps) {
  * @returns The list item.
  */
 function MeetingCard({ meeting }: { meeting: MeetingView }) {
+  const [isVisible, setIsVisible] = useState(true);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -74,23 +75,35 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
     });
   };
 
+  if (!isVisible) return null;
+
   return (
     <li
       className={cn(
-        'rounded-md border px-3 py-2.5 transition-colors',
+        'relative rounded-md border px-3 py-2.5 transition-colors', 
         meeting.going
           ? 'border-brand/40 bg-brand-fixed/40'
           : 'border-outline-variant/50 bg-surface-container-high/40',
       )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+      {meeting.hasFinished ? (
+        <button
+          onClick={() => setIsVisible(false)}
+          className="absolute right-2 top-2 text-outline hover:text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 rounded-sm"
+          aria-label="Dismiss meeting"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      ) : null}
+
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 pr-6"> 
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-label-md">
             <CalendarClock className="text-brand size-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{meeting.title}</span>
           </p>
 
-          <p className="text-on-surface-variant mt-1 text-label-sm font-normal" suppressHydrationWarning>
+          <p className="text-on-surface-variant mt-1 text-label-sm font-normal">
             {formatMeetingWhen(meeting.startsAt, meeting.endsAt)}
             {meeting.hasFinished ? ' — finished' : null}
           </p>
@@ -118,10 +131,6 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
           ) : null}
         </div>
 
-        {/*
-          * Nothing to do once it has started: the database freezes attendance at
-          * that point, so offering a control here would be offering an error.
-          */}
         {meeting.hasFinished ? null : (
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <button

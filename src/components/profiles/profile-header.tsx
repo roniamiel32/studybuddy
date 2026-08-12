@@ -156,7 +156,7 @@ export function ProfileHeader({
         {!onStudyInfo ? (
           <Link
             href={`${wallHref}/study-info`}
-            className="clay-btn-secondary mt-5 inline-flex items-center gap-2 rounded-md px-4 py-2 text-label-md"
+            className="mt-5 inline-block px-3 py-1 rounded-md text-sm text-neutral-600 transition-colors duration-200 hover:bg-neutral-100 hover:text-indigo-900"
           >
             Learn more
           </Link>
