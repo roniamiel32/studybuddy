@@ -90,7 +90,7 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
             <span className="truncate">{meeting.title}</span>
           </p>
 
-          <p className="text-on-surface-variant mt-1 text-label-sm font-normal">
+          <p className="text-on-surface-variant mt-1 text-label-sm font-normal" suppressHydrationWarning>
             {formatMeetingWhen(meeting.startsAt, meeting.endsAt)}
             {meeting.hasFinished ? ' — finished' : null}
           </p>
