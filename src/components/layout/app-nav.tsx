@@ -33,7 +33,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { GraduationCap, MessageSquare, Sparkles, UserRound, Users } from 'lucide-react';
+import { Bell, GraduationCap, MessageSquare, Sparkles, UserRound, Users } from 'lucide-react';
 
 import {
   UnreadDot,
@@ -54,6 +54,9 @@ const DESTINATIONS = [
   { href: '/courses', label: 'Courses', icon: GraduationCap },
   { href: '/groups', label: 'Groups', icon: Users, requests: true },
   { href: '/messages', label: 'Messages', icon: MessageSquare, badge: true },
+  /* Phase 8A. Last of the four, because it is the one you check rather than the
+     one you go to — the others are places, this is a list of what happened. */
+  { href: '/notifications', label: 'Notifications', icon: Bell, notifications: true },
 ] as const;
 
 /** Match is the call to action, so it is not in DESTINATIONS. */
@@ -64,6 +67,8 @@ export interface NavProps {
   unreadCount: number;
   /** Join requests waiting on this student as a group admin. */
   pendingRequestCount: number;
+  /** Unread notifications, server-rendered for the same reason. */
+  notificationCount: number;
   viewerId: string;
 }
 
@@ -122,7 +127,12 @@ export function MatchButton() {
  * @param viewerId            - The signed-in student.
  * @returns The nav element.
  */
-export function DesktopNav({ unreadCount, pendingRequestCount, viewerId }: NavProps) {
+export function DesktopNav({
+  unreadCount,
+  pendingRequestCount,
+  notificationCount,
+  viewerId,
+}: NavProps) {
   const pathname = usePathname();
   const unread = useUnreadCount(unreadCount, viewerId);
   const requests = usePendingRequestCount(pendingRequestCount, viewerId);
@@ -151,6 +161,9 @@ export function DesktopNav({ unreadCount, pendingRequestCount, viewerId }: NavPr
               <Icon className="size-4" aria-hidden="true" />
               {'badge' in destination ? <UnreadDot count={unread} /> : null}
               {'requests' in destination ? <UnreadDot count={requests} /> : null}
+              {'notifications' in destination ? (
+                <UnreadDot count={notificationCount} />
+              ) : null}
             </span>
             {label}
             {/* After the label, so the link announces "Messages, 2 unread
@@ -158,6 +171,9 @@ export function DesktopNav({ unreadCount, pendingRequestCount, viewerId }: NavPr
             {'badge' in destination ? <UnreadText count={unread} /> : null}
             {'requests' in destination ? (
               <UnreadText count={requests} noun="join request" />
+            ) : null}
+            {'notifications' in destination ? (
+              <UnreadText count={notificationCount} noun="notification" />
             ) : null}
           </Link>
         );
@@ -175,7 +191,12 @@ export function DesktopNav({ unreadCount, pendingRequestCount, viewerId }: NavPr
  * @param viewerId            - The signed-in student.
  * @returns The nav element.
  */
-export function MobileNav({ unreadCount, pendingRequestCount, viewerId }: NavProps) {
+export function MobileNav({
+  unreadCount,
+  pendingRequestCount,
+  notificationCount,
+  viewerId,
+}: NavProps) {
   const pathname = usePathname();
   const unread = useUnreadCount(unreadCount, viewerId);
   const requests = usePendingRequestCount(pendingRequestCount, viewerId);
@@ -238,6 +259,12 @@ export function MobileNav({ unreadCount, pendingRequestCount, viewerId }: NavPro
               <>
                 <UnreadDot count={unread} variant="mobile" />
                 <UnreadText count={unread} />
+              </>
+            ) : null}
+            {'notifications' in destination ? (
+              <>
+                <UnreadDot count={notificationCount} variant="mobile" />
+                <UnreadText count={notificationCount} noun="notification" />
               </>
             ) : null}
             {'requests' in destination ? (

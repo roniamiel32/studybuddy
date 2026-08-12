@@ -232,13 +232,13 @@ test.describe('running a study group', () => {
     await page.getByRole('button', { name: 'Make admin' }).click();
 
     /*
-     * Waits on a control that only exists AFTER the promotion: "Step down" is
+     * Waits on a control that only exists AFTER the promotion: "Remove admin" is
      * offered to the founder for an admin, and to nobody else. Waiting on the
      * word "Admin" instead would pass instantly against the "Make admin" button
      * still on screen, and the database check below would then run before the
      * action had finished.
      */
-    await expect(page.getByRole('button', { name: 'Step down' })).toBeVisible({
+    await expect(page.getByRole('button', { name: 'Remove admin' })).toBeVisible({
       timeout: COMPILE_BUDGET,
     });
 
@@ -261,7 +261,7 @@ test.describe('running a study group', () => {
     /* exact, because the fixture is called "Fiona Founder" and the rank chip is
        called "Founder" — without it this matches the name as well as the chip. */
     await expect(page.getByText('Founder', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Step down' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Remove admin' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Remove Fiona Founder/ })).toHaveCount(0);
   });
 
@@ -269,7 +269,7 @@ test.describe('running a study group', () => {
     await signIn(page, founderEmail);
     await page.goto(`/groups/${groupId}`);
 
-    await page.getByRole('button', { name: 'Step down' }).click();
+    await page.getByRole('button', { name: 'Remove admin' }).click();
 
     await expect(page.getByRole('button', { name: 'Make admin' })).toBeVisible({
       timeout: COMPILE_BUDGET,

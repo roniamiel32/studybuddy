@@ -24,6 +24,7 @@ import Link from 'next/link';
 
 import { Logo } from '@/components/ui/logo';
 import { DesktopNav, MatchButton, MobileNav } from '@/components/layout/app-nav';
+import { getUnreadNotificationCount } from '@/features/notifications/queries';
 import { UserMenu } from '@/components/layout/user-menu';
 import { getUnreadCount } from '@/features/chat/queries';
 import { getPendingRequestCount } from '@/features/groups/queries';
@@ -38,12 +39,16 @@ import { requireUser } from '@/lib/supabase/server';
  * @returns The layout element.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const [profile, user, unreadCount, pendingRequestCount] = await Promise.all([
-    getOnboardingProfile(),
-    requireUser(),
-    getUnreadCount(),
-    getPendingRequestCount(),
-  ]);
+  const [profile, user, unreadCount, pendingRequestCount, notificationCount] =
+    await Promise.all([
+      getOnboardingProfile(),
+      requireUser(),
+      getUnreadCount(),
+      getPendingRequestCount(),
+      /* Counts only — see the note in features/notifications/queries.ts on why
+         the badge deliberately does not materialise derived notifications. */
+      getUnreadNotificationCount(),
+    ]);
 
   return (
     <div className="bg-pattern flex min-h-full flex-1 flex-col">
@@ -71,6 +76,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <DesktopNav
               unreadCount={unreadCount}
               pendingRequestCount={pendingRequestCount}
+              notificationCount={notificationCount}
               viewerId={user.id}
             />
           </div>
@@ -100,6 +106,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <MobileNav
         unreadCount={unreadCount}
         pendingRequestCount={pendingRequestCount}
+        notificationCount={notificationCount}
         viewerId={user.id}
       />
     </div>
