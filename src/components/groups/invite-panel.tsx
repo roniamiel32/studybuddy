@@ -2,7 +2,12 @@
  * File:        src/components/groups/invite-panel.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: "Invite a classmate" — the admin's side of adding someone.
- * Version:     0.20.0
+ *
+ *              THE COPY DOES THE HONEST WORK. This does not add anyone; it asks.
+ *              Phase 5 refused to let an admin put a student into a group chat
+ *              without their say-so, and Phase 7B kept that promise by making an
+ *              invitation a request in the other direction.
+ * Version:     0.19.2
  */
 
 'use client';
@@ -15,16 +20,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { inviteToGroup } from '@/features/groups/actions';
 
+/** How many names to show before asking them to narrow it down. */
 const VISIBLE_LIMIT = 6;
 
 export interface InvitePanelProps {
   groupId: string;
   classmates: Array<{ profileId: string; fullName: string; avatarUrl: string | null }>;
-  members?: Array<{ profileId: string; fullName: string; avatarUrl: string | null }>;
+  members: Array<{ profileId: string; fullName: string; avatarUrl: string | null }>;
+  /** Whether there is room. A full group cannot take another invitation. */
   placesLeft: number;
 }
 
-export function InvitePanel({ groupId, classmates, members = [], placesLeft }: InvitePanelProps) {
+/**
+ * Renders the invitation list.
+ *
+ * @param props - The group, who could be asked, current members, and whether there is room.
+ * @returns The section element.
+ */
+export function InvitePanel({ groupId, classmates, members, placesLeft }: InvitePanelProps) {
   const [invited, setInvited] = useState<InvitePanelProps['classmates']>([]);
   const [pendingFor, setPendingFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,16 +61,10 @@ export function InvitePanel({ groupId, classmates, members = [], placesLeft }: I
     });
   };
 
-  /* שילוב של תלמידים פנויים, מוזמנים, וחברים שכבר קיימים בקבוצה כדי שיופיעו בחיפוש */
   const listed = [
     ...classmates,
     ...invited.filter(
       (person) => !classmates.some((classmate) => classmate.profileId === person.profileId),
-    ),
-    ...members.filter(
-      (member) => 
-        !classmates.some((c) => c.profileId === member.profileId) &&
-        !invited.some((i) => i.profileId === member.profileId)
     ),
   ].sort((a, b) => a.fullName.localeCompare(b.fullName));
 
@@ -78,6 +85,7 @@ export function InvitePanel({ groupId, classmates, members = [], placesLeft }: I
         They decide whether to join — an invitation is a request in the other direction.
       </p>
 
+      {/* תיבת החיפוש תמיד תוצג */}
       <div className="mb-4 flex flex-col gap-2">
         <Label htmlFor="invite-search">Find a classmate</Label>
         <Input
@@ -104,8 +112,14 @@ export function InvitePanel({ groupId, classmates, members = [], placesLeft }: I
 
       <ul aria-label="Classmates you can invite" className="flex flex-col gap-3">
         {visible.map((classmate) => {
-          const isMember = members.some((m) => m.profileId === classmate.profileId);
-          const asked = invited.some((person) => person.profileId === classmate.profileId);
+          // בדיקה האם המשתמש כבר חבר בקבוצה
+          const isAlreadyMember = members.some(
+            (member) => member.profileId === classmate.profileId
+          );
+
+          const asked = invited.some(
+            (person) => person.profileId === classmate.profileId,
+          );
 
           return (
             <li key={classmate.profileId} className="flex items-center gap-3">
@@ -120,10 +134,10 @@ export function InvitePanel({ groupId, classmates, members = [], placesLeft }: I
                 {classmate.fullName}
               </span>
 
-              {isMember ? (
-                <span className="text-green-600 flex items-center gap-1.5 text-label-sm font-medium">
-                  <Check className="size-4" aria-hidden="true" />
-                  In group
+              {isAlreadyMember ? (
+                // תווית עבור מי שכבר חבר בקבוצה
+                <span className="text-outline text-label-sm">
+                  Already in the group
                 </span>
               ) : asked ? (
                 <span className="text-brand flex items-center gap-1.5 text-label-sm">

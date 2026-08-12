@@ -149,16 +149,20 @@ export default async function GroupPage({
             </ul>
           </section>
 
-          {/* ---- Inviting ----------------------------------------------------- */}
+{/* ---- Inviting ----------------------------------------------------- */}
           {group.isAdmin ? (
             <section aria-labelledby="invite-heading" className="clay-card p-5">
               <h2 id="invite-heading" className="font-heading text-headline-md">
                 Invite a classmate
               </h2>
-              <InvitePanel groupId={group.id} classmates={invitable} placesLeft={left} />
+              <InvitePanel 
+                groupId={group.id} 
+                classmates={invitable} 
+                members={group.members} /* <--- התוספת שלנו */
+                placesLeft={left} 
+              />
             </section>
           ) : null}
-
           {/* ---- The admin's requests ----------------------------------------- */}
           {group.isAdmin ? (
             <section aria-labelledby="requests-heading" className="clay-card p-5">

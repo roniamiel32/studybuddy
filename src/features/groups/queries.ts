@@ -443,6 +443,16 @@ export async function getMyInvitations(): Promise<GroupRequestView[]> {
  * @param groupId - The group being staffed.
  * @returns Classmates who could be asked, by name.
  */
+/**
+ * Classmates an admin could still invite into a group.
+ *
+ * Everyone enrolled in the group's course, minus anyone
+ * who already has a live pending request or invitation.
+ * Members are included so the UI can tag them as "Already in the group".
+ *
+ * @param groupId - The group being staffed.
+ * @returns Classmates who could be asked, by name.
+ */
 export async function getInvitableClassmates(
   groupId: string,
 ): Promise<Array<{ profileId: string; fullName: string; avatarUrl: string | null }>> {
@@ -458,14 +468,15 @@ export async function getInvitableClassmates(
     return [];
   }
 
+  // NOTE: Changed to only exclude 'pending' status, removing 'approved'
   const { data: live } = await supabase
     .from('group_requests')
     .select('requester_id')
     .eq('group_id', groupId)
-    .in('status', ['pending', 'approved']);
+    .eq('status', 'pending');
 
+  // NOTE: Removed current members from the 'taken' Set
   const taken = new Set<string>([
-    ...(group.study_group_members ?? []).map((member) => member.profile_id),
     ...(live ?? []).map((row) => row.requester_id),
   ]);
 
