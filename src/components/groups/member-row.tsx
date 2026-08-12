@@ -22,6 +22,7 @@
  */
 
 'use client';
+import Link from 'next/link';
 
 import { useState, useTransition } from 'react';
 import { AlertCircle, Crown, Loader2, Shield, UserMinus, Check, X } from 'lucide-react';
@@ -81,105 +82,113 @@ export function MemberRow({
     !member.isFounder && !isSelf && (member.isAdmin ? viewerIsFounder : viewerIsAdmin);
 
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <MatchAvatar
-        fullName={member.fullName}
-        avatarUrl={member.avatarUrl}
-        size={36}
-        className="border-2"
-      />
+   <li className="flex flex-wrap items-center justify-between gap-y-2">
+      {/* 1. הקישור לעמוד הפרופיל: עוטף רק את התמונה והשם */}
+      <Link 
+        href={`/students/${member.profileId}`} 
+        className="flex flex-1 min-w-0 items-center gap-3 rounded-md p-1.5 transition-colors hover:bg-surface-container-low"
+      >
+        <MatchAvatar
+          fullName={member.fullName}
+          avatarUrl={member.avatarUrl}
+          size={36}
+          className="border-2"
+        />
+        <span className="truncate text-label-md">
+          {isSelf ? 'You' : member.fullName}
+        </span>
+      </Link>
 
-      <span className="min-w-0 flex-1 truncate text-label-md">
-        {isSelf ? 'You' : member.fullName}
-      </span>
+      {/* 2. התיוגים והכפתורים: יושבים בחוץ ולא לחיצים כחלק מהקישור */}
+      <div className="flex shrink-0 items-center gap-3 pl-2">
+        {member.isFounder ? (
+          <Chip tone="brand">
+            <Crown className="size-3" aria-hidden="true" />
+            Founder
+          </Chip>
+        ) : member.isAdmin ? (
+          <Chip tone="mint">
+            <Shield className="size-3" aria-hidden="true" />
+            Admin
+          </Chip>
+        ) : null}
 
-      {member.isFounder ? (
-        <Chip tone="brand">
-          <Crown className="size-3" aria-hidden="true" />
-          Founder
-        </Chip>
-      ) : member.isAdmin ? (
-        <Chip tone="mint">
-          <Shield className="size-3" aria-hidden="true" />
-          Admin
-        </Chip>
-      ) : null}
+        {canPromote || canDemote || canRemove ? (
+          <span className="flex items-center gap-2">
+            {pending ? (
+              <Loader2 className="text-outline size-3.5 animate-spin" aria-hidden="true" />
+            ) : null}
 
-      {canPromote || canDemote || canRemove ? (
-        <span className="flex items-center gap-2">
-          {pending ? (
-            <Loader2 className="text-outline size-3.5 animate-spin" aria-hidden="true" />
-          ) : null}
-
-          {canPromote ? (
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                act(() => setMemberRole({ groupId, profileId: member.profileId, role: 'admin' }))
-              }
-              className="text-on-surface-variant hover:text-brand focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
-            >
-              Make admin
-            </button>
-          ) : null}
-
-          {canDemote ? (
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                act(() => setMemberRole({ groupId, profileId: member.profileId, role: 'member' }))
-              }
-              className="text-on-surface-variant hover:text-brand focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
-            >
-              Remove admin
-            </button>
-          ) : null}
-
-          {canRemove ? (
-            isConfirmingRemove ? (
-              <span className="flex items-center gap-1.5 ml-1">
-                <span className="text-label-sm text-outline pr-1">Remove?</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    act(() => removeMember({ groupId, profileId: member.profileId }));
-                    setIsConfirmingRemove(false);
-                  }}
-                  className="text-red-500 hover:text-red-700 transition-colors focus-visible:outline-none p-1"
-                  aria-label="Confirm removal"
-                >
-                  <Check className="size-4" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsConfirmingRemove(false)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors focus-visible:outline-none p-1"
-                  aria-label="Cancel removal"
-                >
-                  <X className="size-4" aria-hidden="true" />
-                </button>
-              </span>
-            ) : (
+            {canPromote ? (
               <button
                 type="button"
                 disabled={pending}
-                onClick={() => setIsConfirmingRemove(true)}
-                aria-label={`Remove ${member.fullName} from the group`}
-                className="text-outline hover:text-destructive focus-visible:ring-brand/35 rounded-md p-1 transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
+                onClick={() =>
+                  act(() => setMemberRole({ groupId, profileId: member.profileId, role: 'admin' }))
+                }
+                className="text-on-surface-variant hover:text-brand focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
               >
-                <UserMinus className="size-4" aria-hidden="true" />
+                Make admin
               </button>
-            )
-          ) : null}
-        </span>
-      ) : null}
+            ) : null}
+
+            {canDemote ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  act(() => setMemberRole({ groupId, profileId: member.profileId, role: 'member' }))
+                }
+                className="text-on-surface-variant hover:text-brand focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
+              >
+                Remove admin
+              </button>
+            ) : null}
+
+            {canRemove ? (
+              isConfirmingRemove ? (
+                <span className="flex items-center gap-1.5 ml-1">
+                  <span className="text-label-sm text-outline pr-1">Remove?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      act(() => removeMember({ groupId, profileId: member.profileId }));
+                      setIsConfirmingRemove(false);
+                    }}
+                    className="text-red-500 hover:text-red-700 transition-colors focus-visible:outline-none p-1"
+                    aria-label="Confirm removal"
+                  >
+                    <Check className="size-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmingRemove(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors focus-visible:outline-none p-1"
+                    aria-label="Cancel removal"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => setIsConfirmingRemove(true)}
+                  aria-label={`Remove ${member.fullName} from the group`}
+                  className="text-outline hover:text-destructive focus-visible:ring-brand/35 rounded-md p-1 transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
+                >
+                  <UserMinus className="size-4" aria-hidden="true" />
+                </button>
+              )
+            ) : null}
+          </span>
+        ) : null}
+      </div>
 
       {error ? (
         <p
           role="alert"
-          className="text-destructive flex w-full items-start gap-2 text-label-sm"
+          className="text-destructive flex w-full items-start gap-2 text-label-sm mt-1"
         >
           <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
           {error}
