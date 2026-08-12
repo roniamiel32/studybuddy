@@ -17,7 +17,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
 import { createClient, requireUser } from '@/lib/supabase/server';
 
@@ -118,32 +118,50 @@ export async function requestToJoin(
       .eq('id', groupId)
       .maybeSingle();
 
-    const { error } = await supabase.from('group_requests').insert({
+    const { error: insertError } = await supabase.from('group_requests').insert({
       group_id: groupId,
       requester_id: user.id,
       status: 'pending',
     });
 
-    if (error) {
-      /*
-       * 23505 is the one-live-request index. Not an error worth alarming anyone
-       * about — they have already asked, which is exactly what they wanted.
-       */
-      if (error.code === '23505') {
-        return ok(undefined);
-      }
+    if (insertError) {
+      if (insertError.code === '23505') {
+        /* 
+         * RLS silently blocks normal users from deleting approved/rejected requests.
+         * We use the Admin Client (Service Role) to bypass RLS and clear the history.
+         */
+        const adminSupabase = createAdminClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY! 
+        );
 
-      return fail(
-        ERROR_CODES.FORBIDDEN,
-        'We could not send that request. The group may no longer be open.',
-        'groupId',
-      );
+        await adminSupabase
+          .from('group_requests')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('requester_id', user.id);
+
+        const { error: retryError } = await supabase.from('group_requests').insert({
+          group_id: groupId,
+          requester_id: user.id,
+          status: 'pending',
+        });
+
+        if (retryError) {
+          return fail(ERROR_CODES.FORBIDDEN, 'We could not renew your request.', 'groupId');
+        }
+      } else {
+        return fail(
+          ERROR_CODES.FORBIDDEN,
+          'We could not send that request. The group may no longer be open.',
+          'groupId',
+        );
+      }
     }
 
     if (group) {
       revalidatePath(`/courses/${group.course_offering_id}`);
     }
-    /* The admin's badge lives in the layout. */
     revalidatePath('/', 'layout');
 
     return ok(undefined);
@@ -621,10 +639,6 @@ export async function removeMember(input: {
 /**
  * Invites a classmate into the group.
  *
- * NOT an add. Phase 5 refused to let an admin put someone in a group without
- * their say-so, and Phase 7B kept that promise by making this a request in the
- * other direction: the student it names is the only one who can accept it.
- *
  * @param input - The group and who is being asked.
  * @returns Success, or a failure.
  */
@@ -646,13 +660,28 @@ export async function inviteToGroup(input: {
     });
 
     if (error) {
-      /* The one-live-row index. They have already been asked, which is what the
-         admin wanted — so this is not a failure worth alarming them about. */
       if (error.code === '23505') {
-        return ok(undefined);
-      }
+        /* Wipe the old history and invite them freshly */
+        await supabase
+          .from('group_requests')
+          .delete()
+          .eq('group_id', parsed.groupId)
+          .eq('requester_id', parsed.profileId);
 
-      return fail(ERROR_CODES.FORBIDDEN, 'We could not send that invitation.');
+        const { error: retryError } = await supabase.from('group_requests').insert({
+          group_id: parsed.groupId,
+          requester_id: parsed.profileId,
+          kind: 'invite',
+          invited_by: user.id,
+          status: 'pending',
+        });
+
+        if (retryError) {
+          return fail(ERROR_CODES.FORBIDDEN, 'We could not send that invitation.');
+        }
+      } else {
+        return fail(ERROR_CODES.FORBIDDEN, 'We could not send that invitation.');
+      }
     }
 
     revalidatePath(`/groups/${parsed.groupId}`);

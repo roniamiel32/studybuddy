@@ -172,8 +172,7 @@ export function canRequestToJoin(group: StudyGroupView): boolean {
     !group.isMember &&
     group.status === 'open' &&
     !isFull(group) &&
-    group.myRequestStatus !== 'pending' &&
-    group.myRequestStatus !== 'approved'
+    group.myRequestStatus !== 'pending'
   );
 }
 
