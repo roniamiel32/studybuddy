@@ -5,6 +5,7 @@
  * Version:     0.21.0
  *
  * Modifications:
+ *     0.22.0 - 2026-08-12 - Replies and comment likes (Phase 8D)
  *     0.21.0 - 2026-08-12 - Likes, comments, sharing (Phase 8C)
  *     0.20.0 - 2026-08-11 - Initial implementation (Phase 8B)
  */
@@ -18,6 +19,14 @@ export interface WallCommentView {
   authorAvatarUrl: string | null;
   /** The author, or the owner of the wall the post sits on. */
   canRemove: boolean;
+  likeCount: number;
+  likedByMe: boolean;
+  /**
+   * Answers to this comment. Always empty on a reply — the schema allows one
+   * level, so the shape here says so rather than inviting a recursive renderer
+   * that can never be exercised.
+   */
+  replies: WallCommentView[];
 }
 
 /** The post being passed on, when this one is a share. */

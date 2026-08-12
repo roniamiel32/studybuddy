@@ -19,7 +19,7 @@ import 'server-only';
 
 import { createClient, requireUser } from '@/lib/supabase/server';
 
-import type { WallPostView } from './wall-view';
+import type { WallCommentView, WallPostView } from './wall-view';
 
 /*
  * The shared original is hinted by COLUMN (`original:original_post_id`) rather
@@ -44,8 +44,9 @@ const POST_SELECT = `
   profiles!wall_posts_author_id_fkey ( full_name, avatar_url ),
   post_likes ( profile_id ),
   post_comments (
-    id, body, created_at, author_id,
-    profiles!post_comments_author_id_fkey ( full_name, avatar_url )
+    id, body, created_at, author_id, parent_comment_id,
+    profiles!post_comments_author_id_fkey ( full_name, avatar_url ),
+    comment_likes ( profile_id )
   ),
   original:original_post_id (
     id, body, created_at, author_id, profile_owner_id,
@@ -59,7 +60,9 @@ interface CommentRow {
   body: string;
   created_at: string;
   author_id: string | null;
+  parent_comment_id: string | null;
   profiles: { full_name: string | null; avatar_url: string | null } | null;
+  comment_likes: { profile_id: string }[];
 }
 
 interface WallPostRow {
@@ -82,6 +85,68 @@ interface WallPostRow {
     profiles: { full_name: string | null; avatar_url: string | null } | null;
     owner: { full_name: string | null } | null;
   } | null;
+}
+
+/**
+ * Nests replies under the comment they answer.
+ *
+ * ONE PASS, ONE LEVEL. The schema allows a reply only on a top-level comment, so
+ * this is a partition rather than a tree walk — and a recursive builder here
+ * would be dead code pretending to handle depth the database refuses.
+ *
+ * Everything arrives in one embedded select, so grouping in memory costs nothing
+ * a second query would not cost more.
+ *
+ * @param rows           - Every comment on the post, in any order.
+ * @param viewerId       - Who is looking, for the like state and removal rights.
+ * @param profileOwnerId - Whose wall it is; they may remove anything on it.
+ * @returns Top-level comments, oldest first, each carrying its replies.
+ */
+function threadComments(
+  rows: CommentRow[],
+  viewerId: string,
+  profileOwnerId: string,
+): WallCommentView[] {
+  const toView = (row: CommentRow): WallCommentView => ({
+    id: row.id,
+    body: row.body,
+    createdAt: row.created_at,
+    authorId: row.author_id,
+    authorName: row.profiles?.full_name ?? 'A former student',
+    authorAvatarUrl: row.profiles?.avatar_url ?? null,
+    canRemove: row.author_id === viewerId || profileOwnerId === viewerId,
+    likeCount: row.comment_likes.length,
+    likedByMe: row.comment_likes.some((like) => like.profile_id === viewerId),
+    replies: [],
+  });
+
+  const oldestFirst = (a: { createdAt: string }, b: { createdAt: string }) =>
+    a.createdAt.localeCompare(b.createdAt);
+
+  const tops = new Map<string, WallCommentView>();
+
+  for (const row of rows) {
+    if (row.parent_comment_id === null) {
+      tops.set(row.id, toView(row));
+    }
+  }
+
+  for (const row of rows) {
+    if (row.parent_comment_id !== null) {
+      /* A reply whose parent is not in this post cannot happen — the trigger
+         refuses it — but dropping rather than throwing keeps a stray row from
+         taking the whole wall down with it. */
+      tops.get(row.parent_comment_id)?.replies.push(toView(row));
+    }
+  }
+
+  const threads = [...tops.values()].sort(oldestFirst);
+
+  for (const thread of threads) {
+    thread.replies.sort(oldestFirst);
+  }
+
+  return threads;
 }
 
 /**
@@ -131,17 +196,7 @@ export async function getWallPosts(
     canEdit: row.author_id === user.id,
     likeCount: row.post_likes.length,
     likedByMe: row.post_likes.some((like) => like.profile_id === user.id),
-    comments: [...row.post_comments]
-      .sort((a, b) => a.created_at.localeCompare(b.created_at))
-      .map((comment) => ({
-        id: comment.id,
-        body: comment.body,
-        createdAt: comment.created_at,
-        authorId: comment.author_id,
-        authorName: comment.profiles?.full_name ?? 'A former student',
-        authorAvatarUrl: comment.profiles?.avatar_url ?? null,
-        canRemove: comment.author_id === user.id || profileOwnerId === user.id,
-      })),
+    comments: threadComments(row.post_comments, user.id, profileOwnerId),
     shared: row.original
       ? {
           postId: row.original.id,

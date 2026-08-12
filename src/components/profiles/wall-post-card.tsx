@@ -21,7 +21,7 @@
 
 'use client';
 
-import { useActionState, useRef, useState, useTransition } from 'react';
+import { useActionState, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -31,16 +31,14 @@ import {
   MessageCircle,
   Pencil,
   Repeat2,
-  Send,
   Trash2,
   X,
 } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { CommentThread } from '@/components/profiles/comment-thread';
 import {
-  createComment,
   editWallPost,
-  removeComment,
   removeWallPost,
   shareWallPost,
   togglePostLike,
@@ -82,6 +80,13 @@ export function WallPostCard({ post, profileOwnerId, viewerId }: WallPostCardPro
   }
 
   const body = post.shared ? post.shared.body : post.body;
+
+  /* Replies included. A thread of one comment and four answers that reads
+     "Comment · 1" understates what is under the fold. */
+  const commentCount = post.comments.reduce(
+    (total, comment) => total + 1 + comment.replies.length,
+    0,
+  );
 
   return (
     <article className="rounded-xl border border-outline-variant/40 bg-white shadow-sm">
@@ -299,7 +304,7 @@ export function WallPostCard({ post, profileOwnerId, viewerId }: WallPostCardPro
           className="text-on-surface-variant hover:bg-surface-container-high focus-visible:ring-brand/35 flex flex-1 items-center justify-center gap-2 rounded-md py-2 text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none"
         >
           <MessageCircle className="size-4" aria-hidden="true" />
-          Comment{post.comments.length > 0 ? ` · ${post.comments.length}` : ''}
+          Comment{commentCount > 0 ? ` · ${commentCount}` : ''}
         </button>
 
         {/* Sharing a share is refused by the database, so it is not offered. */}
@@ -328,117 +333,13 @@ export function WallPostCard({ post, profileOwnerId, viewerId }: WallPostCardPro
       {/* ---- Comments ----------------------------------------------------- */}
       {showComments ? (
         <div className="border-outline-variant/40 border-t px-4 py-3">
-          {post.comments.length > 0 ? (
-            <ul aria-label="Comments" className="mb-3 flex flex-col gap-3">
-              {post.comments.map((comment) => (
-                <li key={comment.id} className="flex items-start gap-2">
-                  <MatchAvatar
-                    fullName={comment.authorName}
-                    avatarUrl={comment.authorAvatarUrl}
-                    size={28}
-                    className="border"
-                  />
-
-                  <div className="bg-surface-container-low min-w-0 flex-1 rounded-2xl px-3 py-2">
-                    <p className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="text-label-sm">{comment.authorName}</span>
-                      <span className="text-outline text-label-sm font-normal">
-                        {timeAgo(comment.createdAt)}
-                      </span>
-                    </p>
-                    <p className="text-on-surface text-body-md whitespace-pre-line break-words">
-                      {comment.body}
-                    </p>
-                  </div>
-
-                  {comment.canRemove ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        startTransition(async () => {
-                          await removeComment({ commentId: comment.id, profileOwnerId });
-                        })
-                      }
-                      aria-label="Remove this comment"
-                      className="text-outline hover:text-destructive focus-visible:ring-brand/35 shrink-0 rounded-md p-1 transition-colors focus-visible:ring-4 focus-visible:outline-none"
-                    >
-                      <X className="size-3.5" aria-hidden="true" />
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          <CommentComposer postId={post.id} profileOwnerId={profileOwnerId} />
+          <CommentThread
+            postId={post.id}
+            profileOwnerId={profileOwnerId}
+            comments={post.comments}
+          />
         </div>
       ) : null}
     </article>
-  );
-}
-
-/**
- * The small input under a post.
- *
- * @param postId         - The post being commented on.
- * @param profileOwnerId - The wall to refresh.
- * @returns The form element.
- */
-function CommentComposer({
-  postId,
-  profileOwnerId,
-}: {
-  postId: string;
-  profileOwnerId: string;
-}) {
-  const [state, formAction, pending] = useActionState(createComment, null);
-  const [draft, setDraft] = useState('');
-  const [clearedFor, setClearedFor] = useState<typeof state>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-
-  if (state?.ok === true && state !== clearedFor) {
-    setClearedFor(state);
-    setDraft('');
-  }
-
-  return (
-    <form ref={formRef} action={formAction}>
-      <input type="hidden" name="postId" value={postId} />
-      <input type="hidden" name="profileOwnerId" value={profileOwnerId} />
-
-      <div className="bg-field border-outline-variant/30 focus-within:border-brand focus-within:ring-brand/20 flex items-center gap-2 rounded-full border px-3 py-1.5 transition-all focus-within:bg-white focus-within:ring-2">
-        <label htmlFor={`comment-${postId}`} className="sr-only">
-          Write a comment
-        </label>
-        <input
-          id={`comment-${postId}`}
-          name="body"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          maxLength={500}
-          placeholder="Write a comment..."
-          className="text-on-surface placeholder:text-outline w-full bg-transparent text-label-md outline-none"
-        />
-
-        <button
-          type="submit"
-          disabled={pending || draft.trim().length === 0}
-          aria-label="Post comment"
-          className="text-brand hover:text-brand-bright focus-visible:ring-brand/35 shrink-0 rounded-full p-1 transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-40"
-        >
-          {pending ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <Send className="size-4" aria-hidden="true" />
-          )}
-        </button>
-      </div>
-
-      {state && !state.ok ? (
-        <p role="alert" className="text-destructive mt-1.5 text-label-sm">
-          {state.error.message}
-        </p>
-      ) : null}
-    </form>
   );
 }

@@ -48,6 +48,8 @@ const likeSchema = z.object({ postId: z.uuid(), profileOwnerId: z.uuid() });
 const commentSchema = z.object({
   postId: z.uuid(),
   profileOwnerId: z.uuid(),
+  /** Present when this is a reply. Absent for a top-level comment. */
+  parentCommentId: z.uuid().optional(),
   body: z
     .string()
     .trim()
@@ -62,6 +64,8 @@ const shareSchema = z.object({
 });
 
 const removeCommentSchema = z.object({ commentId: z.uuid(), profileOwnerId: z.uuid() });
+
+const commentLikeSchema = z.object({ commentId: z.uuid(), profileOwnerId: z.uuid() });
 
 /**
  * Writes a post on someone's wall.
@@ -271,15 +275,30 @@ export async function createComment(
       postId: String(formData.get('postId') ?? ''),
       profileOwnerId: String(formData.get('profileOwnerId') ?? ''),
       body: String(formData.get('body') ?? ''),
+      parentCommentId: String(formData.get('parentCommentId') ?? '') || undefined,
     });
 
     const { error } = await supabase.from('post_comments').insert({
       post_id: input.postId,
       author_id: user.id,
       body: input.body,
+      /*
+       * ONE ACTION FOR BOTH, because a reply is a comment with a parent. Two
+       * actions would duplicate the validation and the revalidation, and the
+       * trigger that enforces "same post, one level deep" does not care which
+       * one called it.
+       */
+      parent_comment_id: input.parentCommentId ?? null,
     });
 
     if (error) {
+      /* The reply rules come back as constraint violations with a sentence
+         already written for a person — pass those through rather than replacing
+         them with a vaguer one. */
+      if (error.message.includes('reply')) {
+        return fail(ERROR_CODES.VALIDATION_FAILED, error.message, 'body');
+      }
+
       return fail(
         ERROR_CODES.FORBIDDEN,
         'You cannot comment on a post you cannot see.',
@@ -371,5 +390,63 @@ export async function shareWallPost(input: {
     return ok(undefined);
   } catch (error) {
     return toActionError(error, 'wall.shareWallPost');
+  }
+}
+
+/**
+ * Likes a comment, or takes the like back.
+ *
+ * The same shape as togglePostLike, and for the same reason: a like is a row, so
+ * the primary key on (comment_id, profile_id) is what makes double-liking
+ * impossible. No counter to keep in step.
+ *
+ * @param input - The comment, and which wall to refresh.
+ * @returns Whether the comment is now liked, or a failure.
+ */
+export async function toggleCommentLike(input: {
+  commentId: string;
+  profileOwnerId: string;
+}): Promise<ActionResult<{ liked: boolean }>> {
+  try {
+    const user = await requireUser();
+    const parsed = commentLikeSchema.parse(input);
+    const supabase = await createClient();
+
+    const { data: existing } = await supabase
+      .from('comment_likes')
+      .select('comment_id')
+      .eq('comment_id', parsed.commentId)
+      .eq('profile_id', user.id)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from('comment_likes')
+        .delete()
+        .eq('comment_id', parsed.commentId)
+        .eq('profile_id', user.id);
+
+      if (error) {
+        return fail(ERROR_CODES.UNEXPECTED, 'We could not update that.');
+      }
+
+      revalidatePath(`/students/${parsed.profileOwnerId}`);
+
+      return ok({ liked: false });
+    }
+
+    const { error } = await supabase
+      .from('comment_likes')
+      .insert({ comment_id: parsed.commentId, profile_id: user.id });
+
+    if (error) {
+      return fail(ERROR_CODES.FORBIDDEN, 'You cannot like a comment you cannot see.');
+    }
+
+    revalidatePath(`/students/${parsed.profileOwnerId}`);
+
+    return ok({ liked: true });
+  } catch (error) {
+    return toActionError(error, 'wall.toggleCommentLike');
   }
 }
