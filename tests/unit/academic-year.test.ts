@@ -126,6 +126,37 @@ describe('shouldPromptForAcademicYear', () => {
     ).toBe(false);
   });
 
+  it('does not ask a student who finished onboarding this term', () => {
+    /*
+     * Onboarding step 1 asks for the year outright. Without this the modal is
+     * the first thing a brand-new student meets on the dashboard, asking them
+     * to confirm something they typed minutes ago — and it cannot be escaped.
+     */
+    expect(
+      shouldPromptForAcademicYear(
+        {
+          yearOfStudy: 2,
+          lastPromptDate: null,
+          onboardingCompletedAt: addDays(IN_SEPTEMBER, -3).toISOString(),
+        },
+        IN_SEPTEMBER,
+      ),
+    ).toBe(false);
+  });
+
+  it('asks a student whose onboarding is more than six months behind them', () => {
+    expect(
+      shouldPromptForAcademicYear(
+        {
+          yearOfStudy: 2,
+          lastPromptDate: null,
+          onboardingCompletedAt: subMonths(IN_SEPTEMBER, 9).toISOString(),
+        },
+        IN_SEPTEMBER,
+      ),
+    ).toBe(true);
+  });
+
   it('treats an unparseable stored date as never asked', () => {
     expect(
       shouldPromptForAcademicYear(

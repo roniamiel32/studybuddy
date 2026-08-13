@@ -46,6 +46,16 @@ export interface CoursePreferencesDialogProps {
   courseCode: string;
   globals: CoursePreferenceValues;
   override: CoursePreferenceOverride;
+  /*
+   * The header renders this same component with a different button rather than
+   * a second copy of the dialog. ONE MODAL, TWO WAYS IN: the questionnaire, the
+   * "identical to global means store NULL" rule and the reset are stated once,
+   * and a second trigger cannot drift away from them.
+   */
+  triggerLabel?: string;
+  triggerClassName?: string;
+  /** The sidebar explains which answers are in force; the header has no room. */
+  showStatusNote?: boolean;
 }
 
 /**
@@ -62,6 +72,9 @@ export function CoursePreferencesDialog({
   courseCode,
   globals,
   override,
+  triggerLabel = 'Edit preferences for this course',
+  triggerClassName = 'clay-btn-secondary focus-visible:ring-brand/35 flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-label-md focus-visible:ring-4 focus-visible:outline-none',
+  showStatusNote = true,
 }: CoursePreferencesDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
@@ -105,24 +118,22 @@ export function CoursePreferencesDialog({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="clay-btn-secondary focus-visible:ring-brand/35 flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-label-md focus-visible:ring-4 focus-visible:outline-none"
-      >
+      <button type="button" onClick={() => setOpen(true)} className={triggerClassName}>
         <SlidersHorizontal className="size-4" aria-hidden="true" />
-        Edit preferences for this course
+        {triggerLabel}
       </button>
 
-      {customised ? (
-        <p className="text-sunset-deep mt-2 text-label-sm font-normal">
-          This course uses its own answers, not your defaults.
-        </p>
-      ) : (
-        <p className="text-outline mt-2 text-label-sm font-normal">
-          Currently using your global preferences.
-        </p>
-      )}
+      {showStatusNote ? (
+        customised ? (
+          <p className="text-sunset-deep mt-2 text-label-sm font-normal">
+            This course uses its own answers, not your defaults.
+          </p>
+        ) : (
+          <p className="text-outline mt-2 text-label-sm font-normal">
+            Currently using your global preferences.
+          </p>
+        )
+      ) : null}
 
       <dialog
         ref={dialogRef}

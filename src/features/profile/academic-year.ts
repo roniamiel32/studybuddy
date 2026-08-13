@@ -81,6 +81,17 @@ export interface AcademicYearPromptState {
   yearOfStudy: number | null;
   /** When they were last asked, null when never. */
   lastPromptDate: string | null;
+  /**
+   * When they finished onboarding, null when they have not.
+   *
+   * ONBOARDING COUNTS AS HAVING BEEN ASKED. Step 1 asks for the year in so many
+   * words, so a student who answered it ten minutes ago must not be met with a
+   * modal asking whether that answer is still current. Without this the prompt
+   * lands on top of the dashboard the first time a new student ever reaches it,
+   * which is both absurd and — since the dialog is deliberately unescapable —
+   * the first thing they have to deal with in the product.
+   */
+  onboardingCompletedAt?: string | null;
 }
 
 /**
@@ -105,6 +116,18 @@ export function shouldPromptForAcademicYear(
     return false;
   }
 
+  const reopensAfter = subMonths(now, REPROMPT_AFTER_MONTHS);
+
+  /* Onboarding asked for the year directly, so it settles the question for the
+     same six months an answer here would. */
+  if (state.onboardingCompletedAt) {
+    const finished = new Date(state.onboardingCompletedAt);
+
+    if (!Number.isNaN(finished.getTime()) && finished.getTime() > reopensAfter.getTime()) {
+      return false;
+    }
+  }
+
   if (state.lastPromptDate === null) {
     return true;
   }
@@ -117,7 +140,7 @@ export function shouldPromptForAcademicYear(
     return true;
   }
 
-  return lastPrompt.getTime() <= subMonths(now, REPROMPT_AFTER_MONTHS).getTime();
+  return lastPrompt.getTime() <= reopensAfter.getTime();
 }
 
 /**
