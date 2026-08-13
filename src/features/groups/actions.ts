@@ -110,38 +110,52 @@ export async function requestToJoin(
       .eq('id', groupId)
       .maybeSingle();
 
-    // 1. בדיקה האם כבר קיימת בקשה פעילה אחת שממתינה לתגובה (pending).
-    // אם כן - חוסמים שליחת בקשה נוספת כדי שלא יווצרו כפילויות במסך הניהול.
-    const { data: existingPending } = await supabase
-      .from('group_requests')
-      .select('id')
-      .eq('group_id', groupId)
-      .eq('requester_id', user.id)
-      .eq('status', 'pending')
-      .maybeSingle();
-
-    if (existingPending) {
-      return fail(
-        ERROR_CODES.FORBIDDEN,
-        'You already have a pending request to join this group.',
-        'groupId',
-      );
-    }
-
-    // 2. יצירת בקשה חדשה בלבד. 
-    // הבקשות הישנות שקיבלו בעבר אישור או דחייה נשארות נעולות לחלוטין בהיסטוריה ואינן מושפעות כלל!
+    // מנסים להכניס בקשה חדשה רגילה
     const { error: insertError } = await supabase.from('group_requests').insert({
       group_id: groupId,
       requester_id: user.id,
       status: 'pending',
     });
 
+    // אם ההכנסה נכשלה עקב אילוץ כפילות (קוד שגיאה 23505)
     if (insertError) {
-      return fail(
-        ERROR_CODES.FORBIDDEN,
-        'We could not send that request. The group may no longer be open.',
-        'groupId',
-      );
+      if (insertError.code === '23505') {
+        const adminSupabase = createAdminClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+
+        // מחיקת הבקשה הישנה באמצעות הרשאת אדמין עוקפת RLS
+        const { error: deleteError } = await adminSupabase
+          .from('group_requests')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('requester_id', user.id);
+
+        if (deleteError) {
+          console.error('❌ Failed to clear old request:', deleteError);
+          return fail(ERROR_CODES.FORBIDDEN, 'We could not update your request.', 'groupId');
+        }
+
+        // יצירת הבקשה החדשה מחדש
+        const { error: retryError } = await supabase.from('group_requests').insert({
+          group_id: groupId,
+          requester_id: user.id,
+          status: 'pending',
+        });
+
+        if (retryError) {
+          console.error('❌ Failed to retry request:', retryError);
+          return fail(ERROR_CODES.FORBIDDEN, 'We could not send that request.', 'groupId');
+        }
+      } else {
+        console.error('❌ Unexpected request error:', insertError);
+        return fail(
+          ERROR_CODES.FORBIDDEN,
+          'We could not send that request. The group may no longer be open.',
+          'groupId',
+        );
+      }
     }
 
     if (group) {
@@ -154,7 +168,6 @@ export async function requestToJoin(
     return toActionError(error, 'groups.requestToJoin');
   }
 }
-
 /**
  * Approves or rejects a join request.
  */
