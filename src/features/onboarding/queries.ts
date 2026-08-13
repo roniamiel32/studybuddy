@@ -70,7 +70,7 @@ export async function getOnboardingProfile(): Promise<OnboardingProfile> {
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'full_name, degree_id, city, year_of_study, avatar_url, onboarding_completed_at, is_discoverable, last_year_prompt_date, universities(name), degrees(name)',
+      'full_name, degree_id, city, year_of_study, avatar_url, onboarding_completed_at, is_discoverable, universities(name), degrees(name)',
     )
     .eq('id', user.id)
     .single();
@@ -98,7 +98,7 @@ export async function getOnboardingProfile(): Promise<OnboardingProfile> {
     email: user.email ?? '',
     isDiscoverable: data.is_discoverable,
     degreeName: data.degrees?.name ?? null,
-    lastYearPromptDate: data.last_year_prompt_date,
+    lastYearPromptDate: null,
   };
 }
 
