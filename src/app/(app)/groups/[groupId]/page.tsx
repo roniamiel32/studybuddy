@@ -66,17 +66,17 @@ export default async function GroupPage({
           </Chip>
         </div>
 
-        {group.isAdmin ? (
-          <div className="mb-4">
-            <GroupSettingsDialog
-              groupId={group.id}
-              name={group.name}
-              description={group.description}
-              maxParticipants={group.maxParticipants}
-              memberCount={group.members.length}
-            />
-          </div>
-        ) : null}
+       {group.isAdmin ? (
+  <div className="mb-4">
+    <GroupSettingsDialog
+      groupId={group.id}
+      name={group.name || ""}
+      description={group.description || ""}
+      maxParticipants={group.maxParticipants}
+      memberCount={group.members.length}
+    />
+  </div>
+) : null}
 
         <ul aria-label="Members" className="flex flex-col gap-3">
           {group.members.map((member) => (

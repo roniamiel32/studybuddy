@@ -228,7 +228,15 @@ export function NotificationList({ notifications }: NotificationListProps) {
           className="clay-btn-secondary focus-visible:ring-brand/35 mt-4 flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-label-md focus-visible:ring-4 focus-visible:outline-none"
         >
           Load more
-          <span className="text-outline font-normal">({remaining} more)</span>
+        </button>
+      ) : null}
+      {shown > PAGE_SIZE ? (
+        <button
+          type="button"
+          onClick={() => setShown(PAGE_SIZE)}
+          className="clay-btn-secondary focus-visible:ring-brand/35 mt-4 flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-label-md focus-visible:ring-4 focus-visible:outline-none"
+        >
+          Show less
         </button>
       ) : null}
     </>
