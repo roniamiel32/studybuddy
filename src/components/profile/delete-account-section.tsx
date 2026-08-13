@@ -90,7 +90,11 @@ export function DeleteAccountSection() {
         ref={dialogRef}
         onClose={() => setOpen(false)}
         aria-labelledby="delete-dialog-heading"
-        className="bg-surface text-on-surface w-[min(28rem,calc(100vw-2rem))] rounded-xl p-0 backdrop:bg-black/40"
+        /* m-auto is what centres it: Tailwind's preflight clears the margin:auto
+           a modal <dialog> centres itself with, so without this it sits in the
+           top-left corner with its buttons off the edge. Same as
+           rate-partner-dialog. */
+        className="bg-surface text-on-surface shadow-clay-lifted m-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl p-0 backdrop:bg-black/40"
       >
         <form action={formAction} className="flex flex-col gap-5 p-6">
           <div className="flex items-start justify-between gap-4">

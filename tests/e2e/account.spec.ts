@@ -193,7 +193,7 @@ test.describe('account flows', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Find your account');
 
     await page.getByLabel('University email').pressSequentially(email);
-    await page.getByRole('button', { name: 'Send reset link' }).click();
+    await page.getByRole('button', { name: 'Send code' }).click();
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Check your email');
 
     await page.goto(await waitForResetLink(email));
@@ -256,19 +256,26 @@ test.describe('account flows', () => {
     await page.goto('/settings');
     await expect(page.getByRole('heading', { name: 'Change password' })).toBeVisible();
 
+    /* The form lives in a modal behind "Update password"; success is signalled by
+       the modal closing rather than by a message beside the button. */
+    const modal = page.getByRole('dialog');
+
+    await page.getByRole('button', { name: 'Update password' }).click();
+    await expect(modal).toBeVisible();
+
     // The current password is genuinely checked.
     const newPassword = 'changed-e2e-9012';
-    await page.getByLabel('Current password').fill('not-my-password');
-    await page.getByLabel('New password', { exact: true }).fill(newPassword);
-    await page.getByLabel('Re-enter new password').fill(newPassword);
-    await page.getByRole('button', { name: 'Update password' }).click();
+    await modal.getByLabel('Current password').fill('not-my-password');
+    await modal.getByLabel('New password', { exact: true }).fill(newPassword);
+    await modal.getByLabel('Re-enter new password').fill(newPassword);
+    await modal.getByRole('button', { name: 'Save' }).click();
     await expect(page.locator('#form-error')).toContainText('not your current password');
 
-    await page.getByLabel('Current password').fill(PASSWORD);
-    await page.getByLabel('New password', { exact: true }).fill(newPassword);
-    await page.getByLabel('Re-enter new password').fill(newPassword);
-    await page.getByRole('button', { name: 'Update password' }).click();
-    await expect(page.getByRole('status')).toContainText('Password updated');
+    await modal.getByLabel('Current password').fill(PASSWORD);
+    await modal.getByLabel('New password', { exact: true }).fill(newPassword);
+    await modal.getByLabel('Re-enter new password').fill(newPassword);
+    await modal.getByRole('button', { name: 'Save' }).click();
+    await expect(modal).toBeHidden();
 
     // Signing back in with it proves the change reached the auth server.
     await page.context().clearCookies();
