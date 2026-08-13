@@ -61,8 +61,7 @@ export default async function NotificationsPage() {
           Stay up to date with the latest updates and announcements.
         </p>
       </div>
-
-      {/*
+{/*
         INVITATIONS CAME WITH THE REQUESTS, and they had to. They lived on the
         Groups tab too, and are the one thing on it that only this student can
         answer — leaving them behind would have meant a student who is invited to
@@ -71,9 +70,12 @@ export default async function NotificationsPage() {
       */}
       <InvitationInbox invitations={invitations} />
 
-      <PendingRequestsSection requests={pending} groups={groups} />
-
-      <NotificationList notifications={notifications} />
+  
+      <NotificationList 
+        notifications={notifications} 
+        pendingRequests={pending} 
+        adminGroups={groups} 
+      />
     </>
   );
 }

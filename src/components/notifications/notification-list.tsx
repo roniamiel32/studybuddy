@@ -2,21 +2,7 @@
  * File:        src/components/notifications/notification-list.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The notification feed.
- *
- *              EVERY ROW IS A LINK TO THE PLACE IT IS ABOUT, and reading it marks
- *              it read on the way. A feed you have to dismiss separately from
- *              acting on it makes people do the same job twice.
- *
- *              THE SOCIAL ONES CARRY THEIR CALL TO ACTION IN THE COPY rather than
- *              as a second button — "wish them a happy birthday on their wall!"
- *              is both the reason to tap and the description of where it goes,
- *              and a row with two controls makes the student choose between two
- *              things that do the same thing.
- * Version:     0.20.0
- *
- * Modifications:
- *     0.22.0 - 2026-08-12 - Social and rating types, with a safe fallback
- *     0.20.0 - 2026-08-11 - Initial implementation (Phase 8A)
+ * Version:     0.21.2
  */
 
 'use client';
@@ -51,43 +37,28 @@ import {
 } from '@/features/notifications/notification-view';
 import { cn } from '@/lib/utils';
 
+// Imports for the specific Group Request UI
+import { ApplicantReviewDialog } from '@/components/groups/applicant-review-dialog';
+import { Chip } from '@/components/ui/chip';
+import { placesLeft, type StudyGroupView, type GroupRequestView } from '@/features/groups/group-view';
+
 export interface NotificationListProps {
   notifications: NotificationView[];
+  pendingRequests?: GroupRequestView[];
+  adminGroups?: StudyGroupView[];
 }
 
-/**
- * How many rows show at first, and how many more each press reveals.
- *
- * IT REVEALS RATHER THAN FETCHES. The whole feed is already in the server render
- * — getMyNotifications caps at 20 — so paging here is about how much of the page
- * a student wants at once, not about a round trip. That is why the button has no
- * loading state.
- */
 const PAGE_SIZE = 7;
 
-/**
- * The icon for a type, when there is no person to show an avatar for.
- *
- * PARTIAL AND FALLING BACK TO A BELL, deliberately. The enum lives in the
- * database and gains values in a migration, so a build can be handed a type it
- * has never heard of — and an exhaustive Record would only turn that into a
- * compile error on the day someone adds one, while `ICONS[type]` returning
- * undefined would crash the row at render. A bell is a fine thing for an
- * unfamiliar notification to look like.
- */
 const ICONS: Partial<Record<NotificationType, typeof Bell>> = {
-  // Groups
   group_request: Users,
   group_promotion: Sparkles,
   group_invite: MailPlus,
-  // Meetings
   meeting_scheduled: CalendarClock,
   meeting_cancelled: CalendarX,
   rate_partner: Star,
-  // Matching
   new_match: Sparkles,
   match_suggestion: UserPlus,
-  // Social
   birthday: Cake,
   wall_post: PenLine,
   post_like: Heart,
@@ -99,28 +70,18 @@ const ICONS: Partial<Record<NotificationType, typeof Bell>> = {
 
 /**
  * Renders the feed.
- *
- * @param notifications - The caller's notifications, newest first.
- * @returns The list element.
  */
-export function NotificationList({ notifications }: NotificationListProps) {
+export function NotificationList({ notifications, pendingRequests = [], adminGroups = [] }: NotificationListProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [shown, setShown] = useState(PAGE_SIZE);
 
   const unread = notifications.filter((notification) => !notification.isRead).length;
 
-  /*
-   * Paged over the rows that will actually RENDER, not over the raw feed. A type
-   * this build does not know about is skipped below, so slicing the raw array
-   * would promise seven rows and draw six — and "Load more" would sometimes add
-   * nothing at all.
-   */
   const renderable = useMemo(
     () =>
       notifications.flatMap((notification) => {
         const copy = notificationCopy(notification);
-
         return copy ? [{ notification, copy }] : [];
       }),
     [notifications],
@@ -131,7 +92,7 @@ export function NotificationList({ notifications }: NotificationListProps) {
 
   if (notifications.length === 0) {
     return (
-      <p className="text-on-surface-variant bg-surface-container rounded-md p-5 text-body-md text-pretty">
+      <p className="bg-surface-container text-on-surface-variant rounded-md p-5 text-body-md text-pretty">
         Nothing yet. Requests, matches, sessions, birthdays and anything that happens on
         your wall will show up here.
       </p>
@@ -161,6 +122,65 @@ export function NotificationList({ notifications }: NotificationListProps) {
       <ul aria-label="Notifications" className="flex flex-col gap-2">
         {visible.map(({ notification, copy }) => {
           const Icon = ICONS[notification.type] ?? Bell;
+          const isGroupRequest = notification.type === 'group_request';
+          
+          // 🔥 The Fix: Safely matching the request using the correct ID and name!
+          const request = isGroupRequest
+            ? pendingRequests.find(
+                (r) => 
+                  r.id === notification.entityId || 
+                  (r as any).requesterId === notification.actorId || 
+                  r.requesterName === notification.actorName
+              )
+            : null;
+
+          const className = cn(
+            'flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors',
+            'focus-visible:ring-brand/35 focus-visible:ring-4 focus-visible:outline-none hover:border-brand/60',
+            notification.isRead
+              ? 'border-outline-variant/50 bg-white'
+              : 'border-brand/40 bg-brand-fixed/40',
+          );
+
+          // Render the Inline Review layout if it is a pending request and we found the matching request
+          if (isGroupRequest && request) {
+            const group = adminGroups.find((g) => g.id === request.groupId);
+
+            return (
+              <li key={notification.id}>
+                <div className={cn(className, 'pr-3')}>
+                  <MatchAvatar
+                    fullName={notification.actorName ?? 'Classmate'}
+                    avatarUrl={notification.actorAvatarUrl}
+                    size={36}
+                    className="border-2"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-label-md text-pretty">{copy.message}</span>
+                  </span>
+
+                  {/* Pending Chip & Review Button */}
+                  <div 
+                    className="flex shrink-0 items-center gap-3 ml-2"
+                    onClick={() => {
+                      if (!notification.isRead) {
+                        void markNotificationRead({ notificationId: notification.id });
+                      }
+                    }}
+                  >
+                    <Chip tone="sunset">Pending</Chip>
+                    <ApplicantReviewDialog request={request} placesLeft={group ? placesLeft(group) : 0} />
+                  </div>
+
+                  <span className="text-outline shrink-0 text-label-sm font-normal ml-2">
+                    {timeAgo(notification.createdAt)}
+                  </span>
+                </div>
+              </li>
+            );
+          }
+
+          // Standard notification layout for everything else
           const body = (
             <>
               {notification.actorId ? (
@@ -177,26 +197,16 @@ export function NotificationList({ notifications }: NotificationListProps) {
               )}
 
               <span className="min-w-0 flex-1">
-                <span className="text-label-md block text-pretty">{copy.message}</span>
+                <span className="block text-label-md text-pretty">{copy.message}</span>
                 {copy.cta ? (
                   <span className="text-brand block text-label-sm font-normal">{copy.cta}</span>
                 ) : null}
               </span>
 
-              <span className="text-outline shrink-0 text-label-sm font-normal">
+              <span className="text-outline shrink-0 text-label-sm font-normal ml-2">
                 {timeAgo(notification.createdAt)}
               </span>
             </>
-          );
-
-          const className = cn(
-            'flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors',
-            'focus-visible:ring-brand/35 focus-visible:ring-4 focus-visible:outline-none',
-            notification.isRead
-              ? 'border-outline-variant/50 bg-white'
-              : /* Unread is tinted rather than dotted: the whole row is the
-                   thing that is new, and a dot on a list of dots is noise. */
-              'border-brand/40 bg-brand-fixed/40',
           );
 
           return (
@@ -209,7 +219,7 @@ export function NotificationList({ notifications }: NotificationListProps) {
                       void markNotificationRead({ notificationId: notification.id });
                     }
                   }}
-                  className={cn(className, 'hover:border-brand/60')}
+                  className={className}
                 >
                   {body}
                 </Link>
@@ -221,23 +231,29 @@ export function NotificationList({ notifications }: NotificationListProps) {
         })}
       </ul>
 
-      {remaining > 0 ? (
-        <button
-          type="button"
-          onClick={() => setShown((count) => count + PAGE_SIZE)}
-          className="clay-btn-secondary focus-visible:ring-brand/35 mt-4 flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-label-md focus-visible:ring-4 focus-visible:outline-none"
-        >
-          Load more
-        </button>
-      ) : null}
-      {shown > PAGE_SIZE ? (
-        <button
-          type="button"
-          onClick={() => setShown(PAGE_SIZE)}
-          className="clay-btn-secondary focus-visible:ring-brand/35 mt-4 flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-label-md focus-visible:ring-4 focus-visible:outline-none"
-        >
-          Show less
-        </button>
+      {/* Pagination Controls */}
+      {(remaining > 0 || shown > PAGE_SIZE) ? (
+        <div className="mt-4 flex gap-3">
+          {remaining > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShown((count) => count + PAGE_SIZE)}
+              className="clay-btn-secondary focus-visible:ring-brand/35 flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-label-md focus-visible:ring-4 focus-visible:outline-none"
+            >
+              Load more
+            </button>
+          ) : null}
+
+          {shown > PAGE_SIZE ? (
+            <button
+              type="button"
+              onClick={() => setShown(PAGE_SIZE)}
+              className="clay-btn-secondary focus-visible:ring-brand/35 flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-label-md focus-visible:ring-4 focus-visible:outline-none"
+            >
+              Show less
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </>
   );
