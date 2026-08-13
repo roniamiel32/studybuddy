@@ -155,9 +155,13 @@ test.describe('matches dashboard', () => {
     await expect(page).toHaveURL(/\/dashboard$/);
 
     /*
-     * The menu holds Courses, Groups and Messages. Match is the call to action and
-     * deliberately NOT in the nav landmark, so it is asserted on the header — which
-     * is also what proves the redesign actually moved it rather than duplicating it.
+     * The menu holds Courses, Messages and Notifications. Groups was retired in
+     * Phase 9D — its requests went to Notifications and its chats to Messages —
+     * so its absence is asserted rather than its presence.
+     *
+     * Match is the call to action and deliberately NOT in the nav landmark, so it
+     * is asserted on the header, which is also what proves the redesign moved it
+     * rather than duplicating it.
      */
     /*
      * `.last()` rather than `.first()`: both bars are in the DOM at every width and
@@ -170,8 +174,9 @@ test.describe('matches dashboard', () => {
       .filter({ visible: true })
       .first();
     await expect(nav.getByRole('link', { name: 'Courses' })).toBeVisible();
-    await expect(nav.getByRole('link', { name: /Groups/ })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Groups/ })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: /Messages/ })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Notifications/ })).toBeVisible();
     /* The design's "Chat" tab is called Messages here (design conflict C2). */
     await expect(nav.getByRole('link', { name: 'Chat' })).toHaveCount(0);
 

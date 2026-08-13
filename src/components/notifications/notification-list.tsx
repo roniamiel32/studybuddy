@@ -21,7 +21,7 @@
 
 'use client';
 
-import { useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -54,6 +54,16 @@ import { cn } from '@/lib/utils';
 export interface NotificationListProps {
   notifications: NotificationView[];
 }
+
+/**
+ * How many rows show at first, and how many more each press reveals.
+ *
+ * IT REVEALS RATHER THAN FETCHES. The whole feed is already in the server render
+ * — getMyNotifications caps at 20 — so paging here is about how much of the page
+ * a student wants at once, not about a round trip. That is why the button has no
+ * loading state.
+ */
+const PAGE_SIZE = 7;
 
 /**
  * The icon for a type, when there is no person to show an avatar for.
@@ -96,8 +106,28 @@ const ICONS: Partial<Record<NotificationType, typeof Bell>> = {
 export function NotificationList({ notifications }: NotificationListProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [shown, setShown] = useState(PAGE_SIZE);
 
   const unread = notifications.filter((notification) => !notification.isRead).length;
+
+  /*
+   * Paged over the rows that will actually RENDER, not over the raw feed. A type
+   * this build does not know about is skipped below, so slicing the raw array
+   * would promise seven rows and draw six — and "Load more" would sometimes add
+   * nothing at all.
+   */
+  const renderable = useMemo(
+    () =>
+      notifications.flatMap((notification) => {
+        const copy = notificationCopy(notification);
+
+        return copy ? [{ notification, copy }] : [];
+      }),
+    [notifications],
+  );
+
+  const visible = renderable.slice(0, shown);
+  const remaining = renderable.length - visible.length;
 
   if (notifications.length === 0) {
     return (
@@ -129,15 +159,7 @@ export function NotificationList({ notifications }: NotificationListProps) {
       ) : null}
 
       <ul aria-label="Notifications" className="flex flex-col gap-2">
-        {notifications.map((notification) => {
-          const copy = notificationCopy(notification);
-
-          /* A type this build does not know about is skipped rather than shown
-             half-rendered — see notificationCopy. */
-          if (!copy) {
-            return null;
-          }
-
+        {visible.map(({ notification, copy }) => {
           const Icon = ICONS[notification.type] ?? Bell;
           const body = (
             <>
@@ -198,6 +220,17 @@ export function NotificationList({ notifications }: NotificationListProps) {
           );
         })}
       </ul>
+
+      {remaining > 0 ? (
+        <button
+          type="button"
+          onClick={() => setShown((count) => count + PAGE_SIZE)}
+          className="clay-btn-secondary focus-visible:ring-brand/35 mt-4 flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-label-md focus-visible:ring-4 focus-visible:outline-none"
+        >
+          Load more
+          <span className="text-outline font-normal">({remaining} more)</span>
+        </button>
+      ) : null}
     </>
   );
 }

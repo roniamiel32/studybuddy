@@ -216,7 +216,7 @@ test.describe('account flows', () => {
     await page.getByLabel('University email').pressSequentially(email);
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.locator('#form-error')).toContainText('did not match');
+    await expect(page.locator('#form-error')).toContainText('incorrect');
 
     await page.getByLabel('Password', { exact: true }).fill(newPassword);
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -287,7 +287,9 @@ test.describe('account flows', () => {
 
     // ---- Delete ------------------------------------------------------------
     await page.goto('/settings');
-    await page.getByRole('button', { name: 'Delete my account' }).click();
+    /* The trigger is the section's own heading-and-bin button since the settings
+       redesign, so it is named "Delete account" rather than "Delete my account". */
+    await page.getByRole('button', { name: 'Delete account' }).click();
 
     const confirm = page.getByRole('button', { name: 'Delete for good' });
     await expect(confirm).toBeDisabled();

@@ -305,7 +305,9 @@ test.describe('running a study group', () => {
 
   test('only the invited student can accept it', async ({ page }) => {
     await signIn(page, outsiderEmail);
-    await page.goto('/groups');
+    /* Phase 9D retired the Groups tab; invitations answer from Notifications
+       now, which is where everything else waiting on you lives. */
+    await page.goto('/notifications');
 
     const inbox = page.getByRole('list', { name: 'Group invitations' });
     await expect(inbox).toContainText('Algorithms crew, renamed');
@@ -326,7 +328,7 @@ test.describe('running a study group', () => {
      * classmates is told three people are asking to join.
      */
     await signIn(page, founderEmail);
-    await page.goto('/groups');
+    await page.goto('/notifications');
 
     await expect(page.getByRole('heading', { name: 'Waiting for you' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'You have been invited' })).toHaveCount(0);

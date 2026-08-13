@@ -25,6 +25,7 @@ import Link from 'next/link';
 
 import { Logo } from '@/components/ui/logo';
 import { DesktopNav, MatchButton, MobileNav } from '@/components/layout/app-nav';
+import { HeaderSearch } from '@/components/layout/header-search';
 import { UpdateYearDialog } from '@/components/profile/update-year-dialog';
 import { getUnreadNotificationCount } from '@/features/notifications/queries';
 import { UserMenu } from '@/components/layout/user-menu';
@@ -103,8 +104,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             />
           </div>
 
-          {/* ---- Right: the call to action, then the user ------------------ */}
+          {/* ---- Right: search, the call to action, then the user ---------- */}
           <div className="flex shrink-0 items-center gap-3">
+            {/* Left of Match, and it expands leftward into the empty middle so
+                that opening it moves nothing to its right. */}
+            <HeaderSearch />
+
             {/* Hidden on mobile, where Match is a tab in the bottom bar. */}
             <span className="hidden md:inline-flex">
               <MatchButton />

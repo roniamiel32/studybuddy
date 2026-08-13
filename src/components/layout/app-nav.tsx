@@ -33,7 +33,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, GraduationCap, MessageSquare, Sparkles, UserRound, Users } from 'lucide-react';
+/* `Users` went with the Groups entry below — re-add it to this import when the
+   tab is restored. */
+import { Bell, GraduationCap, MessageSquare, Sparkles, UserRound } from 'lucide-react';
 
 import {
   UnreadDot,
@@ -52,7 +54,20 @@ import { cn } from '@/lib/utils';
  */
 const DESTINATIONS = [
   { href: '/courses', label: 'Courses', icon: GraduationCap },
-  { href: '/groups', label: 'Groups', icon: Users, requests: true },
+  /*
+   * GROUPS IS RETIRED, NOT DELETED (Phase 9D). Its two halves went to the tabs
+   * that were already about the same things: join requests to Notifications,
+   * which is where everything else waiting on you lives, and group chats to
+   * Messages, which is where everything else you talk in lives. A tab whose
+   * whole content belongs on two other tabs is a tab about a data model rather
+   * than about anything a student came to do.
+   *
+   * TO RESTORE: uncomment the line below, and rename
+   * src/app/(app)/groups/page.tsx.disabled back to page.tsx. The list page, the
+   * queries and every component it used are untouched — /groups/[groupId] is
+   * still live and is what Messages opens for a group chat.
+   */
+  // { href: '/groups', label: 'Groups', icon: Users, requests: true },
   { href: '/messages', label: 'Messages', icon: MessageSquare, badge: true },
   /* Phase 8A. Last of the four, because it is the one you check rather than the
      one you go to — the others are places, this is a list of what happened. */
