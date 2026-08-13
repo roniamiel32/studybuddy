@@ -64,33 +64,27 @@ export function DeleteAccountSection() {
 
   return (
     <section aria-labelledby="delete-heading" className="clay-card border-destructive/30 p-6">
-      <h2 id="delete-heading" className="font-heading text-destructive text-headline-md">
-        Delete account
-      </h2>
-      <p className="text-on-surface-variant mt-1 mb-4 text-body-md text-pretty">
-        Permanently removes your profile, your availability, your ratings, the groups you
-        own, your messages and everything you have written on any wall. This cannot be
-        undone, and the address becomes free to register again.
-      </p>
-
-      <Button
+      
+      {/* 1. הכפתור המאוחד: אייקון פח האשפה והכותרת ביחד */}
+      <button
         type="button"
-        variant="ghost"
         onClick={() => {
           setConfirmation('');
           setOpen(true);
         }}
-        className="text-destructive hover:bg-destructive/10"
+        className="text-destructive hover:bg-destructive/10 focus-visible:ring-destructive/35 -ml-3 mb-2 flex items-center gap-2.5 rounded-lg px-3 py-2 transition-colors focus-visible:ring-4 focus-visible:outline-none"
       >
-        <Trash2 className="size-4" aria-hidden="true" />
-        Delete my account
-      </Button>
+        <Trash2 className="size-5 shrink-0" aria-hidden="true" />
+        <h2 id="delete-heading" className="font-heading text-headline-md">
+          Delete account
+        </h2>
+      </button>
 
       <dialog
         ref={dialogRef}
         onClose={() => setOpen(false)}
         aria-labelledby="delete-dialog-heading"
-        className="bg-surface text-on-surface w-[min(28rem,calc(100vw-2rem))] rounded-xl p-0 backdrop:bg-black/40"
+        className="bg-surface text-on-surface m-auto w-[min(28rem,calc(100vw-2rem))] rounded-3xl p-0 shadow-xl backdrop:bg-black/40 backdrop:backdrop-blur-sm"
       >
         <form action={formAction} className="flex flex-col gap-5 p-6">
           <div className="flex items-start justify-between gap-4">
@@ -154,4 +148,4 @@ export function DeleteAccountSection() {
       </dialog>
     </section>
   );
-}
+  }

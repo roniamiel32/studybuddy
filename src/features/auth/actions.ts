@@ -360,7 +360,7 @@ export async function signIn(
       if (error?.code === 'email_not_confirmed') {
         destination = `/verify-email?email=${encodeURIComponent(parsed.email)}`;
       } else {
-        return fail(ERROR_CODES.UNAUTHENTICATED, 'Those details did not match an account.');
+        return fail(ERROR_CODES.UNAUTHENTICATED, 'The email or password you entered is incorrect. Please try again');
       }
     } else {
       const { data: profile } = await supabase

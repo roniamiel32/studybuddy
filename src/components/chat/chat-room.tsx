@@ -125,7 +125,6 @@ export function ChatRoom({
   /* Identity of the result already handled, so one success clears once. */
   const [clearedFor, setClearedFor] = useState<typeof state>(null);
 
-  const canvasRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   const error = state && !state.ok ? state.error : null;
@@ -208,15 +207,6 @@ export function ChatRoom({
     }
   }, [conversation.id, unreadFromPartner]);
 
-  /* ---- Keep the newest message in view ----------------------------------- */
-  useEffect(() => {
-    const canvas = canvasRef.current;
-
-    if (canvas) {
-      canvas.scrollTop = canvas.scrollHeight;
-    }
-  }, [messages.length]);
-
   /*
    * ---- Clear the composer once the send succeeds -------------------------
    *
@@ -297,14 +287,14 @@ export function ChatRoom({
       <MeetingStrip meetings={meetings} />
 
       {/* ---- Messages ------------------------------------------------------- */}
-      <div ref={canvasRef} className="bg-surface-container-low/40 flex-1 overflow-y-auto p-4">
+      <div className="bg-surface-container-low/40 flex-1 overflow-y-auto p-4 flex flex-col-reverse">
         {messages.length === 0 ? (
           <p className="text-on-surface-variant py-8 text-center text-body-md">
             No messages yet. Say hello.
           </p>
         ) : null}
 
-        {groups.map((group) => (
+        {[...groups].reverse().map((group) => (
           <section key={group.label} aria-label={group.label}>
             <div className="my-2 flex justify-center">
               <span className="bg-surface-container-high text-on-surface-variant rounded-full px-3 py-1 text-[10px] tracking-wider uppercase">
