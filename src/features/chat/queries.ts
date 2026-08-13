@@ -20,6 +20,10 @@ import { createClient, requireUser } from '@/lib/supabase/server';
 
 import type { ChatMessageView, ConversationView } from './chat-view';
 
+import { getMyGroups } from '@/features/groups/queries';
+
+import { getGroupThreads } from './group-threads';
+
 /** Columns needed to render a conversation row, in one round trip. */
 const CONVERSATION_SELECT = `
   id,
@@ -204,21 +208,18 @@ export async function getMessages(conversationId: string): Promise<ChatMessageVi
   const user = await requireUser();
   const supabase = await createClient();
 
-  /* 1. שולפים את מזהי ההודעות שהמשתמש הנוכחי הסתיר */
  const { data: hiddenData } = await (supabase.from('hidden_messages' as any) as any)
     .select('message_id')
     .eq('profile_id', user.id);
 
   const hiddenIds = (hiddenData ?? []).map((row:any) => row.message_id);
 
-  /* 2. בונים את השאילתה לשליפת הודעות הצ'אט */
   let query = supabase
     .from('messages')
     .select('id, conversation_id, sender_id, body, is_read, read_at, is_icebreaker, created_at')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
 
-  /* 3. מסננים החוצה הודעות שהוסתרו על ידי המשתמש */
   if (hiddenIds.length > 0) {
     query = query.not('id', 'in', `(${hiddenIds.join(',')})`);
   }
@@ -242,27 +243,21 @@ export async function getMessages(conversationId: string): Promise<ChatMessageVi
 }
 
 /**
- * How many messages the caller has not read.
+ * How many messages the caller has not read, summing conversations and groups.
  *
- * Counted with `head: true`, so the database returns the number and no rows —
- * the navigation badge needs a total, not the messages themselves. RLS scopes
- * this to the caller's own conversations.
- *
- * @returns The unread total across every conversation.
+ * @returns The exact unread total matching the message lists.
  */
 export async function getUnreadCount(): Promise<number> {
-  const user = await requireUser();
-  const supabase = await createClient();
+  const [conversations, groupThreads] = await Promise.all([
+    getConversations(),
+    getGroupThreads(),
+  ]);
 
-  const { count } = await supabase
-    .from('messages')
-    .select('id', { count: 'exact', head: true })
-    .eq('is_read', false)
-    .neq('sender_id', user.id);
+  const directUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+  const groupUnread = groupThreads.reduce((sum, g) => sum + (g.unreadCount ?? 0), 0);
 
-  return count ?? 0;
+  return directUnread + groupUnread;
 }
-
 /**
  * The conversation with a given student, if one exists.
  *

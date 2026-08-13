@@ -124,13 +124,22 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
           const Icon = ICONS[notification.type] ?? Bell;
           const isGroupRequest = notification.type === 'group_request';
           
-          // 🔥 The Fix: Safely matching the request using the correct ID and name!
+          /*
+           * Matched on WHO asked and WHICH group, because that pair identifies
+           * exactly one pending request. A group_request notification carries the
+           * requester as its actor and the group it is about, so both halves are
+           * to hand.
+           *
+           * Not matched on the name: two classmates called Daniel Levy would show
+           * each other's request. Not matched on a request id either — the
+           * notification does not carry one, which is what `entityId` was
+           * reaching for.
+           */
           const request = isGroupRequest
             ? pendingRequests.find(
-                (r) => 
-                  r.id === notification.entityId || 
-                  (r as any).requesterId === notification.actorId || 
-                  r.requesterName === notification.actorName
+                (r) =>
+                  r.requesterId === notification.actorId &&
+                  r.groupId === notification.groupId,
               )
             : null;
 

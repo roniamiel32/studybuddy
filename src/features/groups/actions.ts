@@ -28,6 +28,7 @@ import {
   decideRequestSchema,
   groupMessageSchema,
   inviteToGroupSchema,
+  markGroupReadSchema,
   memberRoleSchema,
   removeMemberSchema,
   requestToJoinSchema,
@@ -737,5 +738,50 @@ export async function decideInvitation(input: {
     return ok(undefined);
   } catch (error) {
     return toActionError(error, 'groups.decideInvitation');
+  }
+}
+/**
+ * Records that the caller has just opened a group chat.
+ *
+ * WHAT MAKES THE BADGE CLEAR. Group unread is counted as "messages from other
+ * people, sent after I last looked" — so looking is the whole of the write, and
+ * `last_seen_at` is the only column it touches.
+ *
+ * THROUGH AN RPC RATHER THAN AN UPDATE, and the reason is a privilege
+ * escalation: `study_group_members` has one UPDATE policy and it is admin-only.
+ * Opening that up so a member could stamp their own row would also let them set
+ * their own role to admin, because check_group_role_change restricts demotion
+ * rather than promotion. rpc_mark_group_read writes one column for auth.uid()
+ * and nothing else.
+ *
+ * SILENT ON FAILURE, on purpose. This fires from an effect when a chat opens; a
+ * student who is mid-conversation should not be shown an error about
+ * bookkeeping they did not ask for, and the next visit will stamp it anyway.
+ *
+ * @param groupId - The group being opened.
+ * @returns Success, or a failure the caller is free to ignore.
+ */
+export async function markGroupRead(groupId: string): Promise<ActionResult<void>> {
+  try {
+    await requireUser();
+    const supabase = await createClient();
+
+    const parsed = markGroupReadSchema.parse(groupId);
+
+    const { error } = await supabase.rpc('rpc_mark_group_read', {
+      target_group_id: parsed,
+    });
+
+    if (error) {
+      return fail(ERROR_CODES.UNEXPECTED, 'We could not update this group.');
+    }
+
+    /* The badge lives in the layout, so the whole app shell has to re-render —
+       the same reason markConversationRead revalidates the layout. */
+    revalidatePath('/', 'layout');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'groups.markGroupRead');
   }
 }

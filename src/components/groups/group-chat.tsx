@@ -14,7 +14,7 @@ import { MeetingStrip } from '@/components/meetings/meeting-strip';
 import { ScheduleMeetingDialog } from '@/components/meetings/schedule-meeting-dialog';
 import type { MeetingView } from '@/features/meetings/meeting-view';
 import { groupMessageSchema } from '@/features/groups/schema';
-import { postGroupMessage } from '@/features/groups/actions';
+import { markGroupRead, postGroupMessage } from '@/features/groups/actions';
 import { formatMessageTime } from '@/features/chat/chat-view';
 import type { GroupMessageView } from '@/features/groups/group-view';
 import { createClient } from '@/lib/supabase/client';
@@ -122,6 +122,29 @@ export function GroupChat({
       canvas.scrollTop = canvas.scrollHeight;
     }
   }, [messages.length]);
+
+  /* ---- Mark as read ------------------------------------------------------ */
+
+  /*
+   * Opening the group is the read receipt, and this is what clears the badge.
+   *
+   * IT RUNS FROM THE CLIENT, NOT FROM THE SERVER PAGE. A mutation during a
+   * server render is a side effect on a render Next is free to repeat, cache or
+   * run while prefetching a link the student never followed — and
+   * revalidatePath, which the action calls to refresh the badge in the layout,
+   * throws when called during render. The direct-chat room marks read the same
+   * way, in an effect, for the same reasons.
+   *
+   * KEYED ON THE NEWEST MESSAGE rather than firing once per mount. Sitting in an
+   * open chat while people talk should not leave the badge counting messages
+   * that are on screen — and because the stamp is one timestamp rather than a
+   * row per message, re-stamping costs the same whether one arrived or twenty.
+   */
+  const newestMessageAt = messages.at(-1)?.createdAt ?? null;
+
+  useEffect(() => {
+    void markGroupRead(groupId);
+  }, [groupId, newestMessageAt]);
 
   if (state?.ok && state !== clearedFor) {
     setClearedFor(state);

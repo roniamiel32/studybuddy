@@ -11,15 +11,17 @@
  *              case it is handling and the compiler notices when a third kind
  *              arrives.
  *
- *              GROUP THREADS CARRY NO UNREAD COUNT, and the type says so rather
- *              than defaulting it to zero. Group chat has never tracked read
- *              state — there is no per-member last-read column — so a zero here
- *              would be a claim we cannot make. Null renders as no pill at all,
- *              which is honest; inventing a count would put a "0 unread" badge on
- *              a thread full of messages nobody has opened.
+ *              BOTH KINDS NOW CARRY A REAL UNREAD COUNT. Until Phase 9E a group
+ *              thread's was typed `null`, because group chat tracked no read
+ *              state and a zero would have been a claim we could not make.
+ *              `study_group_members.last_seen_at` is that state, so the number is
+ *              now honest for both — and the union no longer needs the renderer
+ *              to special-case which kind it is holding before showing a badge.
  * Version:     0.26.0
  *
  * Modifications:
+ *     0.27.0 - 2026-08-13 - Group threads count unread against last_seen_at
+ *                           (Phase 9E)
  *     0.26.0 - 2026-08-13 - Initial implementation (Phase 9D)
  */
 
@@ -50,8 +52,12 @@ export interface GroupThreadView {
   lastMessageAt: string;
   lastMessageBody: string | null;
   lastMessageFromMe: boolean;
-  /** Always null — see the note at the top of this file. */
-  unreadCount: null;
+  /**
+   * Messages from other people since this member last opened the chat. System
+   * lines are not counted — a badge that lights up because somebody joined sends
+   * you to a chat where nothing was said.
+   */
+  unreadCount: number;
   memberCount: number;
 }
 

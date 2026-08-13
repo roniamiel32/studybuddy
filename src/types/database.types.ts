@@ -1509,18 +1509,21 @@ export type Database = {
         Row: {
           group_id: string
           joined_at: string
+          last_seen_at: string
           profile_id: string
           role: Database["public"]["Enums"]["study_group_role"]
         }
         Insert: {
           group_id: string
           joined_at?: string
+          last_seen_at?: string
           profile_id: string
           role?: Database["public"]["Enums"]["study_group_role"]
         }
         Update: {
           group_id?: string
           joined_at?: string
+          last_seen_at?: string
           profile_id?: string
           role?: Database["public"]["Enums"]["study_group_role"]
         }
@@ -2022,6 +2025,17 @@ export type Database = {
           study_formats: Database["public"]["Enums"]["study_format"][]
           year_of_study: number
         }[]
+      }
+      rpc_group_unread_counts: {
+        Args: never
+        Returns: {
+          group_id: string
+          unread_count: number
+        }[]
+      }
+      rpc_mark_group_read: {
+        Args: { target_group_id: string }
+        Returns: string
       }
       rpc_meeting_slots: {
         Args: {

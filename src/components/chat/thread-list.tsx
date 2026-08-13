@@ -48,7 +48,7 @@ export function ThreadList({ threads }: ThreadListProps) {
   const [sort, setSort] = useState<ThreadSort>('newest');
   const [filter, setFilter] = useState<ThreadFilter>('all');
   const [shown, setShown] = useState(PAGE_SIZE);
-  
+
   // States for the Dropdown menu
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -64,7 +64,7 @@ export function ThreadList({ threads }: ThreadListProps) {
   const change = (apply: () => void) => {
     apply();
     setShown(PAGE_SIZE);
-    setIsMenuOpen(false); 
+    setIsMenuOpen(false);
   };
 
   useEffect(() => {
@@ -183,7 +183,10 @@ export function ThreadList({ threads }: ThreadListProps) {
  * One row, personal or group.
  */
 function ThreadRow({ thread }: { thread: MessageThreadView }) {
-  const unread = thread.kind === 'person' && thread.unreadCount > 0;
+  /* No cast needed since Phase 9E: a group thread carries a real unread count
+     against last_seen_at, so both members of the union have `unreadCount: number`. */
+  const unreadCount = thread.unreadCount;
+  const unread = unreadCount > 0;
 
   return (
     <li>
@@ -238,7 +241,7 @@ function ThreadRow({ thread }: { thread: MessageThreadView }) {
               <Chip tone="brand">{thread.subtitle}</Chip>
             ) : null}
 
-            {unread ? <Chip tone="sunset">{thread.unreadCount} new</Chip> : null}
+            {unread ? <Chip tone="sunset">{unreadCount} new</Chip> : null}
           </div>
         </div>
 
@@ -247,7 +250,6 @@ function ThreadRow({ thread }: { thread: MessageThreadView }) {
     </li>
   );
 }
-
 function EmptyThreads() {
   return (
     <div className="clay-card flex flex-col items-center p-8 text-center sm:p-12">
