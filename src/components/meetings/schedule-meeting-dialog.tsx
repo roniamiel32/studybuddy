@@ -3,25 +3,7 @@
  * Authors:     Roni Amiel & Eden Bitran
  * Description: "Schedule a meeting" — the picker behind the calendar icon in the
  *              chat composer.
- *
- *              A native <dialog>, the same shell as the course override
- *              questionnaire and the week editor, so focus trapping, Escape and
- *              the backdrop come from the platform.
- *
- *              IT ONLY EVER OFFERS TIMES EVERYONE IS FREE. The list comes from
- *              rpc_meeting_slots — the intersection of every participant's weekly
- *              grid, with everybody's existing sessions already subtracted — so
- *              there is no free-text time field and nothing to validate against
- *              other people's diaries. An empty list is a real answer, and says
- *              which of the two reasons produced it.
- *
- *              THE TRIGGER IS NOT IN HERE. The composer is a <form>, and a form
- *              cannot legally contain another one, so the chat owns the button
- *              and this owns everything the button opens.
  * Version:     0.19.0
- *
- * Modifications:
- *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
  */
 
 'use client';
@@ -44,21 +26,12 @@ import { cn } from '@/lib/utils';
 export interface ScheduleMeetingDialogProps {
   open: boolean;
   onClose: () => void;
-  /** Exactly one of these, matching the meetings_one_scope constraint. */
   conversationId?: string;
   groupId?: string;
-  /** Named in the copy, so it is obvious who the session is with. */
   withLabel: string;
-  /** Seeds the title, so the field is never empty on open. */
   courseCode: string | null;
 }
 
-/**
- * Renders the scheduling dialog.
- *
- * @param props - The chat it belongs to and who is in it.
- * @returns The dialog element.
- */
 export function ScheduleMeetingDialog({
   open,
   onClose,
@@ -73,18 +46,17 @@ export function ScheduleMeetingDialog({
   const [slots, setSlots] = useState<MeetingSlotView[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [chosen, setChosen] = useState<MeetingSlotView | null>(null);
+  
+  const [customStart, setCustomStart] = useState<string>('');
+  const [customEnd, setCustomEnd] = useState<string>('');
+
   const [loading, startLoading] = useTransition();
 
   const error = state && !state.ok ? state.error : null;
 
-  /* showModal() is the only way to get the platform's focus trap and backdrop;
-     it cannot be expressed as a prop, so the element is driven imperatively. */
   useEffect(() => {
     const dialog = dialogRef.current;
-
-    if (!dialog) {
-      return;
-    }
+    if (!dialog) return;
 
     if (open && !dialog.open) {
       dialog.showModal();
@@ -93,17 +65,11 @@ export function ScheduleMeetingDialog({
     }
   }, [open]);
 
-  /*
-   * The intersection is fetched on open rather than with the chat. It reads
-   * every participant's availability and every meeting any of them is going to,
-   * which is far too much work to do for a chat nobody has opened this on.
-   *
-   * Nothing is reset here: the chat remounts this component on every open, so
-   * the state below already starts empty. That also makes a second open re-ask
-   * rather than showing the slots from ten minutes ago.
-   */
   useEffect(() => {
     if (!open) {
+      setChosen(null);
+      setCustomStart('');
+      setCustomEnd('');
       return;
     }
 
@@ -118,16 +84,6 @@ export function ScheduleMeetingDialog({
     });
   }, [open, conversationId, groupId]);
 
-  /*
-   * Close once the booking succeeds — the chat revalidates behind it.
-   *
-   * IN AN EFFECT, unlike the course and availability dialogs, which do the same
-   * thing during render. They can: the state they set is their own, and React
-   * allows a component to update itself mid-render. This one closes by calling
-   * the CHAT's setter, because the trigger has to live inside the composer form —
-   * and updating a different component during render is the one thing that rule
-   * does not cover.
-   */
   const handledRef = useRef<unknown>(null);
 
   useEffect(() => {
@@ -138,6 +94,34 @@ export function ScheduleMeetingDialog({
   }, [state, onClose]);
 
   const days = groupSlotsByDay(slots ?? []);
+
+  const toTimeString = (iso: string) => {
+    if (!iso) return '';
+    const date = new Date(iso);
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const handleStartChange = (timeStr: string) => {
+    if (!chosen) return;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date(chosen.startsAt);
+    date.setHours(hours, minutes, 0, 0);
+    setCustomStart(date.toISOString());
+  };
+
+  const handleEndChange = (timeStr: string) => {
+    if (!chosen) return;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date(chosen.endsAt);
+    date.setHours(hours, minutes, 0, 0);
+    setCustomEnd(date.toISOString());
+  };
+
+  const handleSelectSlot = (slot: MeetingSlotView) => {
+    setChosen(slot);
+    setCustomStart(slot.startsAt);
+    setCustomEnd(slot.endsAt);
+  };
 
   return (
     <dialog
@@ -172,8 +156,9 @@ export function ScheduleMeetingDialog({
           <input type="hidden" name="conversationId" value={conversationId} />
         ) : null}
         {groupId ? <input type="hidden" name="groupId" value={groupId} /> : null}
-        <input type="hidden" name="startsAt" value={chosen?.startsAt ?? ''} />
-        <input type="hidden" name="endsAt" value={chosen?.endsAt ?? ''} />
+        
+        <input type="hidden" name="startsAt" value={(customStart || chosen?.startsAt) ?? ''} />
+        <input type="hidden" name="endsAt" value={(customEnd || chosen?.endsAt) ?? ''} />
 
         {error ? (
           <p role="alert" className="text-destructive flex items-start gap-2 text-label-sm">
@@ -193,11 +178,6 @@ export function ScheduleMeetingDialog({
             {loadError}
           </p>
         ) : days.length === 0 ? (
-          /*
-           * An empty intersection has two very different causes and the student
-           * can only act on one of them, so the copy names both rather than
-           * saying "no times available" and leaving them stuck.
-           */
           <div className="border-outline-variant/60 rounded-md border border-dashed p-4">
             <p className="text-label-md">No shared free time in the next two weeks</p>
             <p className="text-outline mt-1 text-label-sm font-normal text-pretty">
@@ -221,7 +201,7 @@ export function ScheduleMeetingDialog({
                       <button
                         key={slot.startsAt}
                         type="button"
-                        onClick={() => setChosen(slot)}
+                        onClick={() => handleSelectSlot(slot)}
                         aria-pressed={isChosen}
                         className={cn(
                           'rounded-md border px-3 py-2 text-label-sm transition-colors',
@@ -243,6 +223,39 @@ export function ScheduleMeetingDialog({
             ))}
           </fieldset>
         )}
+
+        {chosen ? (
+          <div className="rounded-xl border border-outline-variant/30 bg-surface-container-high/40 p-4 shadow-clay flex flex-col gap-3">
+            <p className="text-label-sm font-semibold">Fine-tune session hours</p>
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="custom-start" className="text-label-xs">Start Time</Label>
+                <input
+                  id="custom-start"
+                  type="time"
+                  value={toTimeString(customStart || chosen.startsAt)}
+                  min={toTimeString(chosen.startsAt)}
+                  max={toTimeString(customEnd || chosen.endsAt)}
+                  onChange={(e) => handleStartChange(e.target.value)}
+                  className="rounded-md border border-outline-variant bg-surface px-2.5 py-1.5 text-sm"
+                />
+              </div>
+              <span className="mt-5">–</span>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="custom-end" className="text-label-xs">End Time</Label>
+                <input
+                  id="custom-end"
+                  type="time"
+                  value={toTimeString(customEnd || chosen.endsAt)}
+                  min={toTimeString(customStart || chosen.startsAt)}
+                  max={toTimeString(chosen.endsAt)}
+                  onChange={(e) => handleEndChange(e.target.value)}
+                  className="rounded-md border border-outline-variant bg-surface px-2.5 py-1.5 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {days.length > 0 ? (
           <>
@@ -280,8 +293,6 @@ export function ScheduleMeetingDialog({
             Cancel
           </Button>
 
-          {/* The reason the button is closed, beside it rather than replacing
-              its label — a disabled control with no explanation is a dead end. */}
           {!chosen && days.length > 0 ? (
             <span className="text-outline text-label-sm">Pick a time first</span>
           ) : null}

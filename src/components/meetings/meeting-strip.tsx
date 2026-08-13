@@ -2,21 +2,7 @@
  * File:        src/components/meetings/meeting-strip.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The sessions booked from a chat, above its messages.
- *
- *              WHY THIS IS NOT A MESSAGE. A meeting changes after it is posted —
- *              people drop out, the organiser calls it off, it finishes and
- *              becomes rateable — and a message is a record of what someone said
- *              at a moment. Rendering from the `meetings` table instead means the
- *              card is always current, and neither message table needed a column.
- *
- *              A CANCELLED RSVP KEEPS THE CARD. It goes quiet rather than
- *              disappearing, because a student who pulled out still needs to see
- *              what they pulled out of and to be able to change their mind while
- *              it is still ahead of them.
  * Version:     0.19.0
- *
- * Modifications:
- *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
  */
 
 'use client';
@@ -34,9 +20,6 @@ export interface MeetingStripProps {
 
 /**
  * Renders the booked sessions for one chat.
- *
- * @param meetings - Sessions from the last day and everything ahead.
- * @returns The strip, or null when there is nothing booked.
  */
 export function MeetingStrip({ meetings }: MeetingStripProps) {
   if (meetings.length === 0) {
@@ -54,32 +37,27 @@ export function MeetingStrip({ meetings }: MeetingStripProps) {
 
 /**
  * One session, with whatever the viewer can still do about it.
- *
- * @param meeting - The session.
- * @returns The list item.
  */
 function MeetingCard({ meeting }: { meeting: MeetingView }) {
-  const [isVisible, setIsVisible] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const uniqueKey = `dismissed-meeting-${window.location.pathname}-${meeting.id}`;
-      return localStorage.getItem(uniqueKey) !== 'true';
-    }
-    return true;
-  });
-
+  const [isVisible, setIsVisible] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    if (typeof window !== 'undefined') {
+      const dismissed = localStorage.getItem(`dismissed-meeting-${meeting.id}`) === 'true';
+      if (dismissed) {
+        setIsVisible(false);
+      }
+    }
+  }, [meeting.id]);
 
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const handleDismiss = () => {
     setIsVisible(false);
-    const uniqueKey = `dismissed-meeting-${window.location.pathname}-${meeting.id}`;
-    localStorage.setItem(uniqueKey, 'true');
+    localStorage.setItem(`dismissed-meeting-${meeting.id}`, 'true');
   };
 
   const act = (run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
