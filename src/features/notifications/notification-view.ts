@@ -12,6 +12,8 @@
  * Version:     0.20.0
  *
  * Modifications:
+ *     0.24.0 - 2026-08-13 - A suggestion addresses one of the pair, not the
+ *                           mutual connection who bridged them
  *     0.22.0 - 2026-08-12 - Social and rating types (Phase 8D)
  *     0.20.0 - 2026-08-11 - Initial implementation (Phase 8A)
  */
@@ -79,7 +81,10 @@ export interface NotificationCopy {
  */
 export function notificationCopy(notification: NotificationView): NotificationCopy | null {
   const who = notification.actorName ?? 'A classmate';
-  const other = notification.secondaryName ?? 'someone else';
+  /* secondaryName is no longer read by any copy: since 0.24.0 the only type that
+     used it — match_suggestion — names one person, and the mutual connection it
+     travelled through stays unnamed. The field stays on the view model because
+     the row still carries it. */
   const group = notification.groupName ?? 'your group';
   const meeting = notification.meetingTitle ?? 'a session';
 
@@ -146,9 +151,19 @@ export function notificationCopy(notification: NotificationView): NotificationCo
       };
 
     case 'match_suggestion':
+      /*
+       * ADDRESSED TO ONE OF THE PAIR, not to the person who knows them both.
+       * Until 0.24.0 this read "Lian and Tamar could study well together" and
+       * went to the mutual friend, who was being asked to broker an
+       * introduction between two people whose feeds said nothing.
+       *
+       * The mutual connection is in secondaryId and is deliberately not named:
+       * "a mutual study connection" is the reason the suggestion exists, and
+       * naming them turns a suggestion into a report on who rated whom.
+       */
       return {
-        message: `${who} and ${other} could study well together.`,
-        cta: 'Suggest they connect',
+        message: `You and ${who} share a mutual study connection. You might study well together!`,
+        cta: 'See their profile',
         href: actor,
       };
 

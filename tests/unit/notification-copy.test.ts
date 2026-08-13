@@ -56,6 +56,25 @@ describe('notificationCopy', () => {
     expect(notificationCopy(view('something_new' as NotificationType))).toBeNull();
   });
 
+  it('addresses a suggestion to one of the pair, never to the mutual connection', () => {
+    /*
+     * The bug this replaced: the row went to the person who already knew both,
+     * reading "Maya and Amit could study well together". It now goes to one of
+     * them, names only the other, and leaves the mutual connection unnamed —
+     * secondaryName is set here precisely to prove it does not leak into the
+     * sentence.
+     */
+    const copy = notificationCopy(view('match_suggestion'));
+
+    expect(copy).not.toBeNull();
+    expect(copy!.message).toBe(
+      'You and Maya Shalev share a mutual study connection. You might study well together!',
+    );
+    expect(copy!.message).not.toMatch(/Amit Shani/);
+    /* It leads to the person being suggested, not to the bridge. */
+    expect(copy!.href).toBe('/students/a1');
+  });
+
   it('survives a notification whose subject has deleted their account', () => {
     const copy = notificationCopy(
       view('post_like', { actorId: null, actorName: null, wallOwnerId: null }),

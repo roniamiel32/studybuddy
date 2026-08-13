@@ -50,6 +50,11 @@ export interface OnboardingProfile {
   isDiscoverable: boolean;
   /** Shown read-only on the Profile tab; the degree decides the course catalog. */
   degreeName: string | null;
+  /**
+   * When they were last asked whether they had moved up a year, null if never.
+   * Drives the autumn prompt — see features/profile/academic-year.ts.
+   */
+  lastYearPromptDate: string | null;
 }
 
 /**
@@ -65,7 +70,7 @@ export async function getOnboardingProfile(): Promise<OnboardingProfile> {
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'full_name, degree_id, city, year_of_study, avatar_url, onboarding_completed_at, is_discoverable, universities(name), degrees(name)',
+      'full_name, degree_id, city, year_of_study, avatar_url, onboarding_completed_at, is_discoverable, last_year_prompt_date, universities(name), degrees(name)',
     )
     .eq('id', user.id)
     .single();
@@ -93,6 +98,7 @@ export async function getOnboardingProfile(): Promise<OnboardingProfile> {
     email: user.email ?? '',
     isDiscoverable: data.is_discoverable,
     degreeName: data.degrees?.name ?? null,
+    lastYearPromptDate: data.last_year_prompt_date,
   };
 }
 

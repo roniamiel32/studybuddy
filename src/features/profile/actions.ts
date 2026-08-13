@@ -21,9 +21,13 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { availabilitySchema } from '@/features/onboarding/schema';
+import { snoozedPromptDate } from '@/features/profile/academic-year';
 import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES, uploadAvatar } from '@/features/profile/avatar';
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
 import { createClient, requireUser } from '@/lib/supabase/server';
+
+/** The three buttons on the new-academic-year dialog. */
+const academicYearChoiceSchema = z.enum(['yes', 'no', 'later']);
 
 const detailsSchema = z.object({
   fullName: z.string().trim().min(2, 'Your name needs at least two characters.').max(80),
@@ -333,5 +337,75 @@ export async function removeAvatar(
     return ok(undefined);
   } catch (error) {
     return toActionError(error, 'profile.removeAvatar');
+  }
+}
+
+/**
+ * Records the student's answer to "have you moved up a year?".
+ *
+ * THREE ANSWERS, ONE COLUMN. "Yes" and "no" both settle the question for this
+ * academic year and differ only in whether the year moves; "later" settles
+ * nothing and writes a date the six-month rule reopens in a week. Which date
+ * that is belongs in academic-year.ts next to the rule it has to satisfy.
+ *
+ * THE YEAR IS READ AND WRITTEN IN ONE STATEMENT rather than read, incremented in
+ * JavaScript and written back. Two page loads answering "yes" at once would both
+ * read the same year and both write the same successor, and the student would
+ * advance once for two answers — or, worse, a stale read would move them
+ * backwards. `year_of_study + 1` lets the database do the arithmetic on the row
+ * it is holding.
+ *
+ * @param previous - Prior result, required by useActionState and unused.
+ * @param formData - Carries `choice`: yes, no, or later.
+ * @returns Success, or a failure.
+ */
+export async function answerAcademicYearPrompt(
+  previous: ActionResult<void> | null,
+  formData: FormData,
+): Promise<ActionResult<void>> {
+  try {
+    const user = await requireUser();
+    const supabase = await createClient();
+
+    const choice = academicYearChoiceSchema.parse(formData.get('choice'));
+
+    const promptedAt =
+      choice === 'later' ? snoozedPromptDate() : new Date();
+
+    if (choice === 'yes') {
+      const { error: advanceError } = await supabase.rpc('rpc_advance_academic_year');
+
+      if (advanceError) {
+        return fail(
+          ERROR_CODES.UNEXPECTED,
+          'We could not update your year. Try again from your profile settings.',
+        );
+      }
+
+      /*
+       * A null result means the year was unset or already at the maximum, so
+       * there was nothing to advance. Not an error: the prompt date below still
+       * needs writing, or the student is asked the same unanswerable question on
+       * every page load. shouldPromptForAcademicYear keeps them from being asked
+       * at all; this is what happens if it ever fails to.
+       */
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ last_year_prompt_date: promptedAt.toISOString() })
+      .eq('id', user.id);
+
+    if (error) {
+      return fail(ERROR_CODES.UNEXPECTED, 'We could not save that. Try again.');
+    }
+
+    /* The year shows in the header profile card and on every card the student
+       appears on, so the whole shell is stale until this is revalidated. */
+    revalidatePath('/', 'layout');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'profile.answerAcademicYearPrompt');
   }
 }

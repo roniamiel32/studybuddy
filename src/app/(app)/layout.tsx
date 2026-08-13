@@ -11,6 +11,7 @@
  * Version:     0.16.0
  *
  * Modifications:
+ *     0.24.0 - 2026-08-13 - The new-academic-year prompt (Phase 9B)
  *     0.16.0 - 2026-08-10 - Header redesign: centred menu, Match call to action,
  *                           consolidated user menu
  *     0.15.0 - 2026-08-10 - Pending join-request count for the badge (Phase 5)
@@ -24,11 +25,13 @@ import Link from 'next/link';
 
 import { Logo } from '@/components/ui/logo';
 import { DesktopNav, MatchButton, MobileNav } from '@/components/layout/app-nav';
+import { UpdateYearDialog } from '@/components/profile/update-year-dialog';
 import { getUnreadNotificationCount } from '@/features/notifications/queries';
 import { UserMenu } from '@/components/layout/user-menu';
 import { getUnreadCount } from '@/features/chat/queries';
 import { getPendingRequestCount } from '@/features/groups/queries';
 import { signOut } from '@/features/auth/actions';
+import { shouldPromptForAcademicYear } from '@/features/profile/academic-year';
 import { getOnboardingProfile } from '@/features/onboarding/queries';
 import { requireUser } from '@/lib/supabase/server';
 
@@ -50,8 +53,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       getUnreadNotificationCount(),
     ]);
 
+  /*
+   * IN THE LAYOUT RATHER THAN ON ONE PAGE, because there is no single page every
+   * student passes through — /dashboard is the entry point but a link from a
+   * notification or a bookmark lands anywhere, and the year would stay wrong
+   * until they happened to visit the right screen. Onboarding is outside this
+   * layout, so someone half-registered is never asked.
+   *
+   * The whole decision is in shouldPromptForAcademicYear: the autumn window, the
+   * six-month gap, and the two cases where there is nothing to advance.
+   */
+  const askAboutYear = shouldPromptForAcademicYear({
+    yearOfStudy: profile.yearOfStudy,
+    lastPromptDate: profile.lastYearPromptDate,
+  });
+
   return (
     <div className="bg-pattern flex min-h-full flex-1 flex-col">
+      {/* Non-null asserted safely: the guard above returns false for a null year. */}
+      {askAboutYear ? <UpdateYearDialog yearOfStudy={profile.yearOfStudy!} /> : null}
+
       <header className="glass border-outline-variant/30 sticky top-0 z-40 border-b">
         {/*
           * Four zones, left to right: brand, menu, call to action, user.

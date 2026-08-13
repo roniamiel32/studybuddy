@@ -1209,6 +1209,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_discoverable: boolean
+          last_year_prompt_date: string | null
           onboarding_completed_at: string | null
           university_id: string
           updated_at: string
@@ -1224,6 +1225,7 @@ export type Database = {
           full_name?: string | null
           id: string
           is_discoverable?: boolean
+          last_year_prompt_date?: string | null
           onboarding_completed_at?: string | null
           university_id: string
           updated_at?: string
@@ -1239,6 +1241,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_discoverable?: boolean
+          last_year_prompt_date?: string | null
           onboarding_completed_at?: string | null
           university_id?: string
           updated_at?: string
@@ -1701,6 +1704,7 @@ export type Database = {
         Returns: string
       }
       app_wall_post_owner: { Args: { target_post_id: string }; Returns: string }
+      rpc_advance_academic_year: { Args: never; Returns: number }
       rpc_approve_group_request: {
         Args: { p_request_id: string }
         Returns: string
