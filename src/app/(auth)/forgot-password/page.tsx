@@ -37,7 +37,7 @@ export default async function ForgotPasswordPage({
           className="text-destructive bg-destructive/10 mb-6 flex items-start gap-2 rounded-md p-3 text-label-md"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          That reset link has already been used or has expired. Ask for a new one below.
+          That code has already been used or has expired. Ask for a new one below.
         </p>
       ) : null}
 

@@ -49,7 +49,7 @@ export function FindAccountForm() {
         <div>
           <h1 className="font-heading text-headline-lg">Check your email</h1>
           <p className="text-on-surface-variant mt-2 text-body-md text-pretty">
-            If {email} has an account, a link to reset your password is on its way. It
+            If {email} has an account, a code to reset your password is on its way. It
             expires in an hour.
           </p>
         </div>
@@ -108,7 +108,7 @@ export function FindAccountForm() {
 
         <Button type="submit" size="lg" disabled={pending} className="w-full">
           {pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
-          Send reset link
+          Send code
         </Button>
 
         <p className="text-on-surface-variant text-center text-body-md">

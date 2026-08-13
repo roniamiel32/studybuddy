@@ -40,7 +40,7 @@ export default async function ResetPasswordPage() {
       <>
         <h1 className="font-heading text-headline-lg">This link has expired</h1>
         <p className="text-on-surface-variant mt-2 mb-7 text-body-md text-pretty">
-          Reset links last an hour and can only be used once. Ask for a new one and it
+          Codes last an hour and can only be used once. Ask for a new one and it
           will be in your inbox in a moment.
         </p>
 
@@ -48,7 +48,7 @@ export default async function ResetPasswordPage() {
           href="/forgot-password"
           className="clay-btn-primary inline-flex items-center gap-2 rounded-md px-4 py-2 text-label-md"
         >
-          Send a new link
+          Send a new code
         </Link>
       </>
     );

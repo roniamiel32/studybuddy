@@ -40,7 +40,7 @@ const SUFFIX_LIST = ACADEMIC_SUFFIXES.join(' or ');
 export const emailSchema = z
   .string()
   .transform(normaliseEmail)
-  .pipe(z.email('That does not look like an email address.'))
+  .pipe(z.email('Use your university address.'))
   .refine(isAcademicEmail, `Use your university address — one ending in ${SUFFIX_LIST}.`);
 
 export const signUpSchema = z.object({
