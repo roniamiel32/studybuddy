@@ -195,23 +195,35 @@ export async function getConversation(
 
 /**
  * Every message in a conversation, oldest first.
- *
- * Unpaginated on purpose at this phase: a thread between two study partners is
- * short, and paginating it would mean building scroll restoration for a screen
- * that does not need it yet. Recorded as a known limit rather than pretended
- * away — see design section 12.
+ * Filters out messages the user has explicitly dismissed/hidden.
  *
  * @param conversationId - The conversation to read.
- * @returns Messages in send order.
+ * @returns Messages in send order, excluding hidden ones.
  */
 export async function getMessages(conversationId: string): Promise<ChatMessageView[]> {
+  const user = await requireUser();
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  /* 1. שולפים את מזהי ההודעות שהמשתמש הנוכחי הסתיר */
+ const { data: hiddenData } = await (supabase.from('hidden_messages' as any) as any)
+    .select('message_id')
+    .eq('profile_id', user.id);
+
+  const hiddenIds = (hiddenData ?? []).map((row:any) => row.message_id);
+
+  /* 2. בונים את השאילתה לשליפת הודעות הצ'אט */
+  let query = supabase
     .from('messages')
     .select('id, conversation_id, sender_id, body, is_read, read_at, is_icebreaker, created_at')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
+
+  /* 3. מסננים החוצה הודעות שהוסתרו על ידי המשתמש */
+  if (hiddenIds.length > 0) {
+    query = query.not('id', 'in', `(${hiddenIds.join(',')})`);
+  }
+
+  const { data, error } = await query;
 
   if (error || !data) {
     return [];

@@ -116,3 +116,41 @@ export async function markConversationRead(
     return toActionError(error, 'chat.markConversationRead');
   }
 }
+
+
+/**
+ * Hides a specific message for the signed-in student.
+ * 
+ * Records the dismissal in the hidden_messages table so it is filtered out
+ * on subsequent reads for this user only, without affecting the other participant.
+ *
+ * @param messageId - The ID of the message to hide.
+ * @returns Success, or a failure.
+ */
+export async function dismissMessage(
+  messageId: string,
+): Promise<ActionResult<void>> {
+  try {
+    const user = await requireUser();
+    const supabase = await createClient();
+
+  const { error } = await (supabase.from('hidden_messages' as any) as any).insert({
+      profile_id: user.id,
+      message_id: messageId,
+    });
+
+    if (error) {
+      return fail(
+        ERROR_CODES.UNEXPECTED,
+        'We could not dismiss this message. Try again.'
+      );
+    }
+
+    /* Revalidate the messages list so the hidden message disappears immediately */
+    revalidatePath('/messages');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'chat.dismissMessage');
+  }
+}
