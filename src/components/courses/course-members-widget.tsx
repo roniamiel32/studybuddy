@@ -57,9 +57,10 @@ export function CourseMembersWidget({
   initialHasMore,
   classmateCount,
 }: CourseMembersWidgetProps) {
-  const [members, setMembers] = useState(initialMembers);
-  const [hasMore, setHasMore] = useState(initialHasMore);
-  const [error, setError] = useState<string | null>(null);
+  const [members, setMembers] = useState(() => initialMembers.slice(0, 3));
+  const [hasMore, setHasMore] = useState(
+    () => initialHasMore || initialMembers.length > 3 || classmateCount > 3
+  ); const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
