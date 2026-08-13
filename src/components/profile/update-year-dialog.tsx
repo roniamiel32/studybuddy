@@ -72,7 +72,7 @@ export function UpdateYearDialog({ yearOfStudy }: UpdateYearDialogProps) {
          a modal <dialog> centres itself with, so without this it sits in the
          top-left corner with its buttons off the edge. Same as
          rate-partner-dialog. */
-      className="bg-surface text-on-surface shadow-clay-lifted m-auto w-[min(30rem,calc(100vw-2rem))] rounded-xl p-0 backdrop:bg-black/40"
+      className="bg-surface text-on-surface shadow-clay-lifted m-auto w-[min(36rem,calc(100vw-2rem))] rounded-xl p-0 backdrop:bg-black/40"
     >
       <form action={formAction} className="flex flex-col gap-5 p-6">
         <span className="bg-brand-fixed/60 text-brand flex size-12 items-center justify-center rounded-full">
@@ -107,32 +107,47 @@ export function UpdateYearDialog({ yearOfStudy }: UpdateYearDialogProps) {
           pressed, so there is no state to keep in sync and nothing to get wrong
           if two are pressed quickly.
         */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+        <div className="mt-4 flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button
             type="submit"
             name="choice"
             value="later"
             variant="ghost"
             disabled={pending}
-            className="sm:order-first sm:mr-auto"
+            className="w-full sm:w-auto"
           >
             <Clock className="size-4" aria-hidden="true" />
             Ask me later
           </Button>
 
-          <Button type="submit" name="choice" value="no" variant="secondary" disabled={pending}>
-            <X className="size-4" aria-hidden="true" />
-            No, same year
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Button
+              type="submit"
+              name="choice"
+              value="no"
+              variant="secondary"
+              disabled={pending}
+              className="w-full sm:w-auto"
+            >
+              <X className="size-4" aria-hidden="true" />
+              No, same year
+            </Button>
 
-          <Button type="submit" name="choice" value="yes" disabled={pending}>
-            {pending ? (
-              <Loader2 className="animate-spin" aria-hidden="true" />
-            ) : (
-              <Check className="size-4" aria-hidden="true" />
-            )}
-            Yes, I am in year {yearOfStudy + 1}
-          </Button>
+            <Button
+              type="submit"
+              name="choice"
+              value="yes"
+              disabled={pending}
+              className="w-full sm:w-auto"
+            >
+              {pending ? (
+                <Loader2 className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Check className="size-4" aria-hidden="true" />
+              )}
+              Yes, I am in year {yearOfStudy + 1}
+            </Button>
+          </div>
         </div>
       </form>
     </dialog>
