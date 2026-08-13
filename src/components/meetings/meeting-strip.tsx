@@ -61,7 +61,8 @@ export function MeetingStrip({ meetings }: MeetingStripProps) {
 function MeetingCard({ meeting }: { meeting: MeetingView }) {
   const [isVisible, setIsVisible] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(`dismissed-meeting-${meeting.id}`) !== 'true';
+      const uniqueKey = `dismissed-meeting-${window.location.pathname}-${meeting.id}`;
+      return localStorage.getItem(uniqueKey) !== 'true';
     }
     return true;
   });
@@ -77,7 +78,8 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
 
   const handleDismiss = () => {
     setIsVisible(false);
-    localStorage.setItem(`dismissed-meeting-${meeting.id}`, 'true');
+    const uniqueKey = `dismissed-meeting-${window.location.pathname}-${meeting.id}`;
+    localStorage.setItem(uniqueKey, 'true');
   };
 
   const act = (run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
