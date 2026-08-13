@@ -99,5 +99,13 @@ export const groupMessageSchema = z.object({
   body: z.string().trim().min(1, 'Write something first.').max(2000, 'Keep it under 2000 characters.'),
 });
 
+/**
+ * The group being marked as read.
+ *
+ * Only the id, because that is the only thing the caller gets to choose —
+ * rpc_mark_group_read stamps auth.uid()'s own membership and takes no profile.
+ */
+export const markGroupReadSchema = z.uuid('That group does not look right.');
+
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
 export type DecideRequestInput = z.infer<typeof decideRequestSchema>;

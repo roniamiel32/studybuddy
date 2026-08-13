@@ -17,6 +17,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
 import { createClient, requireUser } from '@/lib/supabase/server';
@@ -28,6 +29,7 @@ import {
   decideRequestSchema,
   groupMessageSchema,
   inviteToGroupSchema,
+  markGroupReadSchema,
   memberRoleSchema,
   removeMemberSchema,
   requestToJoinSchema,
@@ -364,6 +366,8 @@ export async function leaveGroup(
   previous: ActionResult<void> | null,
   formData: FormData,
 ): Promise<ActionResult<void>> {
+  let left = false;
+
   try {
     const user = await requireUser();
     const supabase = await createClient();
@@ -400,10 +404,34 @@ export async function leaveGroup(
       revalidatePath(`/courses/${group.course_offering_id}`);
     }
 
-    return ok(undefined);
+    /* The group was a row in Messages and its unread fed the nav badge, so both
+       the list and the shell are stale the moment the membership goes. */
+    revalidatePath('/messages');
+    revalidatePath('/', 'layout');
+
+    left = true;
   } catch (error) {
     return toActionError(error, 'groups.leaveGroup');
   }
+
+  /*
+   * REDIRECTED FROM HERE, NOT FROM AN EFFECT IN THE BUTTON.
+   *
+   * The page this is submitted from 404s the instant the membership row goes —
+   * getGroup returns null for a non-member — and `revalidatePath` above makes
+   * that re-render part of the same response. A `router.replace` in the client
+   * lost the race: the not-found page had already replaced the component, so the
+   * effect that was supposed to navigate never ran and the student was left
+   * looking at the group they had just left.
+   *
+   * Outside the try, because redirect() works by throwing and toActionError
+   * would otherwise catch it and report "something went wrong".
+   */
+  if (left) {
+    redirect('/messages');
+  }
+
+  return ok(undefined);
 }
 
 /**
@@ -625,5 +653,50 @@ export async function decideInvitation(input: {
     return ok(undefined);
   } catch (error) {
     return toActionError(error, 'groups.decideInvitation');
+  }
+}
+/**
+ * Records that the caller has just opened a group chat.
+ *
+ * WHAT MAKES THE BADGE CLEAR. Group unread is counted as "messages from other
+ * people, sent after I last looked" — so looking is the whole of the write, and
+ * `last_seen_at` is the only column it touches.
+ *
+ * THROUGH AN RPC RATHER THAN AN UPDATE, and the reason is a privilege
+ * escalation: `study_group_members` has one UPDATE policy and it is admin-only.
+ * Opening that up so a member could stamp their own row would also let them set
+ * their own role to admin, because check_group_role_change restricts demotion
+ * rather than promotion. rpc_mark_group_read writes one column for auth.uid()
+ * and nothing else.
+ *
+ * SILENT ON FAILURE, on purpose. This fires from an effect when a chat opens; a
+ * student who is mid-conversation should not be shown an error about
+ * bookkeeping they did not ask for, and the next visit will stamp it anyway.
+ *
+ * @param groupId - The group being opened.
+ * @returns Success, or a failure the caller is free to ignore.
+ */
+export async function markGroupRead(groupId: string): Promise<ActionResult<void>> {
+  try {
+    await requireUser();
+    const supabase = await createClient();
+
+    const parsed = markGroupReadSchema.parse(groupId);
+
+    const { error } = await supabase.rpc('rpc_mark_group_read', {
+      target_group_id: parsed,
+    });
+
+    if (error) {
+      return fail(ERROR_CODES.UNEXPECTED, 'We could not update this group.');
+    }
+
+    /* The badge lives in the layout, so the whole app shell has to re-render —
+       the same reason markConversationRead revalidates the layout. */
+    revalidatePath('/', 'layout');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'groups.markGroupRead');
   }
 }

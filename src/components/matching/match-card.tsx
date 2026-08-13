@@ -46,8 +46,18 @@ export function MatchCard({ match }: MatchCardProps) {
   const availability = formatSharedAvailability(match.sharedDays, match.overlapMinutes);
   const detailsId = `match-details-${match.candidateId}`;
 
+  /*
+   * h-full IS THE HALF THAT MAKES THE BUTTONS LINE UP. `mt-auto` on the action
+   * area below can only push against space the card actually has, and a grid item
+   * is only as tall as its own content unless it is told to fill the row. With
+   * both, a card carrying an extra trait chip grows the row and every card in it
+   * grows with it, so the buttons stay on one line.
+   *
+   * The grid must also not say `items-start`: that is `align-items: flex-start`,
+   * which overrides the stretch this relies on. See dashboard/page.tsx.
+   */
   return (
-    <li className="clay-card relative flex flex-col items-center p-5 text-center">
+    <li className="clay-card relative flex h-full flex-col items-center p-5 text-center">
       <span
         title={describeScore(match.score)}
         className="border-brand-fixed text-brand absolute top-4 right-4 rounded-full border bg-white px-2 py-1 text-label-sm shadow-sm"

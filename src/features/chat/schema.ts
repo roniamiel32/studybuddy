@@ -37,5 +37,16 @@ export const icebreakerRequestSchema = z.object({
   courseOfferingId: z.uuid().optional(),
 });
 
+/**
+ * The thread being cleared from a student's own Messages list.
+ *
+ * The kind decides which column of `hidden_threads` the id lands in, and the
+ * table's CHECK constraint refuses a row that sets both or neither.
+ */
+export const hideThreadSchema = z.object({
+  kind: z.enum(['person', 'group']),
+  id: z.uuid('That conversation does not look right.'),
+});
+
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 export type IcebreakerRequest = z.infer<typeof icebreakerRequestSchema>;
