@@ -146,10 +146,7 @@ export function CredentialForm({ mode, action }: CredentialFormProps) {
           />
           <span>
             <span className="block text-label-md">Keep me signed in</span>
-            <span className="text-outline block text-label-sm font-normal">
-              Leave this off on a shared computer and you will be signed out when the
-              browser closes.
-            </span>
+            
           </span>
         </label>
       ) : null}
