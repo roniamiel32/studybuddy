@@ -23,16 +23,16 @@ import { changePassword } from '@/features/auth/actions';
 export function ChangePasswordForm() {
   const [isOpen, setIsOpen] = useState(false);
   
-  // ניהול מצבי תצוגת העין לכל שדה בנפרד
+  // Manage eye toggle states for each field individually
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // שמירת ערכי הסיסמה החדשה
+  // Store new password values
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // פונקציה שמאפסת את כל הנתונים וסוגרת את החלון
+  // Function to reset all data and close the dialog
   const handleClose = () => {
     setIsOpen(false);
     setPassword('');
@@ -47,7 +47,7 @@ export function ChangePasswordForm() {
       const result = await changePassword(previous, formData);
 
       if (result.ok) {
-        // סגירה ואיפוס במקרה של הצלחה
+        // Close and reset on success
         handleClose();
       }
 
@@ -60,7 +60,7 @@ export function ChangePasswordForm() {
 
   return (
     <>
-      {/* 1. כרטיסיית ההפעלה (Trigger Card) - מעוצבת כמו Your Week */}
+      {/* 1. Trigger Card - Styled like Your Week */}
       <section aria-labelledby="password-heading" className="clay-card flex flex-col items-start gap-4 p-6">
         <div>
           <h2 id="password-heading" className="font-heading text-headline-md">
@@ -79,7 +79,7 @@ export function ChangePasswordForm() {
         </button>
       </section>
 
-      {/* 2. החלון המודאלי (Modal) */}
+      {/* 2. Modal Dialog */}
       {isOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm animate-in fade-in sm:p-6 duration-200">
           <div 
@@ -87,7 +87,7 @@ export function ChangePasswordForm() {
             role="dialog"
             aria-modal="true"
           >
-            {/* כפתור סגירה X */}
+            {/* Close button X */}
             <button
               onClick={handleClose}
               className="text-outline hover:text-on-surface focus-visible:ring-brand/35 absolute top-5 right-5 rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
@@ -96,7 +96,7 @@ export function ChangePasswordForm() {
               <X className="size-5" aria-hidden="true" />
             </button>
 
-            {/* כותרת ותיאור בתוך המודאל */}
+            {/* Title and description inside the modal */}
             <div className="p-6 pb-2">
               <h2 className="font-heading mb-2 text-[22px] leading-tight">
                 Change your password
@@ -107,7 +107,7 @@ export function ChangePasswordForm() {
               </p>
             </div>
 
-            {/* טופס שינוי הסיסמה */}
+            {/* Change password form */}
             <form action={formAction} className="flex flex-col gap-5 p-6 pt-4" noValidate>
               
               {/* Current Password */}
@@ -198,7 +198,7 @@ export function ChangePasswordForm() {
                 </p>
               ) : null}
 
-              {/* כפתורי פעולה בסטייל של התמונה (Save & Cancel) */}
+              {/* Action buttons styled like the image (Save & Cancel) */}
               <div className="mt-2 flex items-center gap-4">
                 <Button type="submit" disabled={pending} className="rounded-md px-6">
                   {pending ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" /> : null}
