@@ -103,15 +103,13 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
           : 'border-outline-variant/50 bg-surface-container-high/40',
       )}
     >
-      {meeting.hasFinished ? (
-        <button
-          onClick={handleDismiss}
-          className="absolute right-2 top-2 text-outline hover:text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 rounded-sm"
-          aria-label="Dismiss meeting"
-        >
-          <X className="size-4" aria-hidden="true" />
-        </button>
-      ) : null}
+      <button
+        onClick={handleDismiss}
+        className="absolute right-2 top-2 text-outline hover:text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 rounded-sm"
+        aria-label="Dismiss meeting"
+      >
+        <X className="size-4" aria-hidden="true" />
+      </button>
 
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 pr-6"> 
         <div className="min-w-0">
