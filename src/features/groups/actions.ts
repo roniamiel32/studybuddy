@@ -117,7 +117,6 @@ export async function requestToJoin(
       status: 'pending',
     });
 
-    // אם ההכנסה נכשלה עקב אילוץ כפילות (קוד שגיאה 23505)
     if (insertError) {
       if (insertError.code === '23505') {
         const adminSupabase = createAdminClient(
@@ -125,7 +124,6 @@ export async function requestToJoin(
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
 
-        // מחיקת הבקשה הישנה באמצעות הרשאת אדמין עוקפת RLS
         const { error: deleteError } = await adminSupabase
           .from('group_requests')
           .delete()
