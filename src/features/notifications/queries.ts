@@ -123,6 +123,10 @@ export async function getMyNotifications(limit = 20): Promise<NotificationView[]
     .from('notifications')
     .select(NOTIFICATION_SELECT)
     .eq('recipient_id', user.id)
+    /* Dismissed rows stay in the table so rpc_sync_notifications cannot rebuild
+       a derived notification the student has already put away — see
+       dismissNotification. They are simply never read back. */
+    .is('dismissed_at', null)
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -154,7 +158,11 @@ export async function getUnreadNotificationCount(): Promise<number> {
     .from('notifications')
     .select('id', { count: 'exact', head: true })
     .eq('recipient_id', user.id)
-    .is('read_at', null);
+    .is('read_at', null)
+    /* A dismissed notification is gone from the feed, so it must be gone from
+       the badge too — otherwise the bell counts rows the page will not show and
+       the number can never be cleared. */
+    .is('dismissed_at', null);
 
   return count ?? 0;
 }

@@ -33,6 +33,7 @@ import 'server-only';
 
 import { createClient, requireUser } from '@/lib/supabase/server';
 import { getMyGroups } from '@/features/groups/queries';
+import { getHiddenThreads, isStillHidden } from '@/features/chat/hidden-threads';
 
 import type { GroupThreadView } from './thread-view';
 
@@ -62,7 +63,7 @@ export async function getGroupThreads(): Promise<GroupThreadView[]> {
   const supabase = await createClient();
   const groupIds = groups.map((group) => group.id);
 
-  const [{ data: messages }, { data: unread }] = await Promise.all([
+  const [{ data: messages }, { data: unread }, hidden] = await Promise.all([
     supabase
       .from('study_group_messages')
       .select('group_id, body, sender_id, is_system, created_at')
@@ -72,6 +73,7 @@ export async function getGroupThreads(): Promise<GroupThreadView[]> {
     /* Every group the caller is in, counted against their own last_seen_at —
        see the function's comment for why joining and system lines are excluded. */
     supabase.rpc('rpc_group_unread_counts'),
+    getHiddenThreads(),
   ]);
 
   interface PreviewRow {
@@ -95,29 +97,37 @@ export async function getGroupThreads(): Promise<GroupThreadView[]> {
     (unread ?? []).map((row) => [row.group_id, Number(row.unread_count)]),
   );
 
-  return groups.map((group) => {
-    const latest = newestByGroup.get(group.id);
+  return groups
+    .map((group) => {
+      const latest = newestByGroup.get(group.id);
 
-    return {
-      kind: 'group' as const,
-      id: group.id,
-      /* The existing group chat view, untouched — members sidebar, study
-         sessions and message board. Only the way in has changed. */
-      href: `/groups/${group.id}`,
-      title: group.name,
-      avatarUrl: null,
-      subtitle:
-        group.members.length === 1 ? '1 member' : `${group.members.length} members`,
-      lastMessageAt: latest?.created_at ?? group.createdAt,
-      lastMessageBody: latest?.body ?? null,
-      /* A system line ("Maya joined") is nobody's message, so it is never
-         prefixed with "You:". */
-      lastMessageFromMe: Boolean(latest && !latest.is_system && latest.sender_id === user.id),
-      /* Absent from the RPC's result means no membership row came back, which
-         cannot happen for a group getMyGroups just returned — but zero is the
-         right answer if it ever does. */
-      unreadCount: unreadByGroup.get(group.id) ?? 0,
-      memberCount: group.members.length,
-    };
-  });
+      return {
+        kind: 'group' as const,
+        id: group.id,
+        /* The existing group chat view, untouched — members sidebar, study
+           sessions and message board. Only the way in has changed. */
+        href: `/groups/${group.id}`,
+        title: group.name,
+        avatarUrl: null,
+        subtitle:
+          group.members.length === 1 ? '1 member' : `${group.members.length} members`,
+        lastMessageAt: latest?.created_at ?? group.createdAt,
+        lastMessageBody: latest?.body ?? null,
+        /* A system line ("Maya joined") is nobody's message, so it is never
+           prefixed with "You:". */
+        lastMessageFromMe: Boolean(latest && !latest.is_system && latest.sender_id === user.id),
+        /* Absent from the RPC's result means no membership row came back, which
+           cannot happen for a group getMyGroups just returned — but zero is the
+           right answer if it ever does. */
+        unreadCount: unreadByGroup.get(group.id) ?? 0,
+        memberCount: group.members.length,
+      };
+    })
+    /*
+     * Cleared threads drop out here, after the row is assembled, because "still
+     * hidden" is a comparison against the newest message. Clearing a group chat
+     * does not leave the group — anyone saying anything brings it back, and
+     * leaving is a separate, deliberate act on the group page.
+     */
+    .filter((thread) => !isStillHidden(hidden.groups.get(thread.id), thread.lastMessageAt));
 }

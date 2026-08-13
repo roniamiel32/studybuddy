@@ -25,10 +25,15 @@ import {
   Star,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
-import { markAllNotificationsRead, markNotificationRead } from '@/features/notifications/actions';
+import {
+  dismissNotification,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '@/features/notifications/actions';
 import {
   notificationCopy,
   timeAgo,
@@ -78,13 +83,25 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
 
   const unread = notifications.filter((notification) => !notification.isRead).length;
 
+  /*
+   * Dismissed rows leave the list at once rather than waiting for the server.
+   * The action is a write plus a revalidation, and a row that sat there for a
+   * round trip after being dismissed would invite a second press — which is a
+   * second write for a row that is already gone.
+   */
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
+
   const renderable = useMemo(
     () =>
       notifications.flatMap((notification) => {
+        if (dismissed.has(notification.id)) {
+          return [];
+        }
+
         const copy = notificationCopy(notification);
         return copy ? [{ notification, copy }] : [];
       }),
-    [notifications],
+    [notifications, dismissed],
   );
 
   const visible = renderable.slice(0, shown);
@@ -156,7 +173,7 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
             const group = adminGroups.find((g) => g.id === request.groupId);
 
             return (
-              <li key={notification.id}>
+              <li key={notification.id} className="relative">
                 <div className={cn(className, 'pr-3')}>
                   <MatchAvatar
                     fullName={notification.actorName ?? 'Classmate'}
@@ -181,10 +198,17 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
                     <ApplicantReviewDialog request={request} placesLeft={group ? placesLeft(group) : 0} />
                   </div>
 
-                  <span className="text-outline shrink-0 text-label-sm font-normal ml-2">
+                  <span className="text-outline shrink-0 text-label-sm font-normal ml-2 mr-6">
                     {timeAgo(notification.createdAt)}
                   </span>
                 </div>
+
+                <DismissButton
+                  notificationId={notification.id}
+                  onDismissed={() =>
+                    setDismissed((current) => new Set(current).add(notification.id))
+                  }
+                />
               </li>
             );
           }
@@ -219,7 +243,14 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
           );
 
           return (
-            <li key={notification.id}>
+            <li key={notification.id} className="relative">
+              {/*
+                The X is a SIBLING of the row, not a child of it. The row is an
+                anchor when it has a destination, and a button inside an anchor
+                is invalid markup that navigates when pressed. Absolute
+                positioning puts it where it looks nested; `pr-12` on the row
+                keeps the timestamp from sliding under it.
+              */}
               {copy.href ? (
                 <Link
                   href={copy.href}
@@ -228,13 +259,20 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
                       void markNotificationRead({ notificationId: notification.id });
                     }
                   }}
-                  className={className}
+                  className={cn(className, 'pr-12')}
                 >
                   {body}
                 </Link>
               ) : (
-                <div className={className}>{body}</div>
+                <div className={cn(className, 'pr-12')}>{body}</div>
               )}
+
+              <DismissButton
+                notificationId={notification.id}
+                onDismissed={() =>
+                  setDismissed((current) => new Set(current).add(notification.id))
+                }
+              />
             </li>
           );
         })}
@@ -265,5 +303,44 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
         </div>
       ) : null}
     </>
+  );
+}
+/**
+ * The X that clears one notification from the feed.
+ *
+ * OPTIMISTIC, AND NOT REVERTED ON FAILURE. Dismissing is not a claim about the
+ * world — nothing is destroyed and nothing is told to anyone — so a row that
+ * vanishes and stays vanished until the next load is the least surprising
+ * outcome of a failed write. Putting it back would be a flicker explaining a
+ * problem the student cannot act on.
+ *
+ * @param notificationId - Which notification.
+ * @param onDismissed    - Called once the press is registered.
+ * @returns The button element.
+ */
+function DismissButton({
+  notificationId,
+  onDismissed,
+}: {
+  notificationId: string;
+  onDismissed: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      aria-label="Dismiss this notification"
+      onClick={() => {
+        onDismissed();
+        startTransition(async () => {
+          await dismissNotification({ notificationId });
+        });
+      }}
+      className="text-outline hover:text-destructive hover:bg-destructive/10 focus-visible:ring-destructive/35 absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full transition-colors focus-visible:ring-4 focus-visible:outline-none"
+    >
+      <X className="size-4" aria-hidden="true" />
+    </button>
   );
 }

@@ -17,6 +17,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
 import { createClient, requireUser } from '@/lib/supabase/server';
@@ -411,6 +412,8 @@ export async function leaveGroup(
   previous: ActionResult<void> | null,
   formData: FormData,
 ): Promise<ActionResult<void>> {
+  let left = false;
+
   try {
     const user = await requireUser();
     const supabase = await createClient();
@@ -447,10 +450,34 @@ export async function leaveGroup(
       revalidatePath(`/courses/${group.course_offering_id}`);
     }
 
-    return ok(undefined);
+    /* The group was a row in Messages and its unread fed the nav badge, so both
+       the list and the shell are stale the moment the membership goes. */
+    revalidatePath('/messages');
+    revalidatePath('/', 'layout');
+
+    left = true;
   } catch (error) {
     return toActionError(error, 'groups.leaveGroup');
   }
+
+  /*
+   * REDIRECTED FROM HERE, NOT FROM AN EFFECT IN THE BUTTON.
+   *
+   * The page this is submitted from 404s the instant the membership row goes —
+   * getGroup returns null for a non-member — and `revalidatePath` above makes
+   * that re-render part of the same response. A `router.replace` in the client
+   * lost the race: the not-found page had already replaced the component, so the
+   * effect that was supposed to navigate never ran and the student was left
+   * looking at the group they had just left.
+   *
+   * Outside the try, because redirect() works by throwing and toActionError
+   * would otherwise catch it and report "something went wrong".
+   */
+  if (left) {
+    redirect('/messages');
+  }
+
+  return ok(undefined);
 }
 
 /**

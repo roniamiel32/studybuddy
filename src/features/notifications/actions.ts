@@ -87,3 +87,47 @@ export async function markAllNotificationsRead(): Promise<ActionResult<void>> {
     return toActionError(error, 'notifications.markAllNotificationsRead');
   }
 }
+
+/**
+ * Dismisses one notification from the caller's feed.
+ *
+ * A TIMESTAMP RATHER THAN A DELETE, and the reason is rpc_sync_notifications.
+ * Birthdays, strong matches, suggestions and rate-partner prompts are derived —
+ * the sync rebuilds them on every visit to the feed and relies on partial unique
+ * indexes plus `on conflict do nothing` to avoid duplicating them. Deleting the
+ * row would take the conflicting row away with it, and the next sync would put
+ * the notification straight back: an X that visibly does nothing. Dismissed rows
+ * stay where those indexes can still see them.
+ *
+ * SCOPED BY RLS, not by this function. "You can mark your own notifications read"
+ * is an UPDATE policy on `recipient_id = auth.uid()`, so a forged id updates
+ * nothing rather than somebody else's feed.
+ *
+ * @param input - Which notification.
+ * @returns Success, or a failure.
+ */
+export async function dismissNotification(input: {
+  notificationId: string;
+}): Promise<ActionResult<void>> {
+  try {
+    await requireUser();
+    const parsed = markReadSchema.parse(input);
+    const supabase = await createClient();
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ dismissed_at: new Date().toISOString() })
+      .eq('id', parsed.notificationId);
+
+    if (error) {
+      return fail(ERROR_CODES.UNEXPECTED, 'We could not dismiss that notification.');
+    }
+
+    /* The bell badge lives in the layout, so the shell has to re-render too. */
+    revalidatePath('/', 'layout');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'notifications.dismissNotification');
+  }
+}

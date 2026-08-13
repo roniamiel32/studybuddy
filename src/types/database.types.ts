@@ -893,6 +893,82 @@ export type Database = {
           },
         ]
       }
+      hidden_messages: {
+        Row: {
+          hidden_at: string
+          message_id: string
+          profile_id: string
+        }
+        Insert: {
+          hidden_at?: string
+          message_id: string
+          profile_id: string
+        }
+        Update: {
+          hidden_at?: string
+          message_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hidden_messages_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hidden_messages_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hidden_threads: {
+        Row: {
+          conversation_id: string | null
+          group_id: string | null
+          hidden_at: string
+          profile_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          group_id?: string | null
+          hidden_at?: string
+          profile_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          group_id?: string | null
+          hidden_at?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hidden_threads_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hidden_threads_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hidden_threads_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       learning_preferences: {
         Row: {
           created_at: string
@@ -1191,6 +1267,7 @@ export type Database = {
           comment_id: string | null
           course_offering_id: string | null
           created_at: string
+          dismissed_at: string | null
           group_id: string | null
           id: string
           meeting_id: string | null
@@ -1206,6 +1283,7 @@ export type Database = {
           comment_id?: string | null
           course_offering_id?: string | null
           created_at?: string
+          dismissed_at?: string | null
           group_id?: string | null
           id?: string
           meeting_id?: string | null
@@ -1221,6 +1299,7 @@ export type Database = {
           comment_id?: string | null
           course_offering_id?: string | null
           created_at?: string
+          dismissed_at?: string | null
           group_id?: string | null
           id?: string
           meeting_id?: string | null

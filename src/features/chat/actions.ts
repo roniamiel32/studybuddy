@@ -22,7 +22,7 @@ import { revalidatePath } from 'next/cache';
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
 import { createClient, requireUser } from '@/lib/supabase/server';
 
-import { sendMessageSchema } from './schema';
+import { hideThreadSchema, sendMessageSchema } from './schema';
 
 /**
  * Sends a message to a conversation.
@@ -134,7 +134,9 @@ export async function dismissMessage(
     const user = await requireUser();
     const supabase = await createClient();
 
-  const { error } = await (supabase.from('hidden_messages' as any) as any).insert({
+    /* No `as any` needed since the table exists: it is in the generated types,
+       so a typo in a column name is a compile error again. */
+    const { error } = await supabase.from('hidden_messages').insert({
       profile_id: user.id,
       message_id: messageId,
     });
@@ -152,5 +154,59 @@ export async function dismissMessage(
     return ok(undefined);
   } catch (error) {
     return toActionError(error, 'chat.dismissMessage');
+  }
+}
+/**
+ * Clears a thread from the caller's own Messages list.
+ *
+ * ONE-SIDED, AND THAT IS THE WHOLE POINT. The row is keyed on (person, thread),
+ * so the other participant's list, the conversation and its history are all
+ * untouched. Nothing here can reach them.
+ *
+ * AN UPSERT, so clearing a thread that returned and was read again just moves the
+ * marker forward instead of failing on the unique index.
+ *
+ * IT IS NOT A DELETE, and the timestamp is why: getConversations and
+ * getGroupThreads compare `hidden_at` against the thread's newest message, so a
+ * reply brings it back. Clearing a chat is tidying, not blocking — a version
+ * that swallowed the next message would lose mail.
+ *
+ * @param input - Which thread, by kind.
+ * @returns Success, or a failure.
+ */
+export async function hideThread(input: {
+  kind: 'person' | 'group';
+  id: string;
+}): Promise<ActionResult<void>> {
+  try {
+    const user = await requireUser();
+    const parsed = hideThreadSchema.parse(input);
+    const supabase = await createClient();
+
+    const target =
+      parsed.kind === 'person'
+        ? { conversation_id: parsed.id, group_id: null }
+        : { conversation_id: null, group_id: parsed.id };
+
+    const { error } = await supabase.from('hidden_threads').upsert(
+      { profile_id: user.id, ...target, hidden_at: new Date().toISOString() },
+      {
+        /* Matches the partial unique index for the kind being hidden — the other
+           column is null, and null is not what those indexes key on. */
+        onConflict: parsed.kind === 'person' ? 'profile_id,conversation_id' : 'profile_id,group_id',
+      },
+    );
+
+    if (error) {
+      return fail(ERROR_CODES.UNEXPECTED, 'We could not clear that conversation.');
+    }
+
+    /* The unread badge in the layout counts threads, so the shell re-renders. */
+    revalidatePath('/', 'layout');
+    revalidatePath('/messages');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'chat.hideThread');
   }
 }

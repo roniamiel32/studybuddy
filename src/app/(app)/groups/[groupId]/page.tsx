@@ -12,6 +12,7 @@ import { ApplicantRow } from '@/components/groups/applicant-review-dialog';
 import { GroupChat } from '@/components/groups/group-chat';
 import { GroupSettingsDialog } from '@/components/groups/group-settings-dialog';
 import { InvitePanel } from '@/components/groups/invite-panel';
+import { LeaveGroupButton } from '@/components/groups/leave-group-button';
 import { MemberRow } from '@/components/groups/member-row';
 import { GroupWorkspace } from '@/components/groups/group-workspace';
 import { Chip } from '@/components/ui/chip';
@@ -90,6 +91,17 @@ export default async function GroupPage({
             />
           ))}
         </ul>
+
+        {/*
+          The founder is excluded because check_group_member_removal refuses to
+          delete them — the group would be left without its owner. Everyone else,
+          admins included, may walk away.
+        */}
+        {!group.isFounder ? (
+          <div className="border-outline-variant/40 mt-4 border-t pt-4">
+            <LeaveGroupButton groupId={group.id} groupName={group.name} />
+          </div>
+        ) : null}
       </section>
 
       {group.isAdmin ? (

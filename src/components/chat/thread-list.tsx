@@ -8,12 +8,13 @@
 
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { Check, ChevronDown, ChevronRight, Filter, MessagesSquare, Users } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Filter, MessagesSquare, Users, X } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
 import { Chip } from '@/components/ui/chip';
+import { hideThread } from '@/features/chat/actions';
 import { formatConversationTime } from '@/features/chat/chat-view';
 import {
   arrangeThreads,
@@ -53,9 +54,19 @@ export function ThreadList({ threads }: ThreadListProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  /*
+   * Cleared rows leave the list at once rather than waiting for the revalidation.
+   * Keyed by kind and id together, because a conversation and a group could in
+   * principle share a uuid and this list holds both.
+   */
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+
   const arranged = useMemo(
-    () => arrangeThreads(threads, sort, filter),
-    [threads, sort, filter],
+    () =>
+      arrangeThreads(threads, sort, filter).filter(
+        (thread) => !hidden.has(`${thread.kind}-${thread.id}`),
+      ),
+    [threads, sort, filter, hidden],
   );
 
   const visible = arranged.slice(0, shown);
@@ -145,7 +156,15 @@ export function ThreadList({ threads }: ThreadListProps) {
         <>
           <ul aria-label="Conversations" className="flex flex-col gap-3">
             {visible.map((thread) => (
-              <ThreadRow key={`${thread.kind}-${thread.id}`} thread={thread} />
+              <ThreadRow
+                key={`${thread.kind}-${thread.id}`}
+                thread={thread}
+                onHidden={() =>
+                  setHidden((current) =>
+                    new Set(current).add(`${thread.kind}-${thread.id}`),
+                  )
+                }
+              />
             ))}
           </ul>
 
@@ -182,19 +201,40 @@ export function ThreadList({ threads }: ThreadListProps) {
 /**
  * One row, personal or group.
  */
-function ThreadRow({ thread }: { thread: MessageThreadView }) {
+function ThreadRow({
+  thread,
+  onHidden,
+}: {
+  thread: MessageThreadView;
+  onHidden: () => void;
+}) {
+  /*
+   * Two presses, and the second one is the destructive one. Clearing a thread is
+   * quiet — the other person keeps it, and a new message brings it back — but it
+   * still makes something disappear from a list you are scanning, and a bare X
+   * beside a row is far too easy to catch on the way past.
+   */
+  const [confirming, setConfirming] = useState(false);
+  const [pendingHide, startHiding] = useTransition();
+
   /* No cast needed since Phase 9E: a group thread carries a real unread count
      against last_seen_at, so both members of the union have `unreadCount: number`. */
   const unreadCount = thread.unreadCount;
   const unread = unreadCount > 0;
 
   return (
-    <li>
+    <li className="relative">
+      {/*
+        The controls sit BESIDE the row, not inside it: the row is an anchor, and
+        a button inside an anchor is invalid markup that navigates when pressed.
+        `pr-14` (or `pr-24` while confirming) keeps the chevron clear of them.
+      */}
       <Link
         href={thread.href}
         className={cn(
           'clay-card focus-visible:ring-brand/35 flex items-center gap-4 p-4 transition-colors focus-visible:ring-4 focus-visible:outline-none',
           unread && 'bg-brand-fixed/30',
+          confirming ? 'pr-24' : 'pr-14',
         )}
       >
         {thread.kind === 'group' ? (
@@ -247,6 +287,46 @@ function ThreadRow({ thread }: { thread: MessageThreadView }) {
 
         <ChevronRight className="text-outline size-5 shrink-0" aria-hidden="true" />
       </Link>
+
+      <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-1">
+        {confirming ? (
+          <>
+            <button
+              type="button"
+              disabled={pendingHide}
+              aria-label={`Confirm clearing ${thread.title}`}
+              onClick={() => {
+                onHidden();
+                startHiding(async () => {
+                  await hideThread({ kind: thread.kind, id: thread.id });
+                });
+              }}
+              className="bg-brand focus-visible:ring-brand/35 flex size-8 items-center justify-center rounded-full text-white transition-colors hover:brightness-110 focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
+            >
+              <Check className="size-4" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              disabled={pendingHide}
+              aria-label="Keep this conversation"
+              onClick={() => setConfirming(false)}
+              className="text-outline hover:text-on-surface hover:bg-surface-container focus-visible:ring-brand/35 flex size-8 items-center justify-center rounded-full transition-colors focus-visible:ring-4 focus-visible:outline-none"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            aria-label={`Clear ${thread.title} from your messages`}
+            onClick={() => setConfirming(true)}
+            className="text-outline hover:text-destructive hover:bg-destructive/10 focus-visible:ring-destructive/35 flex size-8 items-center justify-center rounded-full transition-colors focus-visible:ring-4 focus-visible:outline-none"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
+        )}
+      </div>
     </li>
   );
 }

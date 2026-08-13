@@ -17,6 +17,7 @@
 import 'server-only';
 
 import { createClient, requireUser } from '@/lib/supabase/server';
+import { getHiddenThreads, isStillHidden } from '@/features/chat/hidden-threads';
 
 import type { ChatMessageView, ConversationView } from './chat-view';
 
@@ -155,16 +156,29 @@ export async function getConversations(): Promise<ConversationView[]> {
     );
   }
 
-  return conversations.map((conversation) => {
-    const preview = previews.get(conversation.id);
+  /*
+   * Cleared threads are dropped LAST, after the previews and unread counts are
+   * built, because "still hidden" is a comparison against the newest message —
+   * so the thread has to be fully assembled before the question can be asked.
+   * A reply arriving after it was cleared brings it straight back.
+   */
+  const hidden = await getHiddenThreads();
 
-    return {
-      ...conversation,
-      lastMessageBody: preview?.body ?? null,
-      lastMessageFromMe: preview?.senderId === user.id,
-      unreadCount: unreadCounts.get(conversation.id) ?? 0,
-    };
-  });
+  return conversations
+    .map((conversation) => {
+      const preview = previews.get(conversation.id);
+
+      return {
+        ...conversation,
+        lastMessageBody: preview?.body ?? null,
+        lastMessageFromMe: preview?.senderId === user.id,
+        unreadCount: unreadCounts.get(conversation.id) ?? 0,
+      };
+    })
+    .filter(
+      (conversation) =>
+        !isStillHidden(hidden.conversations.get(conversation.id), conversation.lastMessageAt),
+    );
 }
 
 /**
@@ -208,11 +222,12 @@ export async function getMessages(conversationId: string): Promise<ChatMessageVi
   const user = await requireUser();
   const supabase = await createClient();
 
- const { data: hiddenData } = await (supabase.from('hidden_messages' as any) as any)
+  const { data: hiddenData } = await supabase
+    .from('hidden_messages')
     .select('message_id')
     .eq('profile_id', user.id);
 
-  const hiddenIds = (hiddenData ?? []).map((row:any) => row.message_id);
+  const hiddenIds = (hiddenData ?? []).map((row) => row.message_id);
 
   let query = supabase
     .from('messages')
