@@ -330,6 +330,39 @@ export type Database = {
           },
         ]
       }
+      course_comment_likes: {
+        Row: {
+          comment_id: string
+          created_at: string
+          profile_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          profile_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_comment_likes_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "course_post_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_comment_likes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_offerings: {
         Row: {
           course_id: string
@@ -365,6 +398,214 @@ export type Database = {
             columns: ["term_id"]
             isOneToOne: false
             referencedRelation: "terms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_post_comments: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          parent_comment_id: string | null
+          post_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          parent_comment_id?: string | null
+          post_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          parent_comment_id?: string | null
+          post_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_post_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_post_comments_parent_comment_id_fkey"
+            columns: ["parent_comment_id"]
+            isOneToOne: false
+            referencedRelation: "course_post_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "course_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_post_likes: {
+        Row: {
+          created_at: string
+          post_id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          post_id: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          post_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "course_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_post_likes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_posts: {
+        Row: {
+          author_id: string | null
+          body: string
+          course_offering_id: string
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          course_offering_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          course_offering_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_posts_course_offering_id_fkey"
+            columns: ["course_offering_id"]
+            isOneToOne: false
+            referencedRelation: "course_offerings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_tip_ratings: {
+        Row: {
+          created_at: string
+          profile_id: string
+          stars: number
+          tip_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          profile_id: string
+          stars: number
+          tip_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          profile_id?: string
+          stars?: number
+          tip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_tip_ratings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_tip_ratings_tip_id_fkey"
+            columns: ["tip_id"]
+            isOneToOne: false
+            referencedRelation: "course_tips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_tips: {
+        Row: {
+          author_id: string | null
+          body: string
+          course_offering_id: string
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          course_offering_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          course_offering_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_tips_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_tips_course_offering_id_fkey"
+            columns: ["course_offering_id"]
+            isOneToOne: false
+            referencedRelation: "course_offerings"
             referencedColumns: ["id"]
           },
         ]
@@ -1634,6 +1875,18 @@ export type Database = {
         Args: { target_comment_id: string }
         Returns: boolean
       }
+      app_can_see_course_comment: {
+        Args: { target_comment_id: string }
+        Returns: boolean
+      }
+      app_can_see_course_post: {
+        Args: { target_post_id: string }
+        Returns: boolean
+      }
+      app_can_see_course_tip: {
+        Args: { target_tip_id: string }
+        Returns: boolean
+      }
       app_can_see_group: { Args: { target_group_id: string }; Returns: boolean }
       app_can_see_profile: {
         Args: { target_profile_id: string }
@@ -1661,6 +1914,10 @@ export type Database = {
       }
       app_is_conversation_participant: {
         Args: { target_conversation_id: string }
+        Returns: boolean
+      }
+      app_is_enrolled: {
+        Args: { target_offering_id: string }
         Returns: boolean
       }
       app_is_group_admin: {
@@ -1710,6 +1967,20 @@ export type Database = {
         Returns: string
       }
       rpc_cancel_meeting: { Args: { p_meeting_id: string }; Returns: undefined }
+      rpc_course_tips: {
+        Args: { p_offering_id: string }
+        Returns: {
+          author_avatar: string
+          author_id: string
+          author_name: string
+          average_stars: number
+          body: string
+          created_at: string
+          id: string
+          my_stars: number
+          rating_count: number
+        }[]
+      }
       rpc_create_meeting: {
         Args: {
           p_conversation_id?: string

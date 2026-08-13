@@ -66,6 +66,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const askAboutYear = shouldPromptForAcademicYear({
     yearOfStudy: profile.yearOfStudy,
     lastPromptDate: profile.lastYearPromptDate,
+    onboardingCompletedAt: profile.onboardingCompletedAt,
   });
 
   return (
