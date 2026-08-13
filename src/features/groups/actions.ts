@@ -36,10 +36,6 @@ import {
 
 /**
  * Creates a study group and makes the caller its admin.
- *
- * @param previous - Prior result, required by useActionState and unused.
- * @param formData - Carries `courseOfferingId`, `name`, `description`, `maxParticipants`.
- * @returns Success, or a failure the form can display.
  */
 export async function createGroup(
   previous: ActionResult<void> | null,
@@ -76,8 +72,6 @@ export async function createGroup(
     });
 
     if (error) {
-      /* The policy and the consistency trigger both refuse a course the student
-         does not take, which is the only likely cause here. */
       return fail(
         ERROR_CODES.FORBIDDEN,
         'We could not create that group. You need to be enrolled in the course.',
@@ -95,10 +89,6 @@ export async function createGroup(
 
 /**
  * Asks to join a group.
- *
- * @param previous - Prior result, required by useActionState and unused.
- * @param formData - Carries `groupId`.
- * @returns Success, or a failure.
  */
 export async function requestToJoin(
   previous: ActionResult<void> | null,
@@ -118,6 +108,26 @@ export async function requestToJoin(
       .eq('id', groupId)
       .maybeSingle();
 
+    // 1. בדיקה האם כבר קיימת בקשה פעילה אחת שממתינה לתגובה (pending).
+    // אם כן - חוסמים שליחת בקשה נוספת כדי שלא יווצרו כפילויות במסך הניהול.
+    const { data: existingPending } = await supabase
+      .from('group_requests')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('requester_id', user.id)
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (existingPending) {
+      return fail(
+        ERROR_CODES.FORBIDDEN,
+        'You already have a pending request to join this group.',
+        'groupId',
+      );
+    }
+
+    // 2. יצירת בקשה חדשה בלבד. 
+    // הבקשות הישנות שקיבלו בעבר אישור או דחייה נשארות נעולות לחלוטין בהיסטוריה ואינן מושפעות כלל!
     const { error: insertError } = await supabase.from('group_requests').insert({
       group_id: groupId,
       requester_id: user.id,
@@ -125,38 +135,11 @@ export async function requestToJoin(
     });
 
     if (insertError) {
-      if (insertError.code === '23505') {
-        /* 
-         * RLS silently blocks normal users from deleting approved/rejected requests.
-         * We use the Admin Client (Service Role) to bypass RLS and clear the history.
-         */
-        const adminSupabase = createAdminClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY! 
-        );
-
-        await adminSupabase
-          .from('group_requests')
-          .delete()
-          .eq('group_id', groupId)
-          .eq('requester_id', user.id);
-
-        const { error: retryError } = await supabase.from('group_requests').insert({
-          group_id: groupId,
-          requester_id: user.id,
-          status: 'pending',
-        });
-
-        if (retryError) {
-          return fail(ERROR_CODES.FORBIDDEN, 'We could not renew your request.', 'groupId');
-        }
-      } else {
-        return fail(
-          ERROR_CODES.FORBIDDEN,
-          'We could not send that request. The group may no longer be open.',
-          'groupId',
-        );
-      }
+      return fail(
+        ERROR_CODES.FORBIDDEN,
+        'We could not send that request. The group may no longer be open.',
+        'groupId',
+      );
     }
 
     if (group) {
@@ -172,16 +155,6 @@ export async function requestToJoin(
 
 /**
  * Approves or rejects a join request.
- *
- * Approval goes through the RPC, which does the three writes in one transaction.
- * Rejection is two writes that can safely be separate: the decision, then the
- * message telling them. If the message fails the rejection still stands, and the
- * result says so rather than pretending it was sent.
- *
- * @param previous - Prior result, required by useActionState and unused.
- * @param formData - Carries `requestId`, `decision`, and for a rejection a
- *                   `reason` plus optional `customMessage`.
- * @returns Success, or a failure the modal can display.
  */
 export async function decideRequest(
   previous: ActionResult<void> | null,
@@ -200,7 +173,6 @@ export async function decideRequest(
         : undefined,
     });
 
-    /* Read before deciding, so the redirect and the message have what they need. */
     const { data: request } = await supabase
       .from('group_requests')
       .select('id, group_id, requester_id, study_groups!inner ( course_offering_id, name )')
@@ -219,14 +191,33 @@ export async function decideRequest(
       });
 
       if (error) {
-        /* The capacity trigger is the likely cause, and it is worth naming: the
-           admin is looking at a request for a group that just filled up. */
         return fail(
           ERROR_CODES.CONFLICT,
           'We could not add them. The group may already be full.',
           'decision',
         );
       }
+
+      try {
+        const adminSupabase = createAdminClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+
+        const { error: notifErr } = await adminSupabase.from('notifications').insert({
+          recipient_id: request.requester_id,
+          actor_id: user.id,
+          type: 'group_invite',
+          group_id: request.group_id,
+        } as any);
+
+        if (notifErr) {
+          console.error('❌ Failed to create notification:', notifErr);
+        }
+      } catch (err) {
+        console.error('❌ Exception while creating notification:', err);
+      }
+
     } else {
       const body = rejectionMessageFor(input.reason ?? '', input.customMessage ?? '');
 
@@ -234,14 +225,6 @@ export async function decideRequest(
         return fail(ERROR_CODES.VALIDATION_FAILED, 'Choose a reason so we can tell them.', 'reason');
       }
 
-      /*
-       * Through the RPC rather than a bare UPDATE, since Phase 7A. A group can
-       * have several admins now, and the RPC locks the request row before reading
-       * its status — so when two of them answer at the same moment the second is
-       * refused cleanly instead of racing. It also keeps the note on the row, so
-       * the group's history says what was said rather than only that a rejection
-       * happened.
-       */
       const { error } = await supabase.rpc('rpc_reject_group_request', {
         p_request_id: input.requestId,
         p_note: body,
@@ -259,11 +242,6 @@ export async function decideRequest(
       const sent = await sendRejectionMessage(supabase, user.id, request.requester_id, body);
 
       if (!sent) {
-        /*
-         * Reported rather than swallowed. The request IS rejected, and the student
-         * would otherwise be left with a request that vanished and no explanation
-         * — the exact thing the canned messages exist to prevent.
-         */
         return fail(
           ERROR_CODES.UNEXPECTED,
           'Request rejected, but we could not send them the message. You may want to write to them directly.',
@@ -285,17 +263,6 @@ export async function decideRequest(
 
 /**
  * Sends the rejection as an ordinary one-to-one message.
- *
- * Reuses Phase 3's conversations, which is the point: the student gets a real
- * message in the place they already read messages, from the person who made the
- * decision, rather than a notification that leads nowhere. It is attributed to the
- * admin because they chose it — the text is canned, the decision was theirs.
- *
- * @param supabase    - The caller's client, so RLS applies to both writes.
- * @param adminId     - The admin sending it.
- * @param requesterId - The student being told.
- * @param body        - The message.
- * @returns True when the message was stored.
  */
 async function sendRejectionMessage(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -353,10 +320,6 @@ async function sendRejectionMessage(
 
 /**
  * Posts a message to a group's chat.
- *
- * @param previous - Prior result, required by useActionState and unused.
- * @param formData - Carries `groupId` and `body`.
- * @returns Success, or a failure the composer can display.
  */
 export async function postGroupMessage(
   previous: ActionResult<void> | null,
@@ -375,8 +338,6 @@ export async function postGroupMessage(
       group_id: input.groupId,
       sender_id: user.id,
       body: input.body,
-      /* Never true from here: the policy refuses it, and only the approval RPC
-         writes system messages. */
       is_system: false,
     });
 
@@ -398,13 +359,6 @@ export async function postGroupMessage(
 
 /**
  * Leaves a group.
- *
- * The admin cannot use this: the delete policy excludes them, because leaving would
- * orphan the group. Handing a group over is a feature nobody has asked for.
- *
- * @param previous - Prior result, required by useActionState and unused.
- * @param formData - Carries `groupId`.
- * @returns Success, or a failure.
  */
 export async function leaveGroup(
   previous: ActionResult<void> | null,
@@ -454,10 +408,6 @@ export async function leaveGroup(
 
 /**
  * Opens or closes a group to new requests.
- *
- * @param previous - Prior result, required by useActionState and unused.
- * @param formData - Carries `groupId` and `status`.
- * @returns Success, or a failure.
  */
 export async function setGroupStatus(
   previous: ActionResult<void> | null,
@@ -495,13 +445,6 @@ export async function setGroupStatus(
 
 /**
  * Edits a group's name, blurb and participant limit.
- *
- * Any admin may do this; the freeze trigger bounds what "editing" reaches, and
- * the limit trigger refuses a number below the people already in the group.
- *
- * @param previous - Prior result, required by useActionState and unused.
- * @param formData - Carries the group and its new details.
- * @returns Success, or a failure naming the field at fault.
  */
 export async function updateGroup(
   previous: ActionResult<void> | null,
@@ -529,11 +472,6 @@ export async function updateGroup(
       .select('course_offering_id');
 
     if (error) {
-      /*
-       * The limit trigger, which is the only one of these a well-behaved admin
-       * can trip: it fires when they shrink a group below the people in it, and
-       * the number is the whole point of the message.
-       */
       if (error.message.includes('already has')) {
         return fail(ERROR_CODES.VALIDATION_FAILED, error.message, 'maxParticipants');
       }
@@ -556,13 +494,6 @@ export async function updateGroup(
 
 /**
  * Promotes a member to admin, or demotes one back.
- *
- * The two ranks are the database's business: any admin may promote, only the
- * founder may demote, and the founder cannot be demoted at all. All three are
- * triggers, so this reports what they say rather than deciding anything.
- *
- * @param input - The group, the member, and the rank they should hold.
- * @returns Success, or a failure carrying the rule that refused it.
  */
 export async function setMemberRole(input: {
   groupId: string;
@@ -582,7 +513,6 @@ export async function setMemberRole(input: {
       .select('profile_id');
 
     if (error) {
-      /* The trigger messages are already written for a person to read. */
       return fail(ERROR_CODES.FORBIDDEN, error.message);
     }
 
@@ -600,9 +530,6 @@ export async function setMemberRole(input: {
 
 /**
  * Removes someone from a group, or leaves it.
- *
- * @param input - The group and who is going.
- * @returns Success, or a failure carrying the rule that refused it.
  */
 export async function removeMember(input: {
   groupId: string;
@@ -638,9 +565,6 @@ export async function removeMember(input: {
 
 /**
  * Invites a classmate into the group.
- *
- * @param input - The group and who is being asked.
- * @returns Success, or a failure.
  */
 export async function inviteToGroup(input: {
   groupId: string;
@@ -660,37 +584,7 @@ export async function inviteToGroup(input: {
     });
 
     if (error) {
-      if (error.code === '23505') {
-        /* 
-         * שימוש ב-Admin Client (Service Role) כדי לעקוף את חסימת ה-RLS 
-         * ולמחוק את ההיסטוריה הישנה של המשתמש שהוסר/נדחה 
-         */
-        const adminSupabase = createAdminClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-
-        await adminSupabase
-          .from('group_requests')
-          .delete()
-          .eq('group_id', parsed.groupId)
-          .eq('requester_id', parsed.profileId);
-
-        // מנסה שוב לשלוח את ההזמנה בצורה חלקה
-        const { error: retryError } = await supabase.from('group_requests').insert({
-          group_id: parsed.groupId,
-          requester_id: parsed.profileId,
-          kind: 'invite',
-          invited_by: user.id,
-          status: 'pending',
-        });
-
-        if (retryError) {
-          return fail(ERROR_CODES.FORBIDDEN, 'We could not send that invitation.');
-        }
-      } else {
-        return fail(ERROR_CODES.FORBIDDEN, 'We could not send that invitation.');
-      }
+      return fail(ERROR_CODES.FORBIDDEN, 'We could not send that invitation. One might already exist.');
     }
 
     revalidatePath(`/groups/${parsed.groupId}`);
@@ -700,15 +594,9 @@ export async function inviteToGroup(input: {
     return toActionError(error, 'groups.inviteToGroup');
   }
 }
+
 /**
  * Accepts or declines an invitation addressed to the caller.
- *
- * Accepting goes through the same RPC as an admin approving a request: it is the
- * same event — someone joining — and it has to add the member, check capacity and
- * post the welcome line in one transaction whichever direction it came from.
- *
- * @param input - The invitation, and the answer.
- * @returns Success, or a failure.
  */
 export async function decideInvitation(input: {
   requestId: string;

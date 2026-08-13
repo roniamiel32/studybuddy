@@ -20,6 +20,7 @@
 
 export type NotificationType =
   | 'group_request'
+  | 'group_joined'
   | 'group_promotion'
   | 'group_invite'
   | 'meeting_scheduled'
@@ -81,16 +82,9 @@ export interface NotificationCopy {
  */
 export function notificationCopy(notification: NotificationView): NotificationCopy | null {
   const who = notification.actorName ?? 'A classmate';
-  /* secondaryName is no longer read by any copy: since 0.24.0 the only type that
-     used it — match_suggestion — names one person, and the mutual connection it
-     travelled through stays unnamed. The field stays on the view model because
-     the row still carries it. */
   const group = notification.groupName ?? 'your group';
   const meeting = notification.meetingTitle ?? 'a session';
 
-  /* Anything about a post or a comment leads to the wall it sits on: there is no
-     page for a single post, and the wall is where the thing being talked about
-     actually is. */
   const wall = notification.wallOwnerId ? `/students/${notification.wallOwnerId}` : null;
   const actor = notification.actorId ? `/students/${notification.actorId}` : null;
   const groupHref = notification.groupId ? `/groups/${notification.groupId}` : null;
@@ -104,6 +98,13 @@ export function notificationCopy(notification: NotificationView): NotificationCo
         href: groupHref,
       };
 
+    case 'group_joined':
+      return {
+        message: `Your request to join ${group} was approved!`,
+        cta: 'Go to group chat',
+        href: groupHref,
+      };
+
     case 'group_promotion':
       return {
         message: `You are now an admin of ${group}.`,
@@ -112,12 +113,10 @@ export function notificationCopy(notification: NotificationView): NotificationCo
       };
 
     case 'group_invite':
-      /* Answering happens in the inbox on /groups, not on the group's own page —
-         the invitee cannot open a group they have not joined. */
       return {
-        message: `${who} invited you to join ${group}.`,
-        cta: 'Accept or decline',
-        href: '/groups',
+        message: `Your request to join ${group} was approved!`,
+        cta: 'Go to group chat',
+        href: groupHref,
       };
 
     // ---- Meetings ----------------------------------------------------------
@@ -151,16 +150,6 @@ export function notificationCopy(notification: NotificationView): NotificationCo
       };
 
     case 'match_suggestion':
-      /*
-       * ADDRESSED TO ONE OF THE PAIR, not to the person who knows them both.
-       * Until 0.24.0 this read "Lian and Tamar could study well together" and
-       * went to the mutual friend, who was being asked to broker an
-       * introduction between two people whose feeds said nothing.
-       *
-       * The mutual connection is in secondaryId and is deliberately not named:
-       * "a mutual study connection" is the reason the suggestion exists, and
-       * naming them turns a suggestion into a report on who rated whom.
-       */
       return {
         message: `You and ${who} share a mutual study connection. You might study well together!`,
         cta: 'See their profile',
@@ -169,10 +158,6 @@ export function notificationCopy(notification: NotificationView): NotificationCo
 
     // ---- Social ------------------------------------------------------------
     case 'birthday':
-      /*
-       * The CTA is the feature. A birthday you can only read is a fact; one that
-       * takes you to the place you can act on it is a reason to open the app.
-       */
       return {
         message: `It is ${who}'s birthday today.`,
         cta: 'Wish them a happy birthday on their wall!',
@@ -222,12 +207,6 @@ export function notificationCopy(notification: NotificationView): NotificationCo
       };
 
     default:
-      /*
-       * A type the database has and this build does not. Deliberately silent:
-       * it happens between a migration landing and a deploy, it corrects itself,
-       * and a console full of warnings would not help the student looking at the
-       * page.
-       */
       return null;
   }
 }
