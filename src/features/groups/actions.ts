@@ -18,7 +18,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { createClient as createAdminClient } from '@supabase/supabase-js';
+/* No service-role client here any more. Both uses of it were routing around a
+   policy rather than satisfying one — see requestToJoin and decideRequest. */
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
 import { createClient, requireUser } from '@/lib/supabase/server';
 
@@ -91,6 +92,35 @@ export async function createGroup(
 
 /**
  * Asks to join a group.
+ *
+ * A PLAIN INSERT, AND NOTHING ELSE. There is no upsert here and no delete,
+ * because the schema already says everything this needs:
+ *
+ *   - `group_requests_one_live_per_student_idx` is a PARTIAL unique index over
+ *     (group_id, requester_id) `where status in ('pending', 'approved')`. A
+ *     rejected row is outside it, so somebody who was turned down — or who left
+ *     and came back — simply inserts a new row with a new id and a new
+ *     created_at. Nothing has to be cleared out of the way first.
+ *   - So a 23505 here means exactly one thing: they already have a request
+ *     waiting, or they are already in. Both are answers to give them, not
+ *     conflicts to resolve.
+ *
+ * THIS REPLACED A DELETE-AND-REINSERT, and that is the fix for the flooded
+ * notification feed. The old version caught 23505, opened a SERVICE-ROLE client,
+ * deleted every group_requests row for the pair — decided ones included — and
+ * inserted a fresh pending one. Three consequences, all of them bad:
+ *
+ *   1. It destroyed the history. `freeze_group_request` exempts service_role and
+ *      `authenticated` has no DELETE grant, so the admin client was routing
+ *      around both of the protections that exist to stop precisely this.
+ *   2. Every repeat click re-fired `notify_group_request`, and unlike the
+ *      derived notification types, group_request has no partial unique index to
+ *      collapse onto — one row per insert, forever.
+ *   3. The feed matches a group_request notification to a live request by
+ *      (actor, group), so all of those duplicates matched the single pending row
+ *      and each drew its own review card. Reproduced: three extra clicks turned
+ *      1 request and 2 notifications into 1 request, 0 history and 5
+ *      notifications.
  */
 export async function requestToJoin(
   previous: ActionResult<void> | null,
@@ -110,7 +140,6 @@ export async function requestToJoin(
       .eq('id', groupId)
       .maybeSingle();
 
-    // מנסים להכניס בקשה חדשה רגילה
     const { error: insertError } = await supabase.from('group_requests').insert({
       group_id: groupId,
       requester_id: user.id,
@@ -118,42 +147,33 @@ export async function requestToJoin(
     });
 
     if (insertError) {
+      /*
+       * The partial index. Distinguished from a policy refusal because the two
+       * need different sentences: this one is "you already did that", which is
+       * reassurance, and the other is "you cannot", which is not.
+       */
       if (insertError.code === '23505') {
-        const adminSupabase = createAdminClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-
-        const { error: deleteError } = await adminSupabase
-          .from('group_requests')
-          .delete()
+        const { data: member } = await supabase
+          .from('study_group_members')
+          .select('group_id')
           .eq('group_id', groupId)
-          .eq('requester_id', user.id);
+          .eq('profile_id', user.id)
+          .maybeSingle();
 
-        if (deleteError) {
-          console.error('❌ Failed to clear old request:', deleteError);
-          return fail(ERROR_CODES.FORBIDDEN, 'We could not update your request.', 'groupId');
-        }
-
-        // יצירת הבקשה החדשה מחדש
-        const { error: retryError } = await supabase.from('group_requests').insert({
-          group_id: groupId,
-          requester_id: user.id,
-          status: 'pending',
-        });
-
-        if (retryError) {
-          console.error('❌ Failed to retry request:', retryError);
-          return fail(ERROR_CODES.FORBIDDEN, 'We could not send that request.', 'groupId');
-        }
-      } else {
-        console.error('❌ Unexpected request error:', insertError);
         return fail(
-          ERROR_CODES.FORBIDDEN,
-          'We could not send that request. The group may no longer be open.',
+          ERROR_CODES.CONFLICT,
+          member
+            ? 'You are already in this group.'
+            : 'You have already asked to join this group. The admin has not answered yet.',
           'groupId',
         );
       }
+
+      return fail(
+        ERROR_CODES.FORBIDDEN,
+        'We could not send that request. The group may no longer be open.',
+        'groupId',
+      );
     }
 
     if (group) {
@@ -211,26 +231,27 @@ export async function decideRequest(
         );
       }
 
-      try {
-        const adminSupabase = createAdminClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-
-        const { error: notifErr } = await adminSupabase.from('notifications').insert({
-          recipient_id: request.requester_id,
-          actor_id: user.id,
-          type: 'group_invite',
-          group_id: request.group_id,
-        } as any);
-
-        if (notifErr) {
-          console.error('❌ Failed to create notification:', notifErr);
-        }
-      } catch (err) {
-        console.error('❌ Exception while creating notification:', err);
-      }
-
+      /*
+       * NO NOTIFICATION IS WRITTEN HERE, deliberately.
+       *
+       * There used to be one: a service-role insert of a `group_invite` row to
+       * tell the student they were approved. It went out through the admin
+       * client because `notifications` has no INSERT policy at all — which is
+       * the schema saying "application code does not write this table", not an
+       * obstacle to route around. A feed the client can write to is a feed that
+       * can lie, so every row in it is written by a trigger from the event that
+       * actually happened.
+       *
+       * It was also mistyped. `group_invite` means "somebody invited you to a
+       * group", and the copy the feed renders for it says so; an approval
+       * arriving under that type told the student they had been invited to a
+       * group they had asked to join and were already a member of.
+       *
+       * rpc_approve_group_request adds them to study_group_members, and the
+       * welcome message posted to the group chat is what announces it. If a
+       * dedicated "you were approved" notification is wanted, it belongs in a
+       * trigger on that membership insert, beside the others.
+       */
     } else {
       const body = rejectionMessageFor(input.reason ?? '', input.customMessage ?? '');
 

@@ -91,18 +91,46 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
    */
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
 
-  const renderable = useMemo(
-    () =>
-      notifications.flatMap((notification) => {
-        if (dismissed.has(notification.id)) {
+  /*
+   * ONE ROW PER JOIN REQUEST, however many notifications name it.
+   *
+   * A group_request notification is matched to a live request by (actor, group)
+   * further down, because the notification carries no request id. That pairing
+   * is exact while there is one notification per request — but a feed holding
+   * several for the same pair matches every one of them to the same pending row
+   * and draws a review card for each, which is what flooded the admin's feed
+   * with identical "Pending" cards.
+   *
+   * The cause was a delete-and-reinsert in requestToJoin, now gone, so no new
+   * duplicates are written. This keeps the ones already in the table from
+   * rendering as separate actionable items — the feed heals without a migration
+   * having to guess which historical rows were real.
+   *
+   * KEYED ON (actor, group) AND NOT ON TYPE ALONE: two different people asking
+   * to join the same group are two requests and must stay two cards.
+   */
+  const renderable = useMemo(() => {
+    const seenRequests = new Set<string>();
+
+    return notifications.flatMap((notification) => {
+      if (dismissed.has(notification.id)) {
+        return [];
+      }
+
+      if (notification.type === 'group_request') {
+        const key = `${notification.actorId}:${notification.groupId}`;
+
+        if (seenRequests.has(key)) {
           return [];
         }
 
-        const copy = notificationCopy(notification);
-        return copy ? [{ notification, copy }] : [];
-      }),
-    [notifications, dismissed],
-  );
+        seenRequests.add(key);
+      }
+
+      const copy = notificationCopy(notification);
+      return copy ? [{ notification, copy }] : [];
+    });
+  }, [notifications, dismissed]);
 
   const visible = renderable.slice(0, shown);
   const remaining = renderable.length - visible.length;
