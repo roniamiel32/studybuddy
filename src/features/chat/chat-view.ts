@@ -118,11 +118,50 @@ export function formatConversationTime(timestamp: string, now: Date = new Date()
 }
 
 /**
- * Groups messages into runs by calendar day.
+ * Groups anything with a timestamp into runs by calendar day.
  *
  * The design puts a "Today" separator between days. Grouping here rather than
  * in the component keeps the date arithmetic testable and out of the render
  * path.
+ *
+ * Generic because the chat feed is no longer only messages: a booked session
+ * appears in it too, and it has to fall under the same separator as whatever was
+ * said around it rather than under one of its own.
+ *
+ * @param items - Items in ascending order.
+ * @param at    - Reads the ISO timestamp off an item.
+ * @param now   - Reference time, injectable for the tests.
+ * @returns One group per day, each with the label to show above it.
+ */
+export function groupByDay<T>(
+  items: T[],
+  at: (item: T) => string,
+  now: Date = new Date(),
+): Array<{ label: string; items: T[] }> {
+  const groups: Array<{ label: string; items: T[] }> = [];
+  let currentKey = '';
+
+  for (const item of items) {
+    const happened = new Date(at(item));
+    const key = happened.toDateString();
+
+    if (key !== currentKey) {
+      currentKey = key;
+      groups.push({ label: dayLabel(happened, now), items: [] });
+    }
+
+    groups[groups.length - 1].items.push(item);
+  }
+
+  return groups;
+}
+
+/**
+ * Groups messages into runs by calendar day.
+ *
+ * The message-shaped face of groupByDay, kept because the group chat and the
+ * unit tests both call it and neither has a reason to care that the direct chat
+ * now needs the general form.
  *
  * @param messages - Messages in ascending order.
  * @param now      - Reference time, injectable for the tests.
@@ -132,22 +171,10 @@ export function groupMessagesByDay(
   messages: ChatMessageView[],
   now: Date = new Date(),
 ): Array<{ label: string; messages: ChatMessageView[] }> {
-  const groups: Array<{ label: string; messages: ChatMessageView[] }> = [];
-  let currentKey = '';
-
-  for (const message of messages) {
-    const sent = new Date(message.createdAt);
-    const key = sent.toDateString();
-
-    if (key !== currentKey) {
-      currentKey = key;
-      groups.push({ label: dayLabel(sent, now), messages: [] });
-    }
-
-    groups[groups.length - 1].messages.push(message);
-  }
-
-  return groups;
+  return groupByDay(messages, (message) => message.createdAt, now).map((group) => ({
+    label: group.label,
+    messages: group.items,
+  }));
 }
 
 /**

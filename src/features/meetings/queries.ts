@@ -11,9 +11,16 @@
  *              still shows it, marked as not going, because a student who pulled
  *              out needs to see what they pulled out of — and to be able to
  *              change their mind while it is still ahead of them.
- * Version:     0.19.0
+ *
+ *              A DISMISSED BANNER IS A DIFFERENT MATTER, and it is dropped here:
+ *              putting one away is an explicit "I am finished with this", unlike
+ *              a cancelled RSVP which is a statement about attendance only.
+ * Version:     0.29.0
  *
  * Modifications:
+ *     0.29.0 - 2026-08-14 - Dismissals filtered out; the strip's time window
+ *                           moved to the view so the feed card keeps history
+ *                           (Phase 9G)
  *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
  */
 
@@ -30,6 +37,7 @@ interface MeetingRow {
   starts_at: string;
   ends_at: string;
   created_by: string | null;
+  created_at: string;
   meeting_attendees: { profile_id: string; rsvp: 'going' | 'cancelled' }[];
 }
 
@@ -40,6 +48,7 @@ const MEETING_SELECT = `
   starts_at,
   ends_at,
   created_by,
+  created_at,
   meeting_attendees ( profile_id, rsvp )
 `;
 
@@ -50,7 +59,11 @@ const MEETING_SELECT = `
  * @param viewerId - Whose perspective to take.
  * @returns The view model.
  */
-function toMeetingView(row: MeetingRow, viewerId: string): MeetingView {
+function toMeetingView(
+  row: MeetingRow,
+  viewerId: string,
+  bannerDismissed: boolean,
+): MeetingView {
   const mine = row.meeting_attendees.find((attendee) => attendee.profile_id === viewerId);
 
   return {
@@ -65,15 +78,26 @@ function toMeetingView(row: MeetingRow, viewerId: string): MeetingView {
     ).length,
     isOrganiser: row.created_by === viewerId,
     hasFinished: new Date(row.ends_at) <= new Date(),
+    createdAt: row.created_at,
+    bannerDismissed,
   };
 }
 
 /**
- * Sessions booked from one chat, from the last day and every one still ahead.
+ * Every session booked from one chat, each marked with what the viewer has done.
  *
- * The backward window is what lets the chat offer rating right after a session
- * rather than only until it starts: a meeting that finished an hour ago is the
- * one people most want to say something about.
+ * NO TIME WINDOW AND NO DISMISSAL FILTER HERE. Both used to live in this query,
+ * which was right while the banner was the only thing reading it. The feed card
+ * reads it too now, and a card is a record of something that happened in the
+ * thread — it should no more expire, or vanish when a header is tidied, than the
+ * messages around it. `isBannerMeeting` applies both narrowings in the strip,
+ * which is the only place either belongs.
+ *
+ * THE DISMISSAL LOOKUP IS A SECOND QUERY rather than an embed. PostgREST's
+ * `dismissed_meetings(...)` would be a left join whose emptiness we would have to
+ * test client-side anyway, and RLS already narrows the table to the caller's own
+ * rows — so there is nothing to filter and nothing to leak. Two indexed reads:
+ * the first bounded by the chat, the second by the primary key.
  *
  * @param scope - The conversation or the group the chat belongs to.
  * @returns Meetings in chronological order.
@@ -85,13 +109,10 @@ export async function getChatMeetings(scope: {
   const user = await requireUser();
   const supabase = await createClient();
 
-  const since = new Date(Date.now() - 86_400_000).toISOString();
-
   let query = supabase
     .from('meetings')
     .select(MEETING_SELECT)
     .eq('status', 'scheduled')
-    .gte('ends_at', since)
     .order('starts_at');
 
   query = scope.conversationId
@@ -99,8 +120,24 @@ export async function getChatMeetings(scope: {
     : query.eq('group_id', scope.groupId ?? '');
 
   const { data } = await query;
+  const rows = (data ?? []) as unknown as MeetingRow[];
 
-  return ((data ?? []) as unknown as MeetingRow[]).map((row) => toMeetingView(row, user.id));
+  if (rows.length === 0) {
+    return [];
+  }
+
+  /* RLS already narrows this to the caller's own rows, so no profile filter. */
+  const { data: dismissals } = await supabase
+    .from('dismissed_meetings')
+    .select('meeting_id')
+    .in(
+      'meeting_id',
+      rows.map((row) => row.id),
+    );
+
+  const dismissed = new Set((dismissals ?? []).map((row) => row.meeting_id));
+
+  return rows.map((row) => toMeetingView(row, user.id, dismissed.has(row.id)));
 }
 
 /**

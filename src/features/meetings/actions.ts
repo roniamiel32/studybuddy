@@ -13,9 +13,10 @@
  *              dialog asks for it on open, from the client — the intersection is
  *              too expensive to compute for a chat nobody has opened the
  *              scheduler on.
- * Version:     0.19.0
+ * Version:     0.29.0
  *
  * Modifications:
+ *     0.29.0 - 2026-08-14 - dismissMeeting, the one-sided banner (Phase 9G)
  *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
  */
 
@@ -200,6 +201,61 @@ export async function setMeetingRsvp(input: {
     return ok(undefined);
   } catch (error) {
     return toActionError(error, 'meetings.setMeetingRsvp');
+  }
+}
+
+/**
+ * Clears a finished session's banner from the caller's own chat header.
+ *
+ * NOT A CANCELLATION AND NOT A DELETE. The meeting row, its status and every
+ * attendance record are untouched — the rating rule in Phase 7D reads those, and
+ * tidying a banner must not cost somebody the ability to rate the people they
+ * actually sat with. The other attendees keep the banner until each of them
+ * dismisses it.
+ *
+ * THE TIME RULE IS NOT CHECKED HERE. It is an INSERT policy on the table, so a
+ * request that skips the UI hits the same wall as one that does not. All this
+ * does is translate the refusal into a sentence.
+ *
+ * Written straight to the table rather than through an RPC, for the same reason
+ * setMeetingRsvp is: it is one row, it is the caller's own, and the policy says
+ * everything about when it may exist.
+ *
+ * @param input - The session whose banner to put away.
+ * @returns Success, or a failure.
+ */
+export async function dismissMeeting(input: { meetingId: string }): Promise<ActionResult<void>> {
+  try {
+    const user = await requireUser();
+    const parsed = meetingIdSchema.parse(input);
+    const supabase = await createClient();
+
+    const { error } = await supabase
+      .from('dismissed_meetings')
+      .upsert(
+        { profile_id: user.id, meeting_id: parsed.meetingId },
+        /* Dismissing twice is dismissing once — not a duplicate-key error. */
+        { onConflict: 'profile_id,meeting_id', ignoreDuplicates: true },
+      );
+
+    if (error) {
+      /*
+       * Almost always the policy: the session has not finished yet. The UI does
+       * not draw the X before then, so a student only reaches this by racing the
+       * clock — booking closed, page left open — and the sentence should say
+       * what to do about it rather than blame them.
+       */
+      return fail(
+        ERROR_CODES.FORBIDDEN,
+        'You can only clear a session once it has finished.',
+      );
+    }
+
+    revalidateMeetingSurfaces();
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'meetings.dismissMeeting');
   }
 }
 

@@ -693,6 +693,39 @@ export type Database = {
           },
         ]
       }
+      dismissed_meetings: {
+        Row: {
+          dismissed_at: string
+          meeting_id: string
+          profile_id: string
+        }
+        Insert: {
+          dismissed_at?: string
+          meeting_id: string
+          profile_id: string
+        }
+        Update: {
+          dismissed_at?: string
+          meeting_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dismissed_meetings_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dismissed_meetings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrollments: {
         Row: {
           course_offering_id: string

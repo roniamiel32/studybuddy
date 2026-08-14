@@ -34,11 +34,12 @@ import { AlertCircle, ArrowLeft, CalendarPlus, Loader2, Send } from 'lucide-reac
 
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { MeetingChatCard } from '@/components/meetings/meeting-chat-card';
 import { MeetingStrip } from '@/components/meetings/meeting-strip';
 import { ScheduleMeetingDialog } from '@/components/meetings/schedule-meeting-dialog';
-import type { MeetingView } from '@/features/meetings/meeting-view';
+import { buildChatFeed, type MeetingView } from '@/features/meetings/meeting-view';
 import {
-  groupMessagesByDay,
+  groupByDay,
   type ChatMessageView,
   type ConversationView,
 } from '@/features/chat/chat-view';
@@ -235,7 +236,14 @@ export function ChatRoom({
     }
   }, [clearedFor, router]);
 
-  const groups = groupMessagesByDay(messages);
+  /*
+   * Messages and booked sessions in one run, ordered by when each happened.
+   *
+   * The session card is placed at the meeting's created_at rather than its
+   * start time: it is the announcement that somebody scheduled this, so it
+   * belongs beside the messages that led to it.
+   */
+  const groups = groupByDay(buildChatFeed(messages, meetings), (entry) => entry.at);
   const subtitle = [conversation.partnerDegreeName, conversation.courseCode]
     .filter(Boolean)
     .join(' • ');
@@ -288,7 +296,9 @@ export function ChatRoom({
 
       {/* ---- Messages ------------------------------------------------------- */}
       <div className="bg-surface-container-low/40 flex-1 overflow-y-auto p-4 flex flex-col-reverse">
-        {messages.length === 0 ? (
+        {/* Empty means the whole feed, not only the messages: a thread whose
+            first act was booking a session has something in it to show. */}
+        {groups.length === 0 ? (
           <p className="text-on-surface-variant py-8 text-center text-body-md">
             No messages yet. Say hello.
           </p>
@@ -303,19 +313,35 @@ export function ChatRoom({
             </div>
 
             <ul className="flex flex-col gap-4">
-              {group.messages.map((message, index) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  fromMe={message.senderId === viewerId}
-                  partnerName={conversation.partnerName}
-                  partnerAvatarUrl={conversation.partnerAvatarUrl}
-                  /* Last of a run from the partner, matching the design. */
-                  showAvatar={
-                    group.messages[index + 1]?.senderId !== message.senderId
-                  }
-                />
-              ))}
+              {group.items.map((entry, index) => {
+                if (entry.kind === 'meeting') {
+                  return (
+                    <li key={entry.id}>
+                      <MeetingChatCard meeting={entry.meeting} />
+                    </li>
+                  );
+                }
+
+                const next = group.items[index + 1];
+
+                return (
+                  <MessageBubble
+                    key={entry.id}
+                    message={entry.message}
+                    fromMe={entry.message.senderId === viewerId}
+                    partnerName={conversation.partnerName}
+                    partnerAvatarUrl={conversation.partnerAvatarUrl}
+                    /* Last of a run from the partner, matching the design. A
+                       session card interrupts a run the same way a message from
+                       the other side does — it is what the eye sees between the
+                       two bubbles, so the one above it ends its run. */
+                    showAvatar={
+                      next?.kind !== 'message' ||
+                      next.message.senderId !== entry.message.senderId
+                    }
+                  />
+                );
+              })}
             </ul>
           </section>
         ))}

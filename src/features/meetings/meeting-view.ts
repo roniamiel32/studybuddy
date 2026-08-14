@@ -14,9 +14,11 @@
  *
  *              No 'server-only' here: the dialog is a client component and needs
  *              these formatters.
- * Version:     0.19.0
+ * Version:     0.29.0
  *
  * Modifications:
+ *     0.29.0 - 2026-08-14 - createdAt, the banner window, and feed interleaving
+ *                           for the inline session card (Phase 9G)
  *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
  */
 
@@ -43,8 +45,35 @@ export interface MeetingView {
   otherAttendees: number;
   /** Whether the viewer booked it, and may therefore call it off entirely. */
   isOrganiser: boolean;
-  /** True once it has finished — the point at which rating opens. */
+  /**
+   * True once it has finished — the point at which rating opens, and the point
+   * at which the banner may be dismissed.
+   *
+   * COMPUTED ON THE SERVER, and read here rather than recomputed from endsAt.
+   * The chat is a client component, so a fresh `new Date()` during render gives
+   * a different answer on the client than the one the HTML was built with, and
+   * React logs a hydration mismatch for a session that finished between the two.
+   * One server-rendered boolean, refreshed with everything else.
+   */
   hasFinished: boolean;
+  /**
+   * When the session was booked, which is where its card sits in the chat feed.
+   *
+   * Not startsAt: the card is the announcement that somebody scheduled this, so
+   * it belongs at the moment they did — beside the messages that led to it,
+   * rather than jumping forward to a Tuesday nobody has reached yet.
+   */
+  createdAt: string;
+  /**
+   * Whether the VIEWER has cleared this session's banner. Never anybody else's.
+   *
+   * A FLAG RATHER THAN AN ABSENCE, because dismissing is about the banner alone.
+   * Dropping the meeting from the query would take its card out of the feed too,
+   * and the card is a record of something that happened in this chat — the same
+   * kind of thing as the messages around it. You do not lose a week of history
+   * by tidying a header.
+   */
+  bannerDismissed: boolean;
 }
 
 /** Slots for one calendar day, as the picker groups them. */
@@ -134,6 +163,85 @@ export function formatMeetingWhen(startsAt: string, endsAt: string): string {
   });
 
   return `${day}, ${formatSlotRange(startsAt, endsAt)}`;
+}
+
+/** How far back the banner keeps showing a session after it has ended. */
+const BANNER_LOOKBACK_MS = 86_400_000;
+
+/**
+ * Whether a session still belongs in the strip above the messages.
+ *
+ * THE ONE PLACE THE BANNER NARROWS AND THE FEED DOES NOT. Both read the same
+ * list; this decides what the strip keeps out of it, on two grounds:
+ *
+ *   - Age. The banner answers "what is happening in this chat", so it holds a
+ *     session for a day after it ends — long enough to offer rating, which is
+ *     when people most want to say something.
+ *   - Dismissal. The student has said they are finished with this one.
+ *
+ * Neither reaches the card in the feed, which answers "what was said and done
+ * here" and has no expiry: a session booked in March is still a thing that
+ * happened in March, and clearing its banner is not a claim that it wasn't.
+ *
+ * @param meeting - The session.
+ * @param now     - Reference time, injectable so the tests are not clock-dependent.
+ * @returns Whether the strip should draw it.
+ */
+export function isBannerMeeting(meeting: MeetingView, now: Date = new Date()): boolean {
+  if (meeting.bannerDismissed) {
+    return false;
+  }
+
+  return new Date(meeting.endsAt).getTime() >= now.getTime() - BANNER_LOOKBACK_MS;
+}
+
+/** One thing in the chat feed: something somebody said, or a session they booked. */
+export type ChatFeedEntry<TMessage> =
+  | { kind: 'message'; id: string; at: string; message: TMessage }
+  | { kind: 'meeting'; id: string; at: string; meeting: MeetingView };
+
+/**
+ * Merges booked sessions into a run of messages, in the order things happened.
+ *
+ * Generic over the message, because the two chats do not share one: a direct
+ * thread has read receipts and an icebreaker flag, a group message has a sender
+ * name and a system flag. All this needs from either is an id and a timestamp.
+ *
+ * SORTED BY TIMESTAMP, TIE-BROKEN BY ID. Two rows written in the same
+ * millisecond are rare but not impossible — booking a session and the message
+ * that announces it can land together — and without the tie-break their order
+ * is whatever the sort happened to do, which is free to differ between the
+ * server render and the client one. That is a hydration mismatch, and an
+ * arbitrary but *stable* order is what removes it.
+ *
+ * @param messages - Messages, in any order.
+ * @param meetings - Sessions booked from this chat.
+ * @returns Every entry, oldest first.
+ */
+export function buildChatFeed<TMessage extends { id: string; createdAt: string }>(
+  messages: TMessage[],
+  meetings: MeetingView[],
+): ChatFeedEntry<TMessage>[] {
+  const entries: ChatFeedEntry<TMessage>[] = [
+    ...messages.map(
+      (message): ChatFeedEntry<TMessage> => ({
+        kind: 'message',
+        id: `message-${message.id}`,
+        at: message.createdAt,
+        message,
+      }),
+    ),
+    ...meetings.map(
+      (meeting): ChatFeedEntry<TMessage> => ({
+        kind: 'meeting',
+        id: `meeting-${meeting.id}`,
+        at: meeting.createdAt,
+        meeting,
+      }),
+    ),
+  ];
+
+  return entries.sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
 }
 
 /**

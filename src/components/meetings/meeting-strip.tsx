@@ -2,16 +2,42 @@
  * File:        src/components/meetings/meeting-strip.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The sessions booked from a chat, above its messages.
- * Version:     0.19.0
+ *
+ *              DISMISSAL IS A ROW IN THE DATABASE, NOT A KEY IN localStorage.
+ *              The old version wrote `dismissed-meeting-<id>` to the browser,
+ *              which made the banner come back on the student's phone after they
+ *              cleared it on their laptop, and again on either one after a cache
+ *              clear — and it cost a mount-gate that blanked the whole strip on
+ *              the first paint of every chat, because the render could not know
+ *              what localStorage held until the effect had run. A row per
+ *              (person, meeting) is per account, survives devices, and arrives
+ *              with the server render.
+ *
+ *              THE X IS ONLY DRAWN ONCE THE SESSION IS OVER. Before then the
+ *              banner is the reminder that they agreed to go, and a student who
+ *              does not want to go has a different control for that — the RSVP
+ *              beside it, which the other attendees can see. Hiding a session you
+ *              have not been to is how somebody quietly stops turning up. The
+ *              INSERT policy on dismissed_meetings enforces the same rule, so
+ *              this is presentation rather than the guard.
+ * Version:     0.29.0
+ *
+ * Modifications:
+ *     0.29.0 - 2026-08-14 - Per-account, time-restricted dismissal (Phase 9G)
+ *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
  */
 
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { AlertCircle, CalendarClock, Loader2, MapPin, Users, X } from 'lucide-react';
 
-import { cancelMeeting, setMeetingRsvp } from '@/features/meetings/actions';
-import { formatMeetingWhen, type MeetingView } from '@/features/meetings/meeting-view';
+import { cancelMeeting, dismissMeeting, setMeetingRsvp } from '@/features/meetings/actions';
+import {
+  formatMeetingWhen,
+  isBannerMeeting,
+  type MeetingView,
+} from '@/features/meetings/meeting-view';
 import { cn } from '@/lib/utils';
 
 export interface MeetingStripProps {
@@ -20,15 +46,21 @@ export interface MeetingStripProps {
 
 /**
  * Renders the booked sessions for one chat.
+ *
+ * Narrowed to the banner's own window — everything still ahead, plus a day after
+ * each one ends. The full list goes to the feed, where the cards are history and
+ * do not expire.
  */
 export function MeetingStrip({ meetings }: MeetingStripProps) {
-  if (meetings.length === 0) {
+  const showing = meetings.filter((meeting) => isBannerMeeting(meeting));
+
+  if (showing.length === 0) {
     return null;
   }
 
   return (
     <ul aria-label="Scheduled sessions" className="flex flex-col gap-2 px-4 pt-3">
-      {meetings.map((meeting) => (
+      {showing.map((meeting) => (
         <MeetingCard key={meeting.id} meeting={meeting} />
       ))}
     </ul>
@@ -39,26 +71,15 @@ export function MeetingStrip({ meetings }: MeetingStripProps) {
  * One session, with whatever the viewer can still do about it.
  */
 function MeetingCard({ meeting }: { meeting: MeetingView }) {
-  const [isVisible, setIsVisible] = useState(true);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-    if (typeof window !== 'undefined') {
-      const dismissed = localStorage.getItem(`dismissed-meeting-${meeting.id}`) === 'true';
-      if (dismissed) {
-        setIsVisible(false);
-      }
-    }
-  }, [meeting.id]);
-
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-
-  const handleDismiss = () => {
-    setIsVisible(false);
-    localStorage.setItem(`dismissed-meeting-${meeting.id}`, 'true');
-  };
+  /*
+   * Optimistic, and one-way. The action revalidates, which drops this meeting
+   * from the server's list and unmounts the card — but that is a round trip, and
+   * the banner should go the moment it is clicked. If the write fails the card
+   * comes back with the reason on it.
+   */
+  const [dismissed, setDismissed] = useState(false);
 
   const act = (run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
     setError(null);
@@ -72,7 +93,23 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
     });
   };
 
-  if (!isMounted || !isVisible) return null;
+  const handleDismiss = () => {
+    setDismissed(true);
+    setError(null);
+
+    startTransition(async () => {
+      const result = await dismissMeeting({ meetingId: meeting.id });
+
+      if (!result.ok) {
+        setDismissed(false);
+        setError(result.error.message);
+      }
+    });
+  };
+
+  if (dismissed) {
+    return null;
+  }
 
   return (
     <li
@@ -83,22 +120,40 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
           : 'border-outline-variant/50 bg-surface-container-high/40',
       )}
     >
-      <button
-        onClick={handleDismiss}
-        className="absolute right-2 top-2 text-outline hover:text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 rounded-sm"
-        aria-label="Dismiss meeting"
-      >
-        <X className="size-4" aria-hidden="true" />
-      </button>
+      {/* Only once it is over, and only ever for this student. hasFinished is
+          computed on the server, so this does not appear mid-session without a
+          refresh — which is the same beat on which the RSVP controls disappear. */}
+      {meeting.hasFinished ? (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={handleDismiss}
+          className="absolute right-2 top-2 text-outline hover:text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 rounded-sm disabled:opacity-60"
+          aria-label={`Clear ${meeting.title} from your chat`}
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      ) : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 pr-6"> 
+      <div
+        className={cn(
+          'flex flex-wrap items-start justify-between gap-x-4 gap-y-2',
+          meeting.hasFinished && 'pr-6',
+        )}
+      >
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-label-md">
             <CalendarClock className="text-brand size-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{meeting.title}</span>
           </p>
 
-          <p className="text-on-surface-variant mt-1 text-label-sm font-normal">
+          {/* Formatted in the reader's zone, not the server's. The old mount
+              gate hid this — the strip never rendered on the server at all — and
+              removing it brings the mismatch into view for anybody abroad. */}
+          <p
+            suppressHydrationWarning
+            className="text-on-surface-variant mt-1 text-label-sm font-normal"
+          >
             {formatMeetingWhen(meeting.startsAt, meeting.endsAt)}
             {meeting.hasFinished ? ' — finished' : null}
           </p>

@@ -10,9 +10,10 @@ import { useActionState, useEffect, useId, useMemo, useRef, useState } from 'rea
 import { useRouter } from 'next/navigation';
 import { AlertCircle, CalendarPlus, Loader2, Send } from 'lucide-react';
 
+import { MeetingChatCard } from '@/components/meetings/meeting-chat-card';
 import { MeetingStrip } from '@/components/meetings/meeting-strip';
 import { ScheduleMeetingDialog } from '@/components/meetings/schedule-meeting-dialog';
-import type { MeetingView } from '@/features/meetings/meeting-view';
+import { buildChatFeed, type MeetingView } from '@/features/meetings/meeting-view';
 import { groupMessageSchema } from '@/features/groups/schema';
 import { markGroupRead, postGroupMessage } from '@/features/groups/actions';
 import { formatMessageTime } from '@/features/chat/chat-view';
@@ -85,6 +86,9 @@ export function GroupChat({
 
   const error = state && !state.ok ? state.error : null;
   const messages = useMemo(() => mergeMessages(initialMessages, live), [initialMessages, live]);
+  /* Messages and booked sessions in one run, ordered by when each happened. No
+     day separators here — the group chat has never had them. */
+  const feed = useMemo(() => buildChatFeed(messages, meetings), [messages, meetings]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -121,7 +125,7 @@ export function GroupChat({
     if (canvas) {
       canvas.scrollTop = canvas.scrollHeight;
     }
-  }, [messages.length]);
+  }, [feed.length]);
 
   /* ---- Mark as read ------------------------------------------------------ */
 
@@ -174,14 +178,24 @@ export function GroupChat({
         ref={canvasRef}
         className="bg-surface-container-low/40 flex max-h-[600px] min-h-[400px] flex-1 flex-col gap-3 overflow-y-auto p-4"
       >
-        {messages.length === 0 ? (
+        {feed.length === 0 ? (
           <p className="text-on-surface-variant py-6 text-center text-body-md">
             No messages yet. Say hello to the group.
           </p>
         ) : null}
 
         <ul className="flex flex-col gap-3">
-          {messages.map((message) => {
+          {feed.map((entry) => {
+            if (entry.kind === 'meeting') {
+              return (
+                <li key={entry.id}>
+                  <MeetingChatCard meeting={entry.meeting} />
+                </li>
+              );
+            }
+
+            const message = entry.message;
+
             if (message.isSystem) {
               return (
                 <li key={message.id} className="flex justify-center">
