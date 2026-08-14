@@ -97,7 +97,7 @@ export function ThreadList({ threads }: ThreadListProps) {
 
   return (
     <>
-      {/* Pulled up with negative margin to sit on the same line as the header */}
+     {/* Pulled up with negative margin to sit on the same line as the header */}
       <div className="relative z-10 mb-4 -mt-6 flex justify-end sm:-mt-16 sm:mb-8" ref={menuRef}>
         <div className="relative">
           <button
@@ -105,13 +105,15 @@ export function ThreadList({ threads }: ThreadListProps) {
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             aria-expanded={isMenuOpen}
             className={cn(
-              'clay-btn-secondary focus-visible:ring-brand/35 flex items-center gap-2 rounded-lg px-4 py-2.5 text-label-md transition-colors focus-visible:ring-4 focus-visible:outline-none',
-              isMenuOpen ? 'bg-surface-container border-brand/60' : 'bg-white'
+              'flex items-center gap-2 rounded-lg px-4 py-2.5 text-label-md transition-colors focus-visible:ring-4 focus-visible:ring-brand/35 focus-visible:outline-none border-2',
+              isMenuOpen 
+                ? 'bg-brand text-white border-brand' 
+                : 'bg-white text-brand border-brand hover:bg-brand hover:text-white'
             )}
           >
             <Filter className="size-4" aria-hidden="true" />
             Filter
-            <ChevronDown className="text-outline size-4 opacity-70" aria-hidden="true" />
+            <ChevronDown className="size-4 opacity-70" aria-hidden="true" />
           </button>
 
           {isMenuOpen && (
@@ -121,7 +123,7 @@ export function ThreadList({ threads }: ThreadListProps) {
                 <button
                   key={option.value}
                   onClick={() => change(() => setSort(option.value))}
-                  className="focus-visible:bg-brand-fixed/30 hover:bg-brand-fixed/30 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-label-md focus-visible:outline-none"
+                  className="focus-visible:bg-brand/10 hover:bg-brand/10 transition-colors flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-label-md focus-visible:outline-none"
                 >
                   {option.label}
                   {sort === option.value && <Check className="text-brand size-4" />}
@@ -135,7 +137,7 @@ export function ThreadList({ threads }: ThreadListProps) {
                 <button
                   key={option.value}
                   onClick={() => change(() => setFilter(option.value))}
-                  className="focus-visible:bg-brand-fixed/30 hover:bg-brand-fixed/30 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-label-md focus-visible:outline-none"
+                  className="focus-visible:bg-brand/10 hover:bg-brand/10 transition-colors flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-label-md focus-visible:outline-none"
                 >
                   {option.label}
                   {filter === option.value && <Check className="text-brand size-4" />}
