@@ -2107,6 +2107,17 @@ export type Database = {
         }
         Returns: string
       }
+      rpc_create_meetings: {
+        Args: {
+          p_conversation_id?: string
+          p_ends_at: string[]
+          p_group_id?: string
+          p_location?: string
+          p_starts_at: string[]
+          p_title: string
+        }
+        Returns: string[]
+      }
       rpc_find_candidates: {
         Args: { p_course_offering_id?: string; p_limit?: number }
         Returns: {

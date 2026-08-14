@@ -23,9 +23,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MEETING_MAX_HOURS,
   buildChatFeed,
+  buildSlotGrid,
   formatMeetingWhen,
   isBannerMeeting,
+  mergeSelectedSlots,
+  type MeetingSlotView,
   type MeetingView,
 } from '@/features/meetings/meeting-view';
 
@@ -172,6 +176,177 @@ describe('buildChatFeed', () => {
     expect(buildChatFeed([], [])).toEqual([]);
     expect(buildChatFeed(messages, [])).toHaveLength(3);
     expect(buildChatFeed([], [meeting()])).toHaveLength(1);
+  });
+});
+
+/*
+ * The picker works entirely in the reader's own zone, so these fixtures are
+ * built from LOCAL date components rather than from UTC strings. Anything
+ * hard-coded as "2026-08-16T14:00:00Z" would land on a different row, and
+ * sometimes a different day, depending on the machine running the suite.
+ */
+const GRID_ANCHOR = new Date(2026, 7, 16, 9, 0, 0, 0);
+
+/**
+ * A two-hour offered slot, at a local hour on a day relative to the anchor.
+ *
+ * @param daysAhead - Days after the anchor.
+ * @param hour      - Local start hour.
+ * @returns The slot.
+ */
+function slotAt(daysAhead: number, hour: number): MeetingSlotView {
+  const start = new Date(
+    GRID_ANCHOR.getFullYear(),
+    GRID_ANCHOR.getMonth(),
+    GRID_ANCHOR.getDate() + daysAhead,
+    hour,
+  );
+
+  return {
+    startsAt: start.toISOString(),
+    endsAt: new Date(start.getTime() + 7_200_000).toISOString(),
+    participantCount: 2,
+  };
+}
+
+describe('buildSlotGrid', () => {
+  it('gives every day in the window a column, free or not', () => {
+    /* A grid that silently omitted Wednesday would leave "can we meet on
+       Wednesday" unanswered rather than answered with "no". */
+    const grid = buildSlotGrid([slotAt(0, 14)], 7, GRID_ANCHOR);
+
+    expect(grid.columns).toHaveLength(7);
+    expect(grid.columns[0].slotsByTime['14:00']).toBeDefined();
+    expect(grid.columns[3].slotsByTime).toEqual({});
+  });
+
+  it('takes its rows from the times that are actually offered', () => {
+    const grid = buildSlotGrid([slotAt(0, 14), slotAt(1, 10), slotAt(2, 14)], 7, GRID_ANCHOR);
+
+    expect(grid.times).toEqual(['10:00', '14:00']);
+  });
+
+  it('puts the same hour on different days in one row', () => {
+    /* The property the whole grid rests on: a row is an hour, across the week. */
+    const grid = buildSlotGrid([slotAt(0, 14), slotAt(2, 14)], 7, GRID_ANCHOR);
+
+    expect(grid.times).toEqual(['14:00']);
+    expect(grid.columns[0].slotsByTime['14:00']).toBeDefined();
+    expect(grid.columns[1].slotsByTime['14:00']).toBeUndefined();
+    expect(grid.columns[2].slotsByTime['14:00']).toBeDefined();
+  });
+
+  it('drops a slot beyond the window rather than inventing a column', () => {
+    const grid = buildSlotGrid([slotAt(0, 14), slotAt(30, 14)], 7, GRID_ANCHOR);
+
+    expect(grid.columns).toHaveLength(7);
+    expect(
+      grid.columns.filter((column) => Object.keys(column.slotsByTime).length > 0),
+    ).toHaveLength(1);
+  });
+
+  it('has no rows at all when nothing is shared', () => {
+    const grid = buildSlotGrid([], 7, GRID_ANCHOR);
+
+    expect(grid.times).toEqual([]);
+    expect(grid.columns).toHaveLength(7);
+  });
+});
+
+describe('mergeSelectedSlots', () => {
+  const offered = [
+    slotAt(0, 10),
+    slotAt(0, 12),
+    slotAt(0, 14),
+    slotAt(0, 16),
+    slotAt(0, 18),
+    slotAt(2, 14),
+  ];
+
+  it('merges two blocks that touch into one session', () => {
+    const runs = mergeSelectedSlots(offered, [
+      slotAt(0, 14).startsAt,
+      slotAt(0, 16).startsAt,
+    ]);
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0].startsAt).toBe(slotAt(0, 14).startsAt);
+    expect(runs[0].endsAt).toBe(slotAt(0, 16).endsAt);
+    expect(runs[0].slotCount).toBe(2);
+  });
+
+  it('keeps blocks on different days apart', () => {
+    const runs = mergeSelectedSlots(offered, [
+      slotAt(0, 14).startsAt,
+      slotAt(2, 14).startsAt,
+    ]);
+
+    expect(runs).toHaveLength(2);
+  });
+
+  it('breaks a run where there is a gap', () => {
+    /*
+     * The case that makes exact-timestamp adjacency load-bearing: 12–14 is
+     * missing from the selection, so 10–12 and 14–16 are two sessions. A
+     * "same day, close enough" rule would book the hour in between, which
+     * somebody else may already have.
+     */
+    const runs = mergeSelectedSlots(offered, [
+      slotAt(0, 10).startsAt,
+      slotAt(0, 14).startsAt,
+    ]);
+
+    expect(runs).toHaveLength(2);
+    expect(runs[0].endsAt).toBe(slotAt(0, 10).endsAt);
+    expect(runs[1].startsAt).toBe(slotAt(0, 14).startsAt);
+  });
+
+  it('splits a run that would exceed the eight-hour cap', () => {
+    /*
+     * meetings_bounded refuses a session over eight hours. Five contiguous
+     * blocks is ten, so the picker returns two sessions rather than letting the
+     * student meet a CHECK constraint.
+     */
+    const runs = mergeSelectedSlots(
+      offered,
+      [10, 12, 14, 16, 18].map((hour) => slotAt(0, hour).startsAt),
+    );
+
+    expect(runs).toHaveLength(2);
+    expect(runs[0].slotCount).toBe(MEETING_MAX_HOURS / 2);
+    expect(runs[1].slotCount).toBe(1);
+
+    for (const run of runs) {
+      const hours =
+        (new Date(run.endsAt).getTime() - new Date(run.startsAt).getTime()) / 3_600_000;
+
+      expect(hours).toBeLessThanOrEqual(MEETING_MAX_HOURS);
+    }
+  });
+
+  it('does not care what order the slots were clicked in', () => {
+    const forwards = mergeSelectedSlots(offered, [
+      slotAt(0, 14).startsAt,
+      slotAt(0, 16).startsAt,
+    ]);
+    const backwards = mergeSelectedSlots(offered, [
+      slotAt(0, 16).startsAt,
+      slotAt(0, 14).startsAt,
+    ]);
+
+    expect(backwards).toEqual(forwards);
+  });
+
+  it('ignores a selected key that is no longer on offer', () => {
+    /* The slot list is refetched on every open; a stale selection must not
+       become a session nobody is free for. */
+    const runs = mergeSelectedSlots(offered, [slotAt(5, 14).startsAt]);
+
+    expect(runs).toEqual([]);
+  });
+
+  it('returns nothing for an empty selection', () => {
+    expect(mergeSelectedSlots(offered, [])).toEqual([]);
   });
 });
 

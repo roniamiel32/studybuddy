@@ -252,12 +252,20 @@ test.describe('scheduling a session from a chat', () => {
     expect(theirs?.rsvp).toBe('cancelled');
 
     /*
-     * And the freed hour is on offer again. Busy is derived from the meetings
-     * people are going to, so there is no second table to fall out of step.
+     * And the picker still offers the hours that really are shared.
+     *
+     * THIS WATCHES 14:00 RATHER THAN 12:00 SINCE PHASE 9H, and the change is not
+     * a weakening. The picker used to look fourteen days ahead, so asserting on
+     * 12:00 was really watching the *following* Sunday's copy of it appear —
+     * never quite the claim the test was making. Inside the one-week window
+     * there is a single Sunday, and its 12:00 is correctly still withheld: Mia
+     * has not cancelled, and a shared slot needs both of them. One person
+     * stepping out frees their own diary, which the assertion above already
+     * proves against the table the scheduler derives "busy" from.
      */
     await page.getByRole('button', { name: 'Schedule a meeting' }).click();
     const dialog = page.getByRole('dialog');
-    await expect(dialog.getByRole('button', { name: /12:00/ }).first()).toBeVisible({
+    await expect(dialog.getByRole('button', { name: /14:00/ }).first()).toBeVisible({
       timeout: 20_000,
     });
   });

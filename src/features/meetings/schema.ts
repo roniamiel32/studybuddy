@@ -43,8 +43,24 @@ export const createMeetingSchema = scope.and(
       .min(3, 'Give the session a name of at least three characters.')
       .max(120, 'Keep the name under 120 characters.'),
     location: z.string().trim().max(200, 'Keep the place under 200 characters.').optional(),
-    startsAt: z.iso.datetime({ offset: true }),
-    endsAt: z.iso.datetime({ offset: true }),
+    /*
+     * One entry per session, because the picker takes more than one answer: a
+     * selection of Tuesday afternoon and Thursday evening is two sessions, and
+     * contiguous blocks have already been merged into one entry by the time they
+     * arrive here. A single pick is simply an array of one, which is why this
+     * replaced the old scalar pair rather than sitting beside it.
+     */
+    sessions: z
+      .array(
+        z.object({
+          startsAt: z.iso.datetime({ offset: true }),
+          endsAt: z.iso.datetime({ offset: true }),
+        }),
+      )
+      .min(1, 'Pick at least one time.')
+      /* Mirrors the cap inside rpc_create_meetings, so an absurd selection is
+         refused with a sentence rather than a database error. */
+      .max(20, 'That is more sessions than can be booked at once.'),
   }),
 );
 

@@ -90,10 +90,18 @@ export async function findMeetingSlots(input: {
 }
 
 /**
- * Books a session for everyone in the chat.
+ * Books every session the picker selected, for everyone in the chat.
+ *
+ * ONE RPC FOR THE WHOLE SELECTION, NOT ONE CALL PER SESSION. Looping here would
+ * commit each booking separately, so a clash on the third would leave the student
+ * booked for the first two and holding an error about the rest — a state they
+ * did not ask for and cannot undo in one action. rpc_create_meetings does the
+ * loop inside a single transaction instead, so the selection either happens or
+ * does not.
  *
  * @param previous - Prior result, required by useActionState and unused.
- * @param formData - Carries the scope, the title, the place and the window.
+ * @param formData - Carries the scope, the title, the place, and one
+ *                   startsAt/endsAt pair per session.
  * @returns Success, or a failure naming what went wrong.
  */
 export async function createMeeting(
@@ -103,42 +111,61 @@ export async function createMeeting(
   try {
     await requireUser();
 
+    /*
+     * getAll, paired by position. The picker renders one hidden input of each
+     * name per session and the browser preserves document order, so index i of
+     * one list belongs with index i of the other. The schema rejects a mismatch.
+     */
+    const startsAt = formData.getAll('startsAt').map(String).filter(Boolean);
+    const endsAt = formData.getAll('endsAt').map(String).filter(Boolean);
+
     const raw = {
       conversationId: String(formData.get('conversationId') ?? '') || undefined,
       groupId: String(formData.get('groupId') ?? '') || undefined,
       title: String(formData.get('title') ?? ''),
       location: String(formData.get('location') ?? '') || undefined,
-      startsAt: String(formData.get('startsAt') ?? ''),
-      endsAt: String(formData.get('endsAt') ?? ''),
+      sessions: startsAt.map((start, index) => ({
+        startsAt: start,
+        endsAt: endsAt[index] ?? '',
+      })),
     };
 
     const input = createMeetingSchema.parse(raw);
     const supabase = await createClient();
 
-    const { error } = await supabase.rpc('rpc_create_meeting', {
+    const { error } = await supabase.rpc('rpc_create_meetings', {
       p_conversation_id: input.conversationId,
       p_group_id: input.groupId,
       p_title: input.title,
       p_location: input.location,
-      p_starts_at: input.startsAt,
-      p_ends_at: input.endsAt,
+      p_starts_at: input.sessions.map((session) => session.startsAt),
+      p_ends_at: input.sessions.map((session) => session.endsAt),
     });
 
     if (error) {
       /*
        * The clash trigger is the one a student can actually hit by being slow:
        * they opened the picker, went to make coffee, and someone else took the
-       * slot. It deserves its own sentence rather than a generic failure.
+       * slot. It deserves its own sentence rather than a generic failure — and
+       * with several sessions in flight it has to say that none of them were
+       * booked, because that is what the transaction did.
        */
       if (error.message.includes('clash')) {
         return fail(
           ERROR_CODES.VALIDATION_FAILED,
-          'Someone has taken that time since you opened this. Pick another.',
+          input.sessions.length === 1
+            ? 'Someone has taken that time since you opened this. Pick another.'
+            : 'Someone has taken one of those times since you opened this. Nothing was booked — pick again.',
           'startsAt',
         );
       }
 
-      return fail(ERROR_CODES.FORBIDDEN, 'We could not book that session. Try again.');
+      return fail(
+        ERROR_CODES.FORBIDDEN,
+        input.sessions.length === 1
+          ? 'We could not book that session. Try again.'
+          : 'We could not book those sessions. Try again.',
+      );
     }
 
     revalidateMeetingSurfaces();
