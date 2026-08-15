@@ -171,8 +171,9 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
            * written before the column existed carry null and land there too,
            * which is the right way round — history reading as history.
            */
-          const request = isGroupRequest
-            ? pendingRequests.find((r) => r.id === notification.groupRequestId)
+         const request = isGroupRequest
+            ? pendingRequests.find((r) => r.id === notification.groupRequestId) ||
+              pendingRequests.find((r) => r.requesterId === notification.actorId)
             : null;
 
           const className = cn(
@@ -183,8 +184,18 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
               : 'border-brand/40 bg-brand-fixed/40',
           );
 
-          // Render the Inline Review layout if it is a pending request and we found the matching request
-          if (isGroupRequest && request) {
+          // בדיקה האם זו ההתראה החדשה ביותר מבין כל בקשות ההצטרפות הפתוחות
+          const isLatestGroupRequest =
+            isGroupRequest &&
+            request &&
+            notifications.find(
+              (n) =>
+                n.type === 'group_request' &&
+                (pendingRequests.some((r) => r.id === n.groupRequestId) ||
+                  pendingRequests.some((r) => r.requesterId === n.actorId)),
+            )?.id === notification.id;
+          // Render the Inline Review layout if it is the latest pending request
+          if (isLatestGroupRequest) {
             const group = adminGroups.find((g) => g.id === request.groupId);
 
             return (
@@ -371,32 +382,7 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
     </>
   );
 }
-/**
- * The X that clears one notification from the feed.
- *
- * OPTIMISTIC, AND NOT REVERTED ON FAILURE. Dismissing is not a claim about the
- * world — nothing is destroyed and nothing is told to anyone — so a row that
- * vanishes and stays vanished until the next load is the least surprising
- * outcome of a failed write. Putting it back would be a flicker explaining a
- * problem the student cannot act on.
- *
- * @param notificationId - Which notification.
- * @param onDismissed    - Called once the press is registered.
- * @returns The button element.
- */
-/**
- * A notification's sentence, with the person's name made a link to them.
- *
- * SPLIT ON A CHECKED PREFIX, NOT A REGEX. Every actor-driven message in
- * notification-view is built as `${who} <did something>`, so the name is a known
- * prefix rather than something to be found by pattern — and if a future message
- * ever stops leading with it, `startsWith` fails, the whole sentence renders
- * plain, and nobody sees a mangled string. Parsing the rendered copy at all is
- * the compromise here: the alternative is for notificationCopy to return the
- * name as its own field, which is the better shape and a wider change.
- *
- * @returns The message, with a linked name where there is one to link.
- */
+
 function LinkedActorMessage({
   notification,
   message,
@@ -440,9 +426,6 @@ function DismissButton({
           await dismissNotification({ notificationId });
         });
       }}
-      /* z-20 clears the row's stretched-link overlay. Without it the X is
-         underneath a full-card anchor and every dismiss opens the notification
-         instead. */
       className="text-outline hover:text-destructive hover:bg-destructive/10 focus-visible:ring-destructive/35 absolute top-1/2 right-2 z-20 flex size-7 -translate-y-1/2 items-center justify-center rounded-full transition-colors focus-visible:ring-4 focus-visible:outline-none"
     >
       <X className="size-4" aria-hidden="true" />
