@@ -210,27 +210,19 @@ function ThreadRow({
   thread: MessageThreadView;
   onHidden: () => void;
 }) {
-  /*
-   * Two presses, and the second one is the destructive one. Clearing a thread is
-   * quiet — the other person keeps it, and a new message brings it back — but it
-   * still makes something disappear from a list you are scanning, and a bare X
-   * beside a row is far too easy to catch on the way past.
-   */
   const [confirming, setConfirming] = useState(false);
   const [pendingHide, startHiding] = useTransition();
+  const [isMounted, setIsMounted] = useState(false);
 
-  /* No cast needed since Phase 9E: a group thread carries a real unread count
-     against last_seen_at, so both members of the union have `unreadCount: number`. */
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const unreadCount = thread.unreadCount;
   const unread = unreadCount > 0;
 
   return (
     <li className="relative">
-      {/*
-        The controls sit BESIDE the row, not inside it: the row is an anchor, and
-        a button inside an anchor is invalid markup that navigates when pressed.
-        `pr-14` (or `pr-24` while confirming) keeps the chevron clear of them.
-      */}
       <Link
         href={thread.href}
         className={cn(
@@ -258,7 +250,7 @@ function ThreadRow({
               {thread.title}
             </h2>
             <span className="text-outline shrink-0 text-label-sm font-normal">
-              {formatConversationTime(thread.lastMessageAt)}
+              {isMounted ? formatConversationTime(thread.lastMessageAt) : ''}
             </span>
           </div>
 
@@ -332,6 +324,7 @@ function ThreadRow({
     </li>
   );
 }
+
 function EmptyThreads() {
   return (
     <div className="clay-card flex flex-col items-center p-8 text-center sm:p-12">
