@@ -51,6 +51,21 @@ export interface NotificationView {
   meetingId: string | null;
   meetingTitle: string | null;
   /**
+   * The join request this notification announces, for group_request rows.
+   *
+   * WHAT MAKES A REVIEW BUTTON APPEAR. The feed used to find the live request by
+   * (actor, group), which identified one thing only while a student could hold
+   * one request per group ever. Now that history is kept, that pair names
+   * several — so every old notification matched the one live request and drew
+   * its own Review button. This is the identity the pair was standing in for.
+   *
+   * Null on rows written before the column existed, and on every other type.
+   * Null means "not the live request", which is the safe way to be wrong: a
+   * stale card reads as history rather than offering a decision that cannot be
+   * made.
+   */
+  groupRequestId: string | null;
+  /**
    * Whose wall the post or comment sits on. There is no page for a single post,
    * so this is where anything about one leads.
    */

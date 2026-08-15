@@ -250,7 +250,7 @@ describeDb('Join requests: history, and one live request at a time', () => {
     expect(await feed()).toHaveLength(2);
   });
 
-  it('rule 3: approval also holds the slot, so they cannot ask again', async () => {
+  it('rule 3: a member cannot ask to join the group they are already in', async () => {
     const approved = await clients.owner.rpc('rpc_approve_group_request', {
       p_request_id: (await history())[1].id,
     });
@@ -261,9 +261,42 @@ describeDb('Join requests: history, and one live request at a time', () => {
       .from('group_requests')
       .insert({ group_id: groupId, requester_id: ids.asker, status: 'pending' });
 
-    /* 'approved' is inside the partial index too — a member cannot queue a
-       request to join a group they are already in. */
-    expect(asking.error).not.toBeNull();
+    /*
+     * REFUSED BY THE POLICY, NOT BY THE INDEX — which is the distinction Phase
+     * 10B turned on. The index used to cover approved rows and caught this case
+     * as a side effect; now it is pending-only, and `not app_is_group_member`
+     * in the INSERT policy is what says no. The difference matters because
+     * membership ends and an approved row does not.
+     */
+    expect(asking.error?.code).toBe('42501');
     expect(await history()).toHaveLength(2);
+  });
+
+  it('lets somebody who was removed from the group ask again', async () => {
+    /*
+     * THE BUG THIS SUITE GREW A SECTION FOR. Being removed left the approved row
+     * behind, the live-request index still counted it, and the student was told
+     * "you have already asked to join this group" about a membership that had
+     * ended. Nothing about the old row changes here — it is still the record
+     * that they were once in — but it no longer blocks the door.
+     */
+    const removed = await clients.owner
+      .from('study_group_members')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('profile_id', ids.asker);
+
+    expect(removed.error).toBeNull();
+
+    const again = await clients.asker
+      .from('group_requests')
+      .insert({ group_id: groupId, requester_id: ids.asker, status: 'pending' });
+
+    expect(again.error).toBeNull();
+
+    const after = await history();
+
+    /* Three rows now: rejected, approved, pending. All of it true. */
+    expect(after.map((row) => row.status)).toEqual(['rejected', 'approved', 'pending']);
   });
 });

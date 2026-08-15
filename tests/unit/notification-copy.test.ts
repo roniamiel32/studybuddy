@@ -35,6 +35,7 @@ function view(type: NotificationType, overrides: Partial<NotificationView> = {})
     secondaryId: 'b1', secondaryName: 'Amit Shani',
     groupId: 'g1', groupName: 'Sunday revision',
     meetingId: 'm1', meetingTitle: 'Past papers',
+    groupRequestId: 'r1',
     wallOwnerId: 'w1',
     isRead: false, createdAt: new Date().toISOString(),
     ...overrides,

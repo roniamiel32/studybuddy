@@ -148,23 +148,32 @@ export async function requestToJoin(
 
     if (insertError) {
       /*
-       * The partial index. Distinguished from a policy refusal because the two
-       * need different sentences: this one is "you already did that", which is
-       * reassurance, and the other is "you cannot", which is not.
+       * MEMBERSHIP IS CHECKED FIRST, AND ON ANY ERROR, because which guard fires
+       * moved in Phase 10B. The live-request index used to cover approved rows,
+       * so a current member collided with it and arrived here as a 23505. Now
+       * the index is pending-only and membership is the INSERT policy's
+       * business, so the same student arrives as a 42501 instead. Reading the
+       * membership rather than the error code makes the sentence independent of
+       * which layer said no — and it is the sentence that matters, since "you
+       * are already in this group" and "we could not send that request" send
+       * people to very different places.
        */
-      if (insertError.code === '23505') {
-        const { data: member } = await supabase
-          .from('study_group_members')
-          .select('group_id')
-          .eq('group_id', groupId)
-          .eq('profile_id', user.id)
-          .maybeSingle();
+      const { data: member } = await supabase
+        .from('study_group_members')
+        .select('group_id')
+        .eq('group_id', groupId)
+        .eq('profile_id', user.id)
+        .maybeSingle();
 
+      if (member) {
+        return fail(ERROR_CODES.CONFLICT, 'You are already in this group.', 'groupId');
+      }
+
+      /* Now unambiguous: one live request per student, and they have one. */
+      if (insertError.code === '23505') {
         return fail(
           ERROR_CODES.CONFLICT,
-          member
-            ? 'You are already in this group.'
-            : 'You have already asked to join this group. The admin has not answered yet.',
+          'You have already asked to join this group. The admin has not answered yet.',
           'groupId',
         );
       }

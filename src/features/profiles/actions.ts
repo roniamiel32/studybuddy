@@ -152,3 +152,94 @@ export async function withdrawRating(
     return toActionError(error, 'profiles.withdrawRating');
   }
 }
+
+const blockSchema = z.object({ profileId: z.uuid('That student does not exist.') });
+
+/**
+ * Blocks another student, which is the hard exclusion.
+ *
+ * BLOCKING AND RATING BADLY ARE DIFFERENT ACTS, and since matching v5 they are
+ * finally different mechanisms. A negative rating is feedback: private, and
+ * worth a 0.75x demotion in the ranking. A block is refusal — it removes the
+ * pair from each other's candidates entirely, in both directions, and it is the
+ * only thing that still does. That is why this control exists: softening the
+ * rating penalty left students with no way to say "not this person", and a
+ * ranking adjustment is not an answer to somebody you do not want to be shown.
+ *
+ * SYMMETRIC BY THE SCORER, NOT BY THIS ROW. One row is written, naming who
+ * blocked whom. rpc_find_candidates then tests it in both directions, so the
+ * blocked student stops seeing the blocker too — without being told, and without
+ * a second row that would let them discover it by reading their own list.
+ *
+ * @param input - Who to block.
+ * @returns Success, or a failure.
+ */
+export async function blockStudent(input: { profileId: string }): Promise<ActionResult<void>> {
+  try {
+    const user = await requireUser();
+    const { profileId } = blockSchema.parse(input);
+    const supabase = await createClient();
+
+    if (profileId === user.id) {
+      return fail(ERROR_CODES.VALIDATION_FAILED, 'You cannot block yourself.');
+    }
+
+    const { error } = await supabase
+      .from('blocked_users')
+      /* Blocking twice is blocking once, not an error to show somebody. */
+      .upsert(
+        { blocker_id: user.id, blocked_id: profileId },
+        { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true },
+      );
+
+    if (error) {
+      return fail(ERROR_CODES.FORBIDDEN, 'We could not block that student. Try again.');
+    }
+
+    /*
+     * The dashboard and every course page rank candidates, so all of them are
+     * now out of date. The blocked student's own profile is revalidated too —
+     * the viewer is being sent away from it, and it should not be served from a
+     * cache that still offers to message them.
+     */
+    revalidatePath(`/students/${profileId}`);
+    revalidatePath('/dashboard');
+    revalidatePath('/courses', 'layout');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'profiles.blockStudent');
+  }
+}
+
+/**
+ * Lifts a block the caller placed.
+ *
+ * @param input - Who to unblock.
+ * @returns Success, or a failure.
+ */
+export async function unblockStudent(input: { profileId: string }): Promise<ActionResult<void>> {
+  try {
+    const user = await requireUser();
+    const { profileId } = blockSchema.parse(input);
+    const supabase = await createClient();
+
+    const { error } = await supabase
+      .from('blocked_users')
+      .delete()
+      .eq('blocker_id', user.id)
+      .eq('blocked_id', profileId);
+
+    if (error) {
+      return fail(ERROR_CODES.FORBIDDEN, 'We could not lift that block. Try again.');
+    }
+
+    revalidatePath(`/students/${profileId}`);
+    revalidatePath('/dashboard');
+    revalidatePath('/courses', 'layout');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'profiles.unblockStudent');
+  }
+}

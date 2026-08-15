@@ -85,16 +85,21 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
       const result = await setMeetingRsvp({ meetingId: meeting.id, going });
 
       if (!result.ok) {
+        /* Stays open on failure — a dialog that closes on a refusal takes the
+           reason with it, and the student is left wondering what happened. */
         setError(result.error.message);
         return;
       }
 
       /*
-       * Left open on success, deliberately. revalidatePath re-renders the chat
-       * underneath, so the marked answer moves while the student is still
-       * looking at it — which is the confirmation. Closing on success would take
-       * the evidence away at the exact moment they went looking for it.
+       * CLOSES ON SUCCESS. It used to stay open so the marked answer moved under
+       * the student's eyes, but answering is the only thing this dialog is for:
+       * once it is done, the dialog is in the way of the chat behind it and
+       * needs a second press to dismiss. The confirmation still lands — the
+       * action revalidates, so the card and the banner underneath both show the
+       * new answer as soon as it closes.
        */
+      onClose();
     });
   };
 

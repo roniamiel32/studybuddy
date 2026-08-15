@@ -39,6 +39,22 @@ const RUNI_ID = '11111111-1111-4111-8111-111111111111';
 const RUNI_CS_DEGREE = 'de600001-0000-4000-8000-000000000001';
 const RUNI_CURRENT_TERM = 'dddd0002-0000-4000-8000-000000000002';
 
+
+/**
+ * Opens the group workspace sidebar.
+ *
+ * MEMBERS, INVITATIONS AND JOIN REQUESTS ALL LIVE BEHIND ONE TOGGLE. GroupWorkspace
+ * mounts the sidebar only while it is open — not merely hides it — so every control
+ * in this file is absent from the DOM until this runs. It used to be laid out
+ * beside the chat, which is why these tests navigated straight to what they wanted.
+ *
+ * @param page - The Playwright page, already on a group page.
+ * @returns Nothing.
+ */
+async function openSidebar(page: Page) {
+  await page.getByRole('button', { name: 'Show members' }).click();
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test.describe('running a study group', () => {
@@ -178,6 +194,7 @@ test.describe('running a study group', () => {
   test('an admin can rename the group and change its size', async ({ page }) => {
     await signIn(page, founderEmail);
     await page.goto(`/groups/${groupId}`);
+    await openSidebar(page);
 
     await page.getByRole('button', { name: 'Settings' }).click();
 
@@ -201,6 +218,7 @@ test.describe('running a study group', () => {
   test('the size cannot be cut below the people already in it', async ({ page }) => {
     await signIn(page, founderEmail);
     await page.goto(`/groups/${groupId}`);
+    await openSidebar(page);
 
     await page.getByRole('button', { name: 'Settings' }).click();
 
@@ -228,6 +246,7 @@ test.describe('running a study group', () => {
   test('an admin can promote a member', async ({ page }) => {
     await signIn(page, founderEmail);
     await page.goto(`/groups/${groupId}`);
+    await openSidebar(page);
 
     await page.getByRole('button', { name: 'Make admin' }).click();
 
@@ -257,6 +276,7 @@ test.describe('running a study group', () => {
      */
     await signIn(page, memberEmail);
     await page.goto(`/groups/${groupId}`);
+    await openSidebar(page);
 
     /* exact, because the fixture is called "Fiona Founder" and the rank chip is
        called "Founder" — without it this matches the name as well as the chip. */
@@ -268,6 +288,7 @@ test.describe('running a study group', () => {
   test('only the founder can undo a promotion', async ({ page }) => {
     await signIn(page, founderEmail);
     await page.goto(`/groups/${groupId}`);
+    await openSidebar(page);
 
     await page.getByRole('button', { name: 'Remove admin' }).click();
 
@@ -281,6 +302,15 @@ test.describe('running a study group', () => {
   test('inviting asks rather than adds', async ({ page }) => {
     await signIn(page, founderEmail);
     await page.goto(`/groups/${groupId}`);
+    await openSidebar(page);
+
+    /*
+     * THE PANEL IS SEARCH-FIRST NOW. It lists nobody until something is typed —
+     * a deliberate change, since a group's course can have a hundred classmates
+     * and an unfiltered list of them is not a chooser. The old test opened the
+     * page and expected the name to be sitting there.
+     */
+    await page.getByLabel('Find a classmate').fill('Omar');
 
     const panel = page.getByRole('list', { name: 'Classmates you can invite' });
     await expect(panel).toContainText('Omar Outsider');

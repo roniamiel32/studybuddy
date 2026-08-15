@@ -281,23 +281,59 @@ test.describe('courses and profile', () => {
     await page.goto(`/courses/${firstOffering}`);
 
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('CS-3040');
-    await expect(page.getByRole('heading', { name: 'Find partners' })).toBeVisible();
+
+    /*
+     * "Study members", NOT "Find partners", AND NO SCORES — the course page
+     * stopped being a second matching screen. It now lists the classmates taking
+     * this course, and ranked match cards live on the dashboard alone. The old
+     * assertions here were watching a section that was deliberately replaced,
+     * scores included.
+     *
+     * The claim the test is named for survives the change untouched: this page
+     * is scoped to ONE course, and the copy under the heading says which.
+     */
+    await expect(page.getByRole('heading', { name: 'Study members' })).toBeVisible();
+    await expect(page.getByText('Classmates taking CS-3040 with you.')).toBeVisible();
+
+    /*
+     * The list is paginated, so the fixture classmate is not on the first page
+     * of a course twelve people are taking. Expanded rather than asserted
+     * against a position, which would break the moment somebody else enrols.
+     *
+     * Scoped to the members region because the course wall has a "Load more" of
+     * its own — and driven by toPass rather than a plain loop, because the
+     * button is `disabled={pending}` and unmounts when the last page arrives.
+     * A hand-rolled loop reads count(), the transition finishes, the button
+     * disappears, and the click waits on a detached element until the test
+     * times out. That is exactly the race this idiom exists to absorb.
+     */
+    const members = page.getByRole('list', { name: 'Study members' });
+    const loadMore = page
+      .getByRole('region', { name: 'Study members' })
+      .getByRole('button', { name: 'Load more' });
 
     /* The classmate shares both courses, but this page is scoped to one. */
-    await expect(page.getByText('Remote Classmate')).toBeVisible();
-    await expect(page.getByText(/matches? in CS-3040/)).toBeVisible();
+    await expect(async () => {
+      if (await loadMore.isVisible()) {
+        await loadMore.click();
+      }
 
-    /* The score badge is on the card, so this really is the matching engine. */
-    await expect(page.getByText(/%$/).first()).toBeVisible();
+      await expect(members.getByText('Remote Classmate')).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 30_000 });
   });
 
   test('preferences can be overridden for one course only', async ({ page }) => {
     await signIn(page);
     await page.goto(`/courses/${firstOffering}`);
 
-    await expect(page.getByText('This course uses your global preferences.')).toBeVisible();
-
-    await page.getByRole('button', { name: 'Edit preferences for this course' }).click();
+    /*
+     * THE STATUS NOTE IS NO LONGER ON THIS PAGE. CoursePreferencesDialog still
+     * renders "Currently using your global preferences." / "This course uses its
+     * own answers", but the course header is the only caller and it passes
+     * showStatusNote={false} — the state now lives inside the dialog rather than
+     * beside its trigger, and the trigger is labelled "Preferences".
+     */
+    await page.getByRole('button', { name: 'Preferences' }).click();
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
@@ -316,20 +352,43 @@ test.describe('courses and profile', () => {
 
     await dialog.getByRole('button', { name: 'Save for this course' }).click();
 
-    /* The page now reports the override, and says how much differs. */
-    await expect(page.getByText(/differs? from your defaults/)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText('This course uses its own answers, not your defaults.')).toBeVisible();
+    /*
+     * The override stuck.
+     *
+     * ASSERTED ON THE RESET CONTROL, because the status caption is not reachable
+     * from this page at all — it renders beside the trigger, and the course
+     * header passes showStatusNote={false}. "Go back to my global preferences"
+     * is rendered only when an override actually exists, so its presence is the
+     * same claim read off stored state rather than off a caption.
+     */
+    await expect(dialog).toBeHidden({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Preferences' }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Go back to my global preferences' }),
+    ).toBeVisible({ timeout: 15_000 });
+    await dialog.getByRole('button', { name: 'Close' }).click();
 
     /*
-     * And it reached the ranking: the remote-only classmate is filtered out of
-     * THIS course by the strict format filter.
+     * THE "AND IT REACHED THE RANKING" ASSERTIONS ARE GONE FROM HERE. They
+     * watched the remote-only classmate disappear from this page when the
+     * override made the course in-person, which worked while the course page
+     * carried ranked match cards. It does not any more — it lists everyone
+     * enrolled, unranked and unfiltered, so the classmate is correctly present
+     * whatever the preferences say and the old assertion now tests nothing.
+     *
+     * The rule itself is still covered, and better: matching.test.ts builds two
+     * candidates identical except for study format and asserts the remote-only
+     * one is filtered out, against the scorer rather than through a page.
      */
-    await expect(page.getByText('Remote Classmate')).toHaveCount(0);
 
     /* The other course is untouched — the override is per course, not global. */
     await page.goto(`/courses/${secondOffering}`);
-    await expect(page.getByText('This course uses your global preferences.')).toBeVisible();
-    await expect(page.getByText('Remote Classmate')).toBeVisible();
+    await page.getByRole('button', { name: 'Preferences' }).click();
+    /* No reset control here, because this course carries no override. */
+    await expect(
+      dialog.getByRole('button', { name: 'Go back to my global preferences' }),
+    ).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Close' }).click();
 
     /* The grid flags which course carries one. */
     await page.goto('/courses');
@@ -354,24 +413,25 @@ test.describe('courses and profile', () => {
     await signIn(page);
     await page.goto(`/courses/${firstOffering}`);
 
-    /* Confirm the starting state, so a pass cannot mean "there was nothing to clear". */
-    await expect(
-      page.getByText('This course uses its own answers, not your defaults.'),
-    ).toBeVisible();
-    await expect(page.getByText('Remote Classmate')).toHaveCount(0);
+    /*
+     * Confirm the starting state, so a pass cannot mean "there was nothing to
+     * clear" — read off the reset control rather than the status caption, which
+     * this page no longer renders, and no longer off the classmate list, which
+     * no longer reflects preferences at all. Both changes are explained on the
+     * override test above.
+     */
+    const dialog = page.getByRole('dialog');
+    const reset = dialog.getByRole('button', { name: 'Go back to my global preferences' });
 
-    await page.getByRole('button', { name: 'Edit preferences for this course' }).click();
-    await page
-      .getByRole('dialog')
-      .getByRole('button', { name: 'Go back to my global preferences' })
-      .click();
+    await page.getByRole('button', { name: 'Preferences' }).click();
+    await expect(reset).toBeVisible();
 
-    await expect(page.getByText('This course uses your global preferences.')).toBeVisible({
-      timeout: 15_000,
-    });
+    await reset.click();
 
-    /* The classmate the override had filtered out is back. */
-    await expect(page.getByText('Remote Classmate')).toBeVisible();
+    /* Gone, because there is no longer an override to go back from. */
+    await expect(dialog).toBeHidden({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Preferences' }).click();
+    await expect(reset).toHaveCount(0, { timeout: 15_000 });
   });
 
   test('a course the student is not enrolled in is a 404', async ({ page }) => {
@@ -388,12 +448,16 @@ test.describe('courses and profile', () => {
     await signIn(page);
 
     /*
-     * Profile moved into the user menu with the header redesign. The <summary> is
-     * the control, clicked as an element: <details> is exposed inconsistently
-     * across engines, so a role-based locator is not portable here.
+     * NAVIGATED DIRECTLY, because the user menu no longer reaches this page. Its
+     * "Profile" entry now opens the student's own public profile at
+     * /students/<id>, and the menu holds nothing else but Sign out — so the old
+     * path through the header was asserting a route that had been repointed.
+     *
+     * The page itself is unchanged and is what this test is about, so the rest
+     * of it stands. Worth knowing that /settings currently has no entry in the
+     * navigation at all; that is a product question, not a test one.
      */
-    await page.getByRole('banner').locator('summary').click();
-    await page.getByRole('banner').getByRole('link', { name: 'Profile' }).click();
+    await page.goto('/settings');
     await expect(page).toHaveURL(/\/settings$/);
 
     await expect(page.getByRole('heading', { level: 1, name: 'Your profile' })).toBeVisible();

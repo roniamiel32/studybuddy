@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { AlertCircle, CalendarPlus, Loader2, Send } from 'lucide-react';
 
 import { MeetingChatCard } from '@/components/meetings/meeting-chat-card';
+import { ProfileLink } from '@/components/profiles/profile-link';
 import { MeetingStrip } from '@/components/meetings/meeting-strip';
 import { ScheduleMeetingDialog } from '@/components/meetings/schedule-meeting-dialog';
 import { buildChatFeed, type MeetingView } from '@/features/meetings/meeting-view';
@@ -214,9 +215,12 @@ export function GroupChat({
                 className={cn('flex max-w-[85%] flex-col gap-0.5', fromMe && 'self-end')}
               >
                 {!fromMe ? (
-                  <span className="text-outline pl-1 text-label-sm font-normal">
+                  <ProfileLink
+                    profileId={message.senderId}
+                    className="text-outline pl-1 text-label-sm font-normal"
+                  >
                     {message.senderName ?? 'Classmate'}
-                  </span>
+                  </ProfileLink>
                 ) : null}
 
                 <div

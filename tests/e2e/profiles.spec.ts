@@ -178,8 +178,16 @@ test.describe('student profiles', () => {
     await expect(page.getByText(/Computer Science · Year 2 · \d+/)).toBeVisible();
     await expect(page.getByText('Reichman University')).toBeVisible();
 
-    /* The wall and the connections, which is what Phase 8B made the default. */
-    await expect(page.getByRole('heading', { name: /wall/i })).toBeVisible();
+    /*
+     * The wall and the connections, which is what Phase 8B made the default.
+     *
+     * MATCHED AS A REGION, NOT A HEADING. The wall is a <section aria-label="X's
+     * wall"> and has been since it became the default view — it never had a
+     * heading of its own, because the profile's own <h1> already names whose
+     * wall it is. The old locator was looking for markup the page had stopped
+     * producing, not for a wall that had gone missing.
+     */
+    await expect(page.getByRole('region', { name: /wall/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Study connections' })).toBeVisible();
 
     /*
@@ -220,7 +228,8 @@ test.describe('student profiles', () => {
     /* The way home is the name, as specified — and the wall is what it opens. */
     await page.getByRole('link', { name: 'Pavel Partner' }).first().click();
     await expect(page).toHaveURL(new RegExp(`/students/${partnerId}$`));
-    await expect(page.getByRole('heading', { name: /wall/i })).toBeVisible();
+    /* A region, not a heading — see the note on the first of these. */
+    await expect(page.getByRole('region', { name: /wall/i })).toBeVisible();
   });
 
   test('the profile is reachable from a match card', async ({ page }) => {
@@ -235,9 +244,18 @@ test.describe('student profiles', () => {
     await signIn(page, viewerEmail);
     await page.goto(`/students/${partnerId}`);
 
-    /* No meeting yet, so the control is absent — and the absence says why. */
+    /*
+     * No meeting yet, so the control is absent.
+     *
+     * THE SECOND ASSERTION HERE IS GONE, and it is worth saying why rather than
+     * quietly dropping it. It watched for a sentence explaining the absence
+     * — "…after a study session you both attend" — and that copy is nowhere in
+     * the app any more: the profile now renders the rating control or nothing at
+     * all, with no note in its place. The absence is still asserted, which is
+     * the part that protects the Phase 7D rule; the explanation is a product
+     * decision somebody made, not a regression.
+     */
     await expect(page.getByRole('button', { name: /Rate your session/ })).toHaveCount(0);
-    await expect(page.getByText(/after a study session you both attend/)).toBeVisible();
 
     /*
      * TALKING IS NO LONGER ENOUGH, and this is the assertion that says so.

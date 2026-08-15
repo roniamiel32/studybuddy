@@ -197,7 +197,10 @@ export async function getCourseGroups(offeringId: string): Promise<StudyGroupVie
   const [{ data: mine }, { data: pending }] = await Promise.all([
     supabase
       .from('group_requests')
-      .select('group_id, status')
+      .select('group_id, status, created_at')
+      /* Newest first, so the loop below can take the first row per group and
+         stop. Without this the order is whatever the heap returns. */
+      .order('created_at', { ascending: false })
       .eq('requester_id', user.id)
       .in('group_id', groupIds),
     supabase
@@ -209,12 +212,24 @@ export async function getCourseGroups(offeringId: string): Promise<StudyGroupVie
       .order('created_at', { ascending: true }),
   ]);
 
+  /*
+   * THE NEWEST REQUEST IS THE CURRENT STATE. Nothing more subtle than that.
+   *
+   * This used to keep whichever non-rejected row it saw last, over an unordered
+   * query — which was harmless while a student could only ever have one live
+   * request, and became a bug the moment they could have a finished one AND a
+   * new one. Leave a group voluntarily and ask to rejoin and you hold an old
+   * `approved` beside a fresh `pending`; if the approved row happened to come
+   * last, the card decided they were still approved, offered "Request to join"
+   * anyway, and the second press hit the live-request index and produced "you
+   * have already asked" over a request the student could not see.
+   *
+   * getGroup has always ordered by created_at desc and taken one row. This is
+   * the same rule, applied to the list the button actually lives on.
+   */
   const myStatuses = new Map<string, StudyGroupView['myRequestStatus']>();
   for (const request of mine ?? []) {
-    /* A live request wins over an old rejection, which is why pending and
-       approved are checked first. */
-    const existing = myStatuses.get(request.group_id);
-    if (!existing || request.status !== 'rejected') {
+    if (!myStatuses.has(request.group_id)) {
       myStatuses.set(request.group_id, request.status);
     }
   }

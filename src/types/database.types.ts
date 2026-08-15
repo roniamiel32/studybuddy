@@ -1302,6 +1302,7 @@ export type Database = {
           created_at: string
           dismissed_at: string | null
           group_id: string | null
+          group_request_id: string | null
           id: string
           meeting_id: string | null
           occurred_on: string
@@ -1318,6 +1319,7 @@ export type Database = {
           created_at?: string
           dismissed_at?: string | null
           group_id?: string | null
+          group_request_id?: string | null
           id?: string
           meeting_id?: string | null
           occurred_on?: string
@@ -1334,6 +1336,7 @@ export type Database = {
           created_at?: string
           dismissed_at?: string | null
           group_id?: string | null
+          group_request_id?: string | null
           id?: string
           meeting_id?: string | null
           occurred_on?: string

@@ -49,6 +49,7 @@ const NOTIFICATION_SELECT = `
   secondary_id,
   group_id,
   meeting_id,
+  group_request_id,
   read_at,
   created_at,
   actor:profiles!notifications_actor_id_fkey ( full_name, avatar_url ),
@@ -66,6 +67,7 @@ interface NotificationRow {
   secondary_id: string | null;
   group_id: string | null;
   meeting_id: string | null;
+  group_request_id: string | null;
   read_at: string | null;
   created_at: string;
   actor: { full_name: string | null; avatar_url: string | null } | null;
@@ -95,6 +97,7 @@ function toNotificationView(row: NotificationRow): NotificationView {
     groupName: row.study_groups?.name ?? null,
     meetingId: row.meeting_id,
     meetingTitle: row.meetings?.title ?? null,
+    groupRequestId: row.group_request_id,
     /* A comment carries its post's wall; a post carries its own. */
     wallOwnerId:
       row.wall_posts?.profile_owner_id ??

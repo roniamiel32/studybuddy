@@ -30,6 +30,7 @@ import { MatchAvatar } from '@/components/matching/match-avatar';
 import { MessageButton } from '@/components/matching/message-button';
 import { ProfileHeader } from '@/components/profiles/profile-header';
 import { RatePartnerDialog } from '@/components/profiles/rate-partner-dialog';
+import { BlockMenu } from '@/components/profiles/block-menu';
 import { WallFeed } from '@/components/profiles/wall-feed';
 import { Chip } from '@/components/ui/chip';
 import { connectionsSummary, profileSubtitle } from '@/features/profiles/profile-view';
@@ -102,6 +103,14 @@ export default async function StudentProfilePage({
                 partnerId={profile.id}
                 courseOfferingId={profile.sharedCourses[0]?.offeringId ?? null}
                 partnerName={profile.fullName}
+              />
+
+              {/* Last in the row, and behind a menu: blocking is the rarest thing
+                  anyone does here and should not sit beside Message. */}
+              <BlockMenu
+                profileId={profile.id}
+                name={firstName}
+                isBlocked={profile.isBlocked}
               />
             </>
           )

@@ -90,6 +90,15 @@ export interface StudentProfileView {
   canRate: boolean;
   /** The viewer's own rating of this student, if they have given one. */
   myRating: 'positive' | 'negative' | null;
+  /**
+   * Whether the VIEWER has blocked this student. Never the other way round.
+   *
+   * Deliberately one-directional. The scorer tests blocks symmetrically so both
+   * disappear from each other's matches, but only the person who placed the
+   * block can see that it exists — a flag that told somebody they had been
+   * blocked would turn a quiet exit into a confrontation.
+   */
+  isBlocked: boolean;
 }
 
 /**
