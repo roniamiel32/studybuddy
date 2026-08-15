@@ -2230,6 +2230,7 @@ export type Database = {
         | "comment_reply"
         | "comment_like"
         | "group_invite"
+        | "group_join_approved"
         | "rate_partner"
       rating_sentiment: "positive" | "negative"
       study_environment: "discussion" | "quiet"

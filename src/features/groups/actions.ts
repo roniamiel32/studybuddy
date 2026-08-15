@@ -108,15 +108,11 @@ export async function requestToJoin(
       .eq('id', groupId)
       .maybeSingle();
 
-    const { data: insertData, error: insertError } = await supabase
-      .from('group_requests')
-      .insert({
-        group_id: groupId,
-        requester_id: user.id,
-        status: 'pending',
-      })
-      .select('id')
-      .single();
+    const { error: insertError } = await supabase.from('group_requests').insert({
+      group_id: groupId,
+      requester_id: user.id,
+      status: 'pending',
+    });
 
     if (insertError) {
       const { data: member } = await supabase
@@ -145,30 +141,14 @@ export async function requestToJoin(
       );
     }
 
-    // שולח התראה לכל מנהלי הקבוצה (הראשי + מנהלים נוספים כמו רוני)
-    if (insertData) {
-      const { data: adminMembers } = await supabase
-        .from('study_group_members')
-        .select('profile_id')
-        .eq('group_id', groupId)
-        .eq('role', 'admin');
-
-      const adminIds = new Set<string>();
-      if (group?.admin_id) adminIds.add(group.admin_id);
-      adminMembers?.forEach((m) => adminIds.add(m.profile_id));
-
-      if (adminIds.size > 0) {
-        const notificationsPayload = Array.from(adminIds).map((adminId) => ({
-          recipient_id: adminId,
-          actor_id: user.id,
-          group_id: groupId,
-          group_request_id: insertData.id,
-          type: 'group_request' as const,
-        }));
-
-        await supabase.from('notifications').insert(notificationsPayload);
-      }
-    }
+    /*
+     * NO NOTIFICATION IS SENT FROM HERE. `notify_group_request` already wrote
+     * one to every admin, inside the same transaction as the insert above and
+     * carrying the request's id. The block that used to sit here tried to write
+     * them a second time and was refused every call — `authenticated` has no
+     * INSERT grant on `notifications` — so it did nothing but hide its own
+     * failure.
+     */
 
     if (group) {
       revalidatePath(`/courses/${group.course_offering_id}`);
@@ -226,17 +206,14 @@ export async function decideRequest(
         );
       }
 
-     const { error: notifError } = await supabase.from('notifications').insert({
-        recipient_id: request.requester_id,
-        actor_id: user.id,
-        group_id: request.group_id,
-        group_request_id: input.requestId,
-        type: 'group_invite' as const,
-      });
-
-      if (notifError) {
-        console.error('Failed to create approval notification:', notifError);
-      }
+      /*
+       * The student is told by `notify_group_join_approved`, a trigger on the
+       * membership row rpc_approve_group_request just inserted. It used to be
+       * attempted here and refused by the same missing INSERT grant, so nobody
+       * was ever told they had been let in — and it was sent as `group_invite`,
+       * which reads as "somebody invited you" to a group they had asked to join
+       * and were already in.
+       */
     } else {
       const body = rejectionMessageFor(input.reason ?? '', input.customMessage ?? '');
 

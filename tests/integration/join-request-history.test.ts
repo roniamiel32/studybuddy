@@ -272,6 +272,46 @@ describeDb('Join requests: history, and one live request at a time', () => {
     expect(await history()).toHaveLength(2);
   });
 
+  it('tells the student when their request is accepted', async () => {
+    /*
+     * WRITTEN BY A TRIGGER, because two server actions tried to write it
+     * directly and were refused every time — `authenticated` has no INSERT
+     * grant on `notifications`. One swallowed the error and the other logged
+     * it, so nobody was ever told they had been let in.
+     *
+     * Read as the service role: this notification belongs to the student, and
+     * the admin who approved it cannot see it.
+     */
+    const { data } = await admin
+      .from('notifications')
+      .select('recipient_id, actor_id, group_id, group_request_id, type')
+      .eq('type', 'group_join_approved')
+      .eq('recipient_id', ids.asker);
+
+    expect(data).toHaveLength(1);
+    expect(data![0].actor_id).toBe(ids.owner);
+    expect(data![0].group_id).toBe(groupId);
+    /* It names the request, like every group_request notification since 10E. */
+    expect(data![0].group_request_id).not.toBeNull();
+  });
+
+  it('says nothing to a founder about their own group', async () => {
+    /*
+     * add_group_admin_as_member inserts the founder the moment a group exists,
+     * through the same table this trigger watches. There is no request behind
+     * them, which is what keeps them out of it — asserted because the obvious
+     * implementation, firing on every membership row, would congratulate people
+     * on being accepted into groups they had just created.
+     */
+    const { data } = await admin
+      .from('notifications')
+      .select('id')
+      .eq('type', 'group_join_approved')
+      .eq('recipient_id', ids.owner);
+
+    expect(data).toEqual([]);
+  });
+
   it('lets somebody who was removed from the group ask again', async () => {
     /*
      * THE BUG THIS SUITE GREW A SECTION FOR. Being removed left the approved row

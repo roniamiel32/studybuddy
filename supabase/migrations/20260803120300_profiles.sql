@@ -1,221 +1,94 @@
-/**
- * File:        src/features/onboarding/queries.ts
- * Authors:     Roni Amiel & Eden Bitran
- * Description: Reads backing the onboarding flow. Every query here runs as the
- *              signed-in student, so RLS has already scoped the results to
- *              their university before this code sees a row.
- * Version:     0.14.0
- *
- * Modifications:
- *     0.14.0 - 2026-08-10 - isDiscoverable and degreeName for the Profile tab
- *     0.11.0 - 2026-08-09 - CourseSource shared with the courses feature
- *     0.10.0 - 2026-08-09 - getDegreeOfferings replaces the university-wide read
- *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
- */
+-- =============================================================================
+-- File:        supabase/migrations/20260803120300_profiles.sql
+-- Authors:     Roni Amiel & Eden Bitran
+-- Description: Student identity, contact details and learning preferences.
+--              Contact details are a SEPARATE TABLE on purpose: PostgreSQL RLS
+--              is table-level, so a phone number that must be visible only to
+--              accepted partners cannot share a table with a name that is
+--              visible university-wide.
+-- Version:     0.3.0
+--
+-- Modifications:
+--     0.3.0 - 2026-08-03 - Initial schema (Phase 1a)
+-- =============================================================================
 
-import 'server-only';
+create table profiles (
+  id                      uuid primary key references auth.users (id) on delete cascade,
+  university_id           uuid not null references universities (id) on delete restrict,
+  -- Nullable at creation: the row is created by a trigger the instant the auth
+  -- user exists, which is before the student has told us their name. The check
+  -- still guards every non-null value. Onboarding is what makes it non-null,
+  -- and onboarding_completed_at is what gates access to the app.
+  full_name               text check (char_length(full_name) between 2 and 80),
+  avatar_url              text,
+  degree_program          text check (char_length(degree_program) <= 120),
+  year_of_study           smallint check (year_of_study between 1 and 8),
+  bio                     text check (char_length(bio) <= 500),
+  is_discoverable         boolean not null default true,
+  availability_mode       availability_mode not null default 'manual',
+  onboarding_completed_at timestamptz,
+  created_at              timestamptz not null default now(),
+  updated_at              timestamptz not null default now()
+);
 
-import type { CourseSource } from '@/features/courses/catalog-schema';
-import { createClient, requireUser } from '@/lib/supabase/server';
+comment on table profiles is
+  'Readable by other students in the same university when is_discoverable is true. Contact details live in profile_contacts.';
 
-export interface DegreeOption {
-  id: string;
-  name: string;
-  level: 'bachelors' | 'masters' | 'phd';
-}
+comment on column profiles.bio is
+  'Student-authored free text. Treated as UNTRUSTED DATA when composed into an AI prompt (design section 6.3).';
 
-export interface OfferingOption {
-  offeringId: string;
-  courseId: string;
-  code: string;
-  name: string;
-  faculty: string | null;
-  /** Where the course came from; see UNVERIFIED_SOURCES. */
-  source: CourseSource;
-}
+comment on column profiles.availability_mode is
+  'Decision D7. Drives which availability editor the UI shows; the matching query ignores it.';
 
-export interface OnboardingProfile {
-  fullName: string | null;
-  degreeId: string | null;
-  city: string | null;
-  /** Read from the private table; only ever the owner's own. */
-  dateOfBirth: string | null;
-  yearOfStudy: number | null;
-  avatarUrl: string | null;
-  universityName: string;
-  onboardingCompletedAt: string | null;
-  /** The signed-in address, used to suggest a display name on step 1. */
-  email: string;
-  /** Whether classmates can see them at all. Editable from the Profile tab. */
-  isDiscoverable: boolean;
-  /** Shown read-only on the Profile tab; the degree decides the course catalog. */
-  degreeName: string | null;
-  /**
-   * When they were last asked whether they had moved up a year, null if never.
-   * Drives the autumn prompt — see features/profile/academic-year.ts.
-   */
-  lastYearPromptDate: string | null;
-}
+-- Only discoverable profiles are ever scanned for candidates, so the partial
+-- index matches the query shape exactly.
+create index profiles_university_discoverable_idx
+  on profiles (university_id)
+  where is_discoverable;
 
-/**
- * Loads the signed-in student's profile plus their institution's name.
- *
- * @returns The profile fields onboarding needs.
- * @throws AppError when not signed in, or when the profile row is missing.
- */
-export async function getOnboardingProfile(): Promise<OnboardingProfile> {
-  const user = await requireUser();
-  const supabase = await createClient();
+-- -----------------------------------------------------------------------------
+-- Contact details — the app's most sensitive data (decision D3).
+-- -----------------------------------------------------------------------------
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(
-      'full_name, degree_id, city, year_of_study, avatar_url, onboarding_completed_at, is_discoverable, last_year_prompt_date, universities(name), degrees(name)',
-    )
-    .eq('id', user.id)
-    .single();
+create table profile_contacts (
+  profile_id        uuid primary key references profiles (id) on delete cascade,
+  phone_e164        text not null check (phone_e164 ~ '^\+[1-9]\d{7,14}$'),
+  whatsapp_opt_in   boolean not null default true,
+  -- Reserved for the Phase 4 phone-verification stretch. Until then a student
+  -- can enter a number that is not theirs; this is a known, documented gap
+  -- (design section 6.2).
+  phone_verified_at timestamptz,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
 
-  if (error || !data) {
-    throw new Error(`Profile not found for ${user.id}: ${error?.message}`);
-  }
+comment on table profile_contacts is
+  'Split from profiles because RLS is table-level, not column-level. Readable only by the owner and by students with an accepted connection.';
 
-  /* Separate table, and readable only by its owner. */
-  const { data: privateRow } = await supabase
-    .from('profile_private')
-    .select('date_of_birth')
-    .eq('profile_id', user.id)
-    .maybeSingle();
+comment on column profile_contacts.whatsapp_opt_in is
+  'False lets a student stay matchable without sharing a number. Checked before any wa.me link is built.';
 
-  return {
-    fullName: data.full_name,
-    degreeId: data.degree_id,
-    city: data.city,
-    dateOfBirth: privateRow?.date_of_birth ?? null,
-    yearOfStudy: data.year_of_study,
-    avatarUrl: data.avatar_url,
-    universityName: data.universities?.name ?? 'your university',
-    onboardingCompletedAt: data.onboarding_completed_at,
-    email: user.email ?? '',
-    isDiscoverable: data.is_discoverable,
-    degreeName: data.degrees?.name ?? null,
-    lastYearPromptDate: data.last_year_prompt_date,
-  };
-}
+-- -----------------------------------------------------------------------------
+-- Learning preferences — the questionnaire.
+-- -----------------------------------------------------------------------------
 
-/**
- * Lists the degrees offered by the student's own university.
- *
- * RLS has already narrowed this to one institution, so no filter is needed here
- * — and none can be forgotten.
- *
- * @returns Degrees, ordered by level then name.
- */
-export async function getDegrees(): Promise<DegreeOption[]> {
-  const supabase = await createClient();
+create table learning_preferences (
+  profile_id            uuid primary key references profiles (id) on delete cascade,
+  study_style           study_style not null,
+  noise_preference      noise_preference not null,
+  place_preference      place_preference not null,
+  group_size_preference group_size not null,
+  pace                  study_pace not null,
+  goal                  study_goal not null,
+  spoken_languages      text[] not null default '{he}'
+                          check (array_length(spoken_languages, 1) between 1 and 5),
+  notes                 text check (char_length(notes) <= 400),
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
 
-  const { data } = await supabase
-    .from('degrees')
-    .select('id, name, level')
-    .order('level')
-    .order('name');
+comment on table learning_preferences is
+  'Separate from profiles so the questionnaire can grow without touching the identity row. Row exists only once submitted, which is why every answer is NOT NULL.';
 
-  return data ?? [];
-}
-
-/**
- * Lists the current-term courses belonging to ONE degree.
- *
- * The degree filter is the fix for step 2 showing every course at the
- * university: the previous version filtered only on the current term, so a Law
- * student was shown the Computer Science catalog. An unrecognised or absent
- * degree returns nothing, which is what lets the picker ask the Smart Course API
- * to generate a list rather than silently falling back to someone else's.
- *
- * Note what is still NOT filtered: year of study. A student extending their
- * degree or taking a course off-sequence must still find it.
- *
- * @param degreeId - The student's degree, or null before step 1 is done.
- * @returns Offerings for that degree in the current term.
- */
-export async function getDegreeOfferings(degreeId: string | null): Promise<OfferingOption[]> {
-  if (!degreeId) {
-    return [];
-  }
-
-  const supabase = await createClient();
-
-  const { data } = await supabase
-    .from('course_offerings')
-    .select('id, terms!inner(is_current), courses!inner(id, code, name, faculty, degree_id, source)')
-    .eq('courses.degree_id', degreeId)
-    .eq('terms.is_current', true);
-
-  return (data ?? [])
-    .map((offering) => ({
-      offeringId: offering.id,
-      courseId: offering.courses.id,
-      code: offering.courses.code,
-      name: offering.courses.name,
-      faculty: offering.courses.faculty,
-      source: offering.courses.source,
-    }))
-    .sort((a, b) => a.code.localeCompare(b.code));
-}
-
-/**
- * Returns the course offering ids the student is already enrolled in.
- *
- * Lets a student who leaves onboarding half-finished come back to their
- * previous selection rather than starting again.
- *
- * @returns Offering ids.
- */
-export async function getMyEnrolledOfferingIds(): Promise<string[]> {
-  const user = await requireUser();
-  const supabase = await createClient();
-
-  const { data } = await supabase
-    .from('enrollments')
-    .select('course_offering_id')
-    .eq('profile_id', user.id);
-
-  return (data ?? []).map((row) => row.course_offering_id);
-}
-
-/**
- * Returns the student's saved preferences, if they have completed step 3.
- *
- * @returns The preference row, or null.
- */
-export async function getMyPreferences() {
-  const user = await requireUser();
-  const supabase = await createClient();
-
-  const { data } = await supabase
-    .from('learning_preferences')
-    .select(
-      'preferred_time_blocks, study_environments, study_formats, group_sizes, studies_on_saturday, spoken_languages',
-    )
-    .eq('profile_id', user.id)
-    .maybeSingle();
-
-  return data;
-}
-
-/**
- * Returns the student's own availability slots.
- *
- * @returns Slots with day and start time.
- */
-export async function getMyAvailability() {
-  const user = await requireUser();
-  const supabase = await createClient();
-
-  const { data } = await supabase
-    .from('availability_slots')
-    .select('day_of_week, starts_at, ends_at, source')
-    .eq('profile_id', user.id)
-    .order('day_of_week');
-
-  return data ?? [];
-}
+comment on column learning_preferences.notes is
+  'Student-authored free text. UNTRUSTED DATA in AI prompts (design section 6.3).';

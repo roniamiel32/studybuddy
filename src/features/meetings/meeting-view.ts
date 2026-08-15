@@ -256,12 +256,14 @@ export const SCHEDULER_WINDOW_DAYS = 7;
 /**
  * The longest a single session may be, matching the meetings_bounded CHECK.
  *
- * Mirrored here rather than discovered by a failed insert: a student who selects
- * a whole free day should get two sessions back, not a rejection they cannot act
- * on. The constraint is a guard against a typo in a date field, not a product
- * opinion, so the picker splits rather than refuses.
+ * Mirrored here rather than discovered by a failed insert, and now high enough
+ * that no selection the picker can produce comes near it: the grid offers 08:00
+ * to 22:00, so the longest contiguous run a student can pick is fourteen hours.
+ * It stays a mirror of the constraint rather than a product rule — if the
+ * database's guard against a mistyped date ever moves again, this is where the
+ * picker learns about it.
  */
-export const MEETING_MAX_HOURS = 8;
+export const MEETING_MAX_HOURS = 24;
 
 /** A local calendar day key — `2026-08-16` in the READER's zone, never UTC. */
 function localDayKey(iso: string): string {
@@ -389,9 +391,11 @@ export interface SelectedRun {
  * somebody else has already booked in the middle of an afternoon correctly
  * breaks the run in two rather than swallowing the gap.
  *
- * AND A RUN LONGER THAN THE CAP SPLITS AGAIN. meetings_bounded refuses a session
- * over eight hours; a student who selects a whole free day means it, so the run
- * becomes two sessions rather than an error message about a CHECK constraint.
+ * A WHOLE FREE DAY IS ONE SESSION. It used to split at eight hours, because
+ * meetings_bounded refused anything longer and a rejection the student could not
+ * act on is worse than two calendar entries. The bound is a day now, so the run
+ * that a student actually selected is the run that gets booked — the longest the
+ * grid can offer is 08:00 to 22:00, which is comfortably inside it.
  *
  * @param slots        - Every offered slot, in any order.
  * @param selectedKeys - The `startsAt` of each selected slot.
@@ -415,12 +419,7 @@ export function mergeSelectedSlots(
       open.endsAt === slot.startsAt &&
       /* Same calendar day in the reader's zone. Midnight is a boundary people
          think in, and a session that runs through it reads as two. */
-      localDayKey(open.startsAt) === localDayKey(slot.startsAt) &&
-      /* AND THE CAP. meetings_bounded refuses a session over eight hours, so a
-         run that would pass it has to become two sessions here — without this
-         the picker builds a booking the database throws out, and the student
-         gets "we could not book those sessions" for a selection that was fine. */
-      open.slotCount < MEETING_MAX_HOURS / 2;
+      localDayKey(open.startsAt) === localDayKey(slot.startsAt);
 
     if (continues) {
       open.endsAt = slot.endsAt;

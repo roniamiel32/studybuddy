@@ -238,16 +238,31 @@ describeDb('Booking several sessions at once', () => {
     await deleteStudents(admin, [outsiderId]);
   });
 
-  it('still refuses a session longer than the eight-hour cap', async () => {
-    /* The picker splits long runs before they get here; the constraint is what
-       makes that splitting load-bearing rather than cosmetic. */
+  it('accepts a full day, and still refuses a session longer than one', async () => {
+    /*
+     * The bound moved from eight hours to twenty-four so a student can book a
+     * whole day of revision. It is still a bound, and still for the same
+     * reason: an unbounded session lets a mistyped year quietly subtract months
+     * from every attendee's availability, because busy time is derived from the
+     * meetings people are going to.
+     */
+    const fullDay = window(16, 6);
+
+    const wholeDay = await clients.ada.rpc('rpc_create_meetings', {
+      p_conversation_id: conversationId,
+      p_title: 'All-day revision',
+      p_starts_at: [fullDay.startsAt],
+      p_ends_at: [new Date(new Date(fullDay.startsAt).getTime() + 12 * 3_600_000).toISOString()],
+    });
+
+    expect(wholeDay.error).toBeNull();
     const start = window(17, 6);
 
     const { error } = await clients.ada.rpc('rpc_create_meetings', {
       p_conversation_id: conversationId,
       p_title: 'A residency',
       p_starts_at: [start.startsAt],
-      p_ends_at: [new Date(new Date(start.startsAt).getTime() + 10 * 3_600_000).toISOString()],
+      p_ends_at: [new Date(new Date(start.startsAt).getTime() + 30 * 3_600_000).toISOString()],
     });
 
     expect(error).not.toBeNull();

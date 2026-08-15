@@ -301,27 +301,29 @@ describe('mergeSelectedSlots', () => {
     expect(runs[1].startsAt).toBe(slotAt(0, 14).startsAt);
   });
 
-  it('splits a run that would exceed the eight-hour cap', () => {
+  it('keeps a whole free day as one session', () => {
     /*
-     * meetings_bounded refuses a session over eight hours. Five contiguous
-     * blocks is ten, so the picker returns two sessions rather than letting the
-     * student meet a CHECK constraint.
+     * THIS USED TO SPLIT AT EIGHT HOURS, because meetings_bounded refused
+     * anything longer and a rejection the student could not act on is worse
+     * than two calendar entries. The bound is a day now, so a student who books
+     * a full day of revision gets the full day — one session, as selected.
      */
     const runs = mergeSelectedSlots(
       offered,
       [10, 12, 14, 16, 18].map((hour) => slotAt(0, hour).startsAt),
     );
 
-    expect(runs).toHaveLength(2);
-    expect(runs[0].slotCount).toBe(MEETING_MAX_HOURS / 2);
-    expect(runs[1].slotCount).toBe(1);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].slotCount).toBe(5);
+    expect(runs[0].startsAt).toBe(slotAt(0, 10).startsAt);
+    expect(runs[0].endsAt).toBe(slotAt(0, 18).endsAt);
 
-    for (const run of runs) {
-      const hours =
-        (new Date(run.endsAt).getTime() - new Date(run.startsAt).getTime()) / 3_600_000;
+    /* Ten hours, and still inside what the database will take. */
+    const hours =
+      (new Date(runs[0].endsAt).getTime() - new Date(runs[0].startsAt).getTime()) / 3_600_000;
 
-      expect(hours).toBeLessThanOrEqual(MEETING_MAX_HOURS);
-    }
+    expect(hours).toBe(10);
+    expect(hours).toBeLessThanOrEqual(MEETING_MAX_HOURS);
   });
 
   it('does not care what order the slots were clicked in', () => {

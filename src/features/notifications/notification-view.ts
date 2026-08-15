@@ -23,6 +23,7 @@ export type NotificationType =
   | 'group_joined'
   | 'group_promotion'
   | 'group_invite'
+  | 'group_join_approved'
   | 'meeting_scheduled'
   | 'meeting_cancelled'
   | 'rate_partner'
@@ -158,6 +159,13 @@ export function notificationCopy(notification: NotificationView): NotificationCo
       };
 
     // ---- Meetings ----------------------------------------------------------
+    case 'group_join_approved':
+      return {
+        message: `${who} accepted your request to join ${group}.`,
+        cta: 'Open the group',
+        href: groupHref,
+      };
+
     case 'meeting_scheduled':
       return {
         message: `${who} scheduled ${meeting}.`,

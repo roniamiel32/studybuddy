@@ -1,14 +1,43 @@
-CREATE TABLE public.hidden_messages (
-  profile_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  message_id UUID NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
-  hidden_at TIMESTAMPTZ DEFAULT now(),
-  PRIMARY KEY (profile_id, message_id)
-);
+-- =============================================================================
+-- File:        supabase/migrations/20260813130000_meeting_messages.sql
+-- Authors:     Roni Amiel & Eden Bitran
+-- Description: Intentionally empty. Kept so the history stays contiguous.
+--
+--              THIS FILE NEVER CONTAINED WHAT ITS NAME SAYS. It was added in
+--              commit 2c0cd01 alongside the chat hide/dismiss work, and its body
+--              was a first cut of `hidden_messages` — the table for taking a
+--              single message out of your own view of a conversation. The name
+--              was a slip; there is no lost "meeting messages" feature behind it,
+--              and nothing in the application has ever referenced one. The
+--              filename is all that pointed that way.
+--
+--              THE TABLE IS OWNED BY 20260813213000_hidden_messages.sql, which
+--              was written later as the complete version: granular INSERT,
+--              SELECT and DELETE policies instead of one blanket FOR ALL, the
+--              grants without which `authenticated` cannot write to it at all, a
+--              lookup index, and the reasoning behind each. That is the version
+--              the database actually has — checked against the live schema
+--              before emptying this file — so a reset now reproduces exactly
+--              what is already there.
+--
+--              WHY THIS IS EMPTIED RATHER THAN DELETED. Both migrations are
+--              recorded as applied in every database that has run them. Removing
+--              the file would leave a row in schema_migrations with nothing on
+--              disk to match, which `supabase migration list` reports as drift
+--              forever. An empty file is a no-op on a fresh reset and a matching
+--              entry on an existing one.
+--
+--              WHAT IT FIXES. Two migrations both ran `create table
+--              hidden_messages`, so `supabase db reset` replayed the first,
+--              reached the second, and stopped on "relation already exists". The
+--              reset path has been broken since 13 August; it went unnoticed
+--              because nobody resets this database — the failure only shows up
+--              on a machine building the schema from scratch.
+-- Version:     0.38.0
+--
+-- Modifications:
+--     0.38.0 - 2026-08-16 - Emptied; hidden_messages belongs to 20260813213000
+--     0.28.0 - 2026-08-13 - Created, misnamed, holding an early hidden_messages
+-- =============================================================================
 
--- חוק אבטחה (RLS): כל משתמש יכול לראות ולנהל רק את ההסתרות של עצמו
-ALTER TABLE public.hidden_messages ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can manage their own hidden messages" 
-ON public.hidden_messages 
-FOR ALL 
-USING (auth.uid() = profile_id);
+-- No statements. See above.
