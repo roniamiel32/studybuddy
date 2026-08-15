@@ -628,20 +628,31 @@ function FineTune({
   sessions: Array<{ run: SelectedRun; startsAt: string; endsAt: string }>;
   onChange: (id: string, next: { startsAt: string; endsAt: string }) => void;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+
   return (
     <div className="border-outline-variant/30 bg-surface-container-high/40 shadow-clay flex flex-col gap-3 rounded-xl border p-4">
-      <p className="text-label-sm font-semibold">
-        {sessions.length === 1
-          ? 'Fine-tune session hours'
-          : `Fine-tune ${sessions.length} sessions`}
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-label-sm font-semibold">
+          {sessions.length === 1
+            ? 'Session hours'
+            : `${sessions.length} sessions`}
+        </p>
+        <button
+          type="button"
+          onClick={() => setIsEditing(!isEditing)}
+          className="text-brand hover:brightness-110 text-label-sm font-medium transition-all"
+        >
+          {isEditing ? 'Done' : 'Edit times'}
+        </button>
+      </div>
 
       {sessions.map((session) => {
         const startId = `tune-start-${session.run.id}`;
         const endId = `tune-end-${session.run.id}`;
 
         return (
-          <div key={session.run.id} className="flex flex-wrap items-end gap-3">
+          <div key={session.run.id} className="flex flex-wrap items-center gap-3">
             <span
               suppressHydrationWarning
               className="text-on-surface-variant min-w-28 text-label-sm"
@@ -653,47 +664,49 @@ function FineTune({
               })}
             </span>
 
-            <div className="flex flex-col gap-1">
-              <Label htmlFor={startId} className="text-label-xs">
-                Start
-              </Label>
-              <input
-                id={startId}
-                type="time"
-                value={toTimeValue(session.startsAt)}
-                min={toTimeValue(session.run.startsAt)}
-                max={toTimeValue(session.endsAt)}
-                onChange={(event) =>
-                  onChange(session.run.id, {
-                    startsAt: withTime(session.run.startsAt, event.target.value),
-                    endsAt: session.endsAt,
-                  })
-                }
-                className="border-outline-variant bg-surface rounded-md border px-2.5 py-1.5 text-sm"
-              />
-            </div>
-
-            <span className="pb-1.5">–</span>
-
-            <div className="flex flex-col gap-1">
-              <Label htmlFor={endId} className="text-label-xs">
-                End
-              </Label>
-              <input
-                id={endId}
-                type="time"
-                value={toTimeValue(session.endsAt)}
-                min={toTimeValue(session.startsAt)}
-                max={toTimeValue(session.run.endsAt)}
-                onChange={(event) =>
-                  onChange(session.run.id, {
-                    startsAt: session.startsAt,
-                    endsAt: withTime(session.run.endsAt, event.target.value),
-                  })
-                }
-                className="border-outline-variant bg-surface rounded-md border px-2.5 py-1.5 text-sm"
-              />
-            </div>
+            {isEditing ? (
+              <div className="flex items-center gap-2">
+                <Label htmlFor={startId} className="sr-only">
+                  Start
+                </Label>
+                <input
+                  id={startId}
+                  type="time"
+                  value={toTimeValue(session.startsAt)}
+                  min={toTimeValue(session.run.startsAt)}
+                  max={toTimeValue(session.endsAt)}
+                  onChange={(event) =>
+                    onChange(session.run.id, {
+                      startsAt: withTime(session.run.startsAt, event.target.value),
+                      endsAt: session.endsAt,
+                    })
+                  }
+                  className="border-outline-variant bg-surface rounded-md border px-2.5 py-1.5 text-sm"
+                />
+                <span className="text-outline">–</span>
+                <Label htmlFor={endId} className="sr-only">
+                  End
+                </Label>
+                <input
+                  id={endId}
+                  type="time"
+                  value={toTimeValue(session.endsAt)}
+                  min={toTimeValue(session.startsAt)}
+                  max={toTimeValue(session.run.endsAt)}
+                  onChange={(event) =>
+                    onChange(session.run.id, {
+                      startsAt: session.startsAt,
+                      endsAt: withTime(session.run.endsAt, event.target.value),
+                    })
+                  }
+                  className="border-outline-variant bg-surface rounded-md border px-2.5 py-1.5 text-sm"
+                />
+              </div>
+            ) : (
+              <span className="text-on-surface text-label-sm font-medium">
+                {toTimeValue(session.startsAt)} – {toTimeValue(session.endsAt)}
+              </span>
+            )}
           </div>
         );
       })}

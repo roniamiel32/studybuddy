@@ -415,8 +415,7 @@ export function mergeSelectedSlots(
       open.endsAt === slot.startsAt &&
       /* Same calendar day in the reader's zone. Midnight is a boundary people
          think in, and a session that runs through it reads as two. */
-      localDayKey(open.startsAt) === localDayKey(slot.startsAt) &&
-      open.slotCount < MEETING_MAX_HOURS / 2;
+      localDayKey(open.startsAt) === localDayKey(slot.startsAt);
 
     if (continues) {
       open.endsAt = slot.endsAt;
