@@ -129,7 +129,7 @@ export function notificationCopy(notification: NotificationView): NotificationCo
 
     case 'group_invite':
       return {
-        message: `Your request to join ${group} was approved!`,
+        message: `${who} added you to ${group}.`,
         cta: 'Go to group chat',
         href: groupHref,
       };

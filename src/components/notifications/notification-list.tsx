@@ -211,9 +211,8 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
                     </span>
                   </span>
 
-                  {/* Pending Chip & Review Button */}
                   <div 
-                    className="flex shrink-0 items-center gap-3 ml-2"
+                    className="flex shrink-0 items-center gap-2 ml-2"
                     onClick={() => {
                       if (!notification.isRead) {
                         void markNotificationRead({ notificationId: notification.id });
@@ -221,7 +220,32 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
                     }}
                   >
                     <Chip tone="sunset">Pending</Chip>
-                    <ApplicantReviewDialog request={request} placesLeft={group ? placesLeft(group) : 0} />
+                    
+                    {/* כפתור אישור */}
+                    <form action={async (formData) => { 
+                      const { decideRequest } = await import('@/features/groups/actions');
+                      await decideRequest(null, formData); 
+                    }}>
+                      <input type="hidden" name="requestId" value={request.id} />
+                      <input type="hidden" name="decision" value="approved" />
+                      <button type="submit" className="bg-brand hover:brightness-110 text-white px-3 py-1.5 text-label-sm rounded-md transition-all font-medium">
+                        Approve
+                      </button>
+                    </form>
+
+                    {/* כפתור דחייה */}
+                    <form action={async (formData) => { 
+                      const { decideRequest } = await import('@/features/groups/actions');
+                      await decideRequest(null, formData); 
+                    }}>
+                      <input type="hidden" name="requestId" value={request.id} />
+                      <input type="hidden" name="decision" value="rejected" />
+                      <input type="hidden" name="reason" value="other" /> 
+                      <input type="hidden" name="customMessage" value="The admin has declined the request." />
+                      <button type="submit" className="bg-surface-container text-on-surface hover:bg-outline-variant/30 border border-outline-variant/40 px-3 py-1.5 text-label-sm rounded-md transition-all font-medium">
+                        Reject
+                      </button>
+                    </form>
                   </div>
 
                   <span className="text-outline shrink-0 text-label-sm font-normal ml-2 mr-6">
