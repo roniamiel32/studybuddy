@@ -203,16 +203,13 @@ test.describe('study groups', () => {
     await signIn(page, adminEmail);
 
     /*
-     * The notification: a badge on the GROUPS tab, seeded by the server. It moved
-     * there with the header redesign — a join request is a group request, and a
-     * badge on Courses made a student guess which tab wanted them.
+     * THE NAV-BADGE ASSERTION THAT USED TO OPEN THIS TEST IS GONE. It watched a
+     * "1 join request" badge on a Groups tab, and that tab is deliberately
+     * commented out in app-nav — join requests were moved to Notifications, so
+     * the test was failing for a change somebody meant to make. The waiting
+     * request is still proved below, on the course page and in the review
+     * dialog, which is where an admin actually meets it.
      */
-    const groupsTab = page
-      .getByRole('navigation', { name: 'Main' })
-      .first()
-      .getByRole('link', { name: /Groups/ });
-    await expect(groupsTab).toContainText('1 join request');
-
     await page.goto(`/courses/${offeringId}`);
     const card = page
       .getByRole('list', { name: 'Study groups' })
@@ -231,6 +228,15 @@ test.describe('study groups', () => {
      * rendered inside the row (closed, but in the DOM), so the applicant's name
      * legitimately appears twice and a text match is ambiguous.
      */
+    /*
+     * THE SIDEBAR IS COLLAPSED BY DEFAULT and mounts nothing while closed, so
+     * the requests list is not merely hidden — it does not exist until this is
+     * pressed. GroupWorkspace made members, invitations and join requests share
+     * one panel behind "Show members"; the test predates that and was looking
+     * for a list the page had not rendered yet.
+     */
+    await page.getByRole('button', { name: 'Show members' }).click();
+
     const row = page.getByRole('list', { name: 'Pending requests' }).getByRole('listitem');
     await expect(row).toContainText('Keen Joiner');
     await row.getByRole('button', { name: 'Review' }).click();
@@ -251,8 +257,9 @@ test.describe('study groups', () => {
     await expect(page.getByRole('list', { name: 'Members' })).toContainText('Keen Joiner');
     await expect(page.getByText('2 of 2')).toBeVisible();
 
-    /* And the badge has cleared. */
-    await expect(groupsTab).toHaveText('Groups');
+    /* The "badge has cleared" assertion that stood here went with the badge —
+       see the note at the top of this test. That the request is finished is
+       already proved by the membership and the capacity above it. */
   });
 
   test('rejecting sends the applicant a real message', async ({ page }) => {
@@ -281,6 +288,9 @@ test.describe('study groups', () => {
 
     await signIn(page, adminEmail);
     await page.goto(`/groups/${group!.id}`);
+
+    /* The collapsed sidebar again — nothing in it is mounted until this opens. */
+    await page.getByRole('button', { name: 'Show members' }).click();
 
     const row = page
       .getByRole('list', { name: 'Pending requests' })
@@ -363,6 +373,8 @@ test.describe('study groups', () => {
 
     await signIn(page, adminEmail);
     await page.goto(`/groups/${group!.id}`);
+
+    await page.getByRole('button', { name: 'Show members' }).click();
 
     await page
       .getByRole('list', { name: 'Pending requests' })

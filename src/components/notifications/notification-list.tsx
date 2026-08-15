@@ -44,6 +44,7 @@ import { cn } from '@/lib/utils';
 
 // Imports for the specific Group Request UI
 import { ApplicantReviewDialog } from '@/components/groups/applicant-review-dialog';
+import { ProfileLink } from '@/components/profiles/profile-link';
 import { Chip } from '@/components/ui/chip';
 import { placesLeft, type StudyGroupView, type GroupRequestView } from '@/features/groups/group-view';
 
@@ -203,14 +204,25 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
             return (
               <li key={notification.id} className="relative">
                 <div className={cn(className, 'pr-3')}>
-                  <MatchAvatar
-                    fullName={notification.actorName ?? 'Classmate'}
-                    avatarUrl={notification.actorAvatarUrl}
-                    size={36}
-                    className="border-2"
-                  />
+                  {/* This row is a div, not a link, so both the face and the
+                      name can reach the applicant's profile — which is the
+                      first thing an admin wants before deciding. */}
+                  <ProfileLink
+                    profileId={notification.actorId}
+                    label={`${notification.actorName ?? 'Classmate'}’s profile`}
+                    className="shrink-0"
+                  >
+                    <MatchAvatar
+                      fullName={notification.actorName ?? 'Classmate'}
+                      avatarUrl={notification.actorAvatarUrl}
+                      size={36}
+                      className="border-2"
+                    />
+                  </ProfileLink>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-label-md text-pretty">{copy.message}</span>
+                    <span className="block text-label-md text-pretty">
+                      <LinkedActorMessage notification={notification} message={copy.message} />
+                    </span>
                   </span>
 
                   {/* Pending Chip & Review Button */}
@@ -241,59 +253,75 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
             );
           }
 
-          // Standard notification layout for everything else
-          const body = (
-            <>
-              {notification.actorId ? (
-                <MatchAvatar
-                  fullName={notification.actorName ?? 'Classmate'}
-                  avatarUrl={notification.actorAvatarUrl}
-                  size={36}
-                  className="border-2"
-                />
-              ) : (
-                <span className="bg-brand-fixed/60 text-brand flex size-9 shrink-0 items-center justify-center rounded-full">
-                  <Icon className="size-4" aria-hidden="true" />
-                </span>
-              )}
-
-              <span className="min-w-0 flex-1">
-                <span className="block text-label-md text-pretty">{copy.message}</span>
-                {copy.cta ? (
-                  <span className="text-brand block text-label-sm font-normal">{copy.cta}</span>
-                ) : null}
-              </span>
-
-              <span className="text-outline shrink-0 text-label-sm font-normal ml-2">
-                {timeAgo(notification.createdAt)}
-              </span>
-            </>
-          );
+          /*
+           * Standard layout, built as a STRETCHED LINK rather than a link
+           * wrapping the row.
+           *
+           * The row used to be one anchor around everything, which left the
+           * avatar and the name unreachable: they were inside a link going
+           * somewhere else, and an anchor inside an anchor is invalid markup
+           * that navigates to whichever the browser decides. Here the card is a
+           * plain container, the message carries `after:absolute after:inset-0`
+           * so the whole card still answers a click on the empty space, and the
+           * two profile links sit above that overlay on `relative z-10`.
+           *
+           * The result reads the same and behaves better: the card goes where it
+           * always went, the person goes to the person. The X needs the same
+           * lift for the same reason — it is a sibling of the overlay, not above
+           * it by default.
+           */
+          const actorName = notification.actorName ?? 'Classmate';
 
           return (
             <li key={notification.id} className="relative">
-              {/*
-                The X is a SIBLING of the row, not a child of it. The row is an
-                anchor when it has a destination, and a button inside an anchor
-                is invalid markup that navigates when pressed. Absolute
-                positioning puts it where it looks nested; `pr-12` on the row
-                keeps the timestamp from sliding under it.
-              */}
-              {copy.href ? (
-                <Link
-                  href={copy.href}
-                  onClick={() => {
-                    if (!notification.isRead) {
-                      void markNotificationRead({ notificationId: notification.id });
-                    }
-                  }}
-                  className={cn(className, 'pr-12')}
-                >
-                  {body}
-                </Link>
-              ) : (
-                <div className={cn(className, 'pr-12')}>{body}</div>
-              )}
+              <div className={cn(className, 'pr-12')}>
+                {notification.actorId ? (
+                  <ProfileLink
+                    profileId={notification.actorId}
+                    label={`${actorName}’s profile`}
+                    className="relative z-10 shrink-0"
+                  >
+                    <MatchAvatar
+                      fullName={actorName}
+                      avatarUrl={notification.actorAvatarUrl}
+                      size={36}
+                      className="border-2"
+                    />
+                  </ProfileLink>
+                ) : (
+                  <span className="bg-brand-fixed/60 text-brand flex size-9 shrink-0 items-center justify-center rounded-full">
+                    <Icon className="size-4" aria-hidden="true" />
+                  </span>
+                )}
+
+                <span className="min-w-0 flex-1">
+                  <span className="relative z-10 block text-label-md text-pretty">
+                    <LinkedActorMessage notification={notification} message={copy.message} />
+                  </span>
+
+                  {copy.href ? (
+                    <Link
+                      href={copy.href}
+                      onClick={() => {
+                        if (!notification.isRead) {
+                          void markNotificationRead({ notificationId: notification.id });
+                        }
+                      }}
+                      className="text-brand block text-label-sm font-normal after:absolute after:inset-0 after:content-['']"
+                    >
+                      {copy.cta ?? <span className="sr-only">Open</span>}
+                    </Link>
+                  ) : copy.cta ? (
+                    <span className="text-brand block text-label-sm font-normal">
+                      {copy.cta}
+                    </span>
+                  ) : null}
+                </span>
+
+                <span className="text-outline relative z-10 ml-2 shrink-0 text-label-sm font-normal">
+                  {timeAgo(notification.createdAt)}
+                </span>
+              </div>
 
               <DismissButton
                 notificationId={notification.id}
@@ -346,6 +374,42 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
  * @param onDismissed    - Called once the press is registered.
  * @returns The button element.
  */
+/**
+ * A notification's sentence, with the person's name made a link to them.
+ *
+ * SPLIT ON A CHECKED PREFIX, NOT A REGEX. Every actor-driven message in
+ * notification-view is built as `${who} <did something>`, so the name is a known
+ * prefix rather than something to be found by pattern — and if a future message
+ * ever stops leading with it, `startsWith` fails, the whole sentence renders
+ * plain, and nobody sees a mangled string. Parsing the rendered copy at all is
+ * the compromise here: the alternative is for notificationCopy to return the
+ * name as its own field, which is the better shape and a wider change.
+ *
+ * @returns The message, with a linked name where there is one to link.
+ */
+function LinkedActorMessage({
+  notification,
+  message,
+}: {
+  notification: NotificationView;
+  message: string;
+}) {
+  const name = notification.actorName;
+
+  if (!name || !notification.actorId || !message.startsWith(name)) {
+    return <>{message}</>;
+  }
+
+  return (
+    <>
+      <ProfileLink profileId={notification.actorId} className="font-semibold">
+        {name}
+      </ProfileLink>
+      {message.slice(name.length)}
+    </>
+  );
+}
+
 function DismissButton({
   notificationId,
   onDismissed,
@@ -366,7 +430,10 @@ function DismissButton({
           await dismissNotification({ notificationId });
         });
       }}
-      className="text-outline hover:text-destructive hover:bg-destructive/10 focus-visible:ring-destructive/35 absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full transition-colors focus-visible:ring-4 focus-visible:outline-none"
+      /* z-20 clears the row's stretched-link overlay. Without it the X is
+         underneath a full-card anchor and every dismiss opens the notification
+         instead. */
+      className="text-outline hover:text-destructive hover:bg-destructive/10 focus-visible:ring-destructive/35 absolute top-1/2 right-2 z-20 flex size-7 -translate-y-1/2 items-center justify-center rounded-full transition-colors focus-visible:ring-4 focus-visible:outline-none"
     >
       <X className="size-4" aria-hidden="true" />
     </button>

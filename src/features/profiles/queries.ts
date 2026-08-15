@@ -65,6 +65,7 @@ export async function getStudentProfile(
     positiveConnections,
     compatibility,
     ratingState,
+    { data: block },
   ] = await Promise.all([
     /* Age, not date of birth. The function returns one and never the other. */
     supabase.rpc('app_profile_age_years', { target_profile_id: profileId }),
@@ -84,6 +85,19 @@ export async function getStudentProfile(
     getPositiveConnections(supabase, profileId),
     isSelf ? Promise.resolve(null) : getCompatibility(supabase, profileId),
     isSelf ? Promise.resolve(null) : getRatingState(supabase, user.id, profileId),
+    /*
+     * RLS narrows blocked_users to the caller's own rows, so this only ever
+     * answers "have I blocked them" — never the reverse. That asymmetry is the
+     * point: being blocked is not something the blocked student is told.
+     */
+    isSelf
+      ? Promise.resolve({ data: null })
+      : supabase
+          .from('blocked_users')
+          .select('blocked_id')
+          .eq('blocker_id', user.id)
+          .eq('blocked_id', profileId)
+          .maybeSingle(),
   ]);
 
   const weeklyFreeHours = (availability ?? []).reduce((total, slot) => {
@@ -117,6 +131,7 @@ export async function getStudentProfile(
     positiveConnections,
     canRate: ratingState?.canRate ?? false,
     myRating: ratingState?.myRating ?? null,
+    isBlocked: block !== null,
   };
 }
 

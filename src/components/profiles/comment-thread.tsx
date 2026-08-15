@@ -27,6 +27,7 @@ import { useActionState, useState, useTransition } from 'react';
 import { AlertCircle, Heart, Loader2, Send, X } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { ProfileLink } from '@/components/profiles/profile-link';
 import { createComment, removeComment, toggleCommentLike } from '@/features/wall/actions';
 import type { WallCommentView } from '@/features/wall/wall-view';
 import { timeAgo } from '@/features/notifications/notification-view';
@@ -113,17 +114,25 @@ function Comment({
   return (
     <>
       <div className="flex items-start gap-2">
-        <MatchAvatar
-          fullName={comment.authorName}
-          avatarUrl={comment.authorAvatarUrl}
-          size={28}
-          className="border"
-        />
+        <ProfileLink
+          profileId={comment.authorId}
+          label={`${comment.authorName}’s profile`}
+          className="shrink-0"
+        >
+          <MatchAvatar
+            fullName={comment.authorName}
+            avatarUrl={comment.authorAvatarUrl}
+            size={28}
+            className="border"
+          />
+        </ProfileLink>
 
         <div className="min-w-0 flex-1">
           <div className="bg-surface-container-low rounded-2xl px-3 py-2">
             <p className="flex flex-wrap items-baseline gap-x-2">
-              <span className="text-label-sm">{comment.authorName}</span>
+              <ProfileLink profileId={comment.authorId} className="text-label-sm">
+                {comment.authorName}
+              </ProfileLink>
               <span className="text-outline text-label-sm font-normal">
                 {timeAgo(comment.createdAt)}
               </span>

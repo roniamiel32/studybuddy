@@ -519,23 +519,117 @@ describeDb('Study ratings: Row Level Security', () => {
   // ===========================================================================
 
   describe('ratings change who is matched', () => {
-    it('removes a negatively-rated pair from BOTH sides', async () => {
+    it('demotes a negatively-rated pair on BOTH sides without removing them', async () => {
+      /*
+       * CHANGED IN v5, AND THE OLD ASSERTION IS WORTH RECORDING: this used to
+       * require the pair to disappear from each other's candidates entirely. A
+       * negative rating is now a 0.75x multiplier instead, so somebody you did
+       * not get on with but share several courses with still appears, lower
+       * down. `blocked_users` is what excludes now, and it is tested separately.
+       */
       const asRater = await rater.rpc('rpc_find_candidates', { p_limit: 100 });
       const asDisliked = await disliked.rpc('rpc_find_candidates', { p_limit: 100 });
 
-      const raterSees = (asRater.data ?? []).map((row) => row.candidate_id);
-      const dislikedSees = (asDisliked.data ?? []).map((row) => row.candidate_id);
+      const scoreIn = (
+        rows: Array<{ candidate_id: string; rule_score: number | null }> | null,
+        id: string,
+      ) => Number((rows ?? []).find((row) => row.candidate_id === id)?.rule_score ?? 0);
 
-      expect(raterSees).not.toContain(ids.disliked);
+      const raterSeesDisliked = scoreIn(asRater.data, ids.disliked);
+      const dislikedSeesRater = scoreIn(asDisliked.data, ids.rater);
+
+      /* Still there — that is the change. */
+      expect(raterSeesDisliked).toBeGreaterThan(0);
       /*
-       * Symmetric on purpose. The rated student is never told, but they should not
-       * keep being shown someone who has quietly opted out of them — a
-       * one-directional exclusion would leave exactly that.
+       * Symmetric on purpose, as the exclusion was. The rated student is never
+       * told, but the pair should not keep being pushed at each other either.
        */
-      expect(dislikedSees).not.toContain(ids.rater);
+      expect(dislikedSeesRater).toBeGreaterThan(0);
 
-      /* The bystander is unaffected: an exclusion is about a pair, not a person. */
-      expect(raterSees).toContain(ids.bystander);
+      /*
+       * And demoted, measured against the bystander rather than an absolute
+       * number: the fixtures make the two candidates otherwise identical, so any
+       * gap between them is the penalty and nothing else.
+       */
+      const raterSeesBystander = scoreIn(asRater.data, ids.bystander);
+
+      expect(raterSeesBystander).toBeGreaterThan(raterSeesDisliked);
+      expect(raterSeesDisliked).toBeCloseTo(raterSeesBystander * 0.75, 0);
+    });
+
+    it('lets blocking still remove a pair entirely, which rating no longer does', async () => {
+      /*
+       * THE OTHER HALF OF SOFTENING THE PENALTY. Moving negative ratings to a
+       * multiplier only stays defensible while there is still a way to say "do
+       * not show me this person at all". If this ever fails, the soft penalty
+       * has quietly become the only option and the change needs revisiting.
+       */
+      const blocked = await admin
+        .from('blocked_users')
+        .insert({ blocker_id: ids.rater, blocked_id: ids.disliked });
+
+      expect(blocked.error).toBeNull();
+
+      const { data } = await rater.rpc('rpc_find_candidates', { p_limit: 100 });
+
+      expect((data ?? []).map((row) => row.candidate_id)).not.toContain(ids.disliked);
+
+      await admin
+        .from('blocked_users')
+        .delete()
+        .eq('blocker_id', ids.rater)
+        .eq('blocked_id', ids.disliked);
+    });
+
+    it('lifts a candidate the caller engages with, and caps the lift', async () => {
+      const before = await bystander.rpc('rpc_find_candidates', { p_limit: 100 });
+      const scoreBefore = Number(
+        (before.data ?? []).find((row) => row.candidate_id === ids.liked)?.rule_score ?? 0,
+      );
+
+      expect(scoreBefore).toBeGreaterThan(0);
+
+      /* Far more interaction than the cap allows for, to prove it caps. */
+      const post = await admin
+        .from('wall_posts')
+        .insert({ profile_owner_id: ids.liked, author_id: ids.liked, body: 'Revising all week' })
+        .select('id')
+        .single();
+
+      expect(post.error).toBeNull();
+
+      await admin.from('wall_posts').insert(
+        Array.from({ length: 12 }, (_, index) => ({
+          profile_owner_id: ids.liked,
+          author_id: ids.bystander,
+          body: `Reply ${index}`,
+        })),
+      );
+
+      const after = await bystander.rpc('rpc_find_candidates', { p_limit: 100 });
+      const scoreAfter = Number(
+        (after.data ?? []).find((row) => row.candidate_id === ids.liked)?.rule_score ?? 0,
+      );
+
+      /* 12 wall posts is 36 raw points; the cap is 15, so exactly +15%. */
+      expect(scoreAfter).toBeGreaterThan(scoreBefore);
+      expect(scoreAfter).toBeCloseTo(Math.min(100, scoreBefore * 1.15), 0);
+
+      await admin.from('wall_posts').delete().eq('profile_owner_id', ids.liked);
+    });
+
+    it('never lets engagement alone create a match', async () => {
+      /*
+       * The structural guarantee behind the cap. Engagement is a multiplier on a
+       * score that only exists for people sharing a current-term course, so
+       * there is no arithmetic that turns a stranger into a candidate — they are
+       * not in the result set to be multiplied.
+       */
+      const { data } = await bystander.rpc('rpc_find_candidates', { p_limit: 100 });
+
+      for (const row of data ?? []) {
+        expect(Number(row.shared_course_count)).toBeGreaterThan(0);
+      }
     });
 
     it('raises the score of a positively-rated student for everyone', async () => {

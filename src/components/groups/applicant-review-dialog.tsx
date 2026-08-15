@@ -25,6 +25,7 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, Loader2, ThumbsDown, X } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { ProfileLink } from '@/components/profiles/profile-link';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { decideRequest } from '@/features/groups/actions';
@@ -122,15 +123,23 @@ export function ApplicantReviewDialog({ request, placesLeft }: ApplicantReviewDi
           {/* The applicant's profile. Accept and Reject sit directly on it, so the
               decision is made while looking at the person it is about. */}
           <div className="mb-5 flex items-center gap-4">
-            <MatchAvatar
-              fullName={request.requesterName}
-              avatarUrl={request.requesterAvatarUrl}
-              size={64}
-              className="border-[3px]"
-            />
+            <ProfileLink
+              profileId={request.requesterId}
+              label={`${request.requesterName}’s profile`}
+              className="shrink-0"
+            >
+              <MatchAvatar
+                fullName={request.requesterName}
+                avatarUrl={request.requesterAvatarUrl}
+                size={64}
+                className="border-[3px]"
+              />
+            </ProfileLink>
             <div className="min-w-0">
               <p className="font-heading text-[18px] leading-tight font-bold">
-                {request.requesterName}
+                <ProfileLink profileId={request.requesterId}>
+                  {request.requesterName}
+                </ProfileLink>
               </p>
               <p className="text-on-surface-variant text-label-sm font-normal">
                 {[
@@ -291,15 +300,23 @@ export function ApplicantRow({
 }) {
   return (
     <li className="border-outline-variant/40 flex items-center gap-3 rounded-md border bg-white p-3">
-      <MatchAvatar
-        fullName={request.requesterName}
-        avatarUrl={request.requesterAvatarUrl}
-        size={40}
-        className="border-2"
-      />
+      <ProfileLink
+        profileId={request.requesterId}
+        label={`${request.requesterName}’s profile`}
+        className="shrink-0"
+      >
+        <MatchAvatar
+          fullName={request.requesterName}
+          avatarUrl={request.requesterAvatarUrl}
+          size={40}
+          className="border-2"
+        />
+      </ProfileLink>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-label-md">{request.requesterName}</p>
+        <p className="truncate text-label-md">
+          <ProfileLink profileId={request.requesterId}>{request.requesterName}</ProfileLink>
+        </p>
         <p className="text-outline truncate text-label-sm font-normal">
           {[
             request.requesterDegreeName,
