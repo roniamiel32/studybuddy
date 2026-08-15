@@ -194,7 +194,10 @@ describe('selecting times', () => {
     await user.click(cells.at(-1)!);
 
     expect(screen.getByRole('button', { name: /Schedule it/ })).toBeInTheDocument();
-    expect(screen.getByText('Fine-tune session hours')).toBeInTheDocument();
+    /* The panel is headed "Session hours" for a single session and "N sessions"
+       otherwise; it was "Fine-tune session hours" before the panel gained its
+       Edit times toggle. One session here is the whole point of the merge. */
+    expect(screen.getByText('Session hours')).toBeInTheDocument();
   });
 
   it('will not submit with nothing picked', async () => {

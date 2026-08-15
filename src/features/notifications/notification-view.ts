@@ -51,6 +51,17 @@ export interface NotificationView {
   meetingId: string | null;
   meetingTitle: string | null;
   /**
+   * The chat a session belongs to — exactly one of these, as on `meetings`.
+   *
+   * WHY THEY ARE HERE AT ALL. notify_meeting_scheduled writes meeting_id and
+   * nothing else, so a meeting notification carries no group_id and no
+   * conversation_id of its own. "See when" therefore fell through to /dashboard
+   * every single time, for group sessions as well as direct ones — the fallback
+   * was doing all the work and the intended destination was never reachable.
+   */
+  meetingConversationId: string | null;
+  meetingGroupId: string | null;
+  /**
    * The join request this notification announces, for group_request rows.
    *
    * WHAT MAKES A REVIEW BUTTON APPEAR. The feed used to find the live request by
@@ -104,6 +115,18 @@ export function notificationCopy(notification: NotificationView): NotificationCo
   const actor = notification.actorId ? `/students/${notification.actorId}` : null;
   const groupHref = notification.groupId ? `/groups/${notification.groupId}` : null;
 
+  /*
+   * Where a session lives: the group page, or the direct thread it was booked
+   * from. Falls back to the group the notification names, then to the dashboard
+   * — but only genuinely reaches that last step for a meeting whose chat has
+   * since been deleted, rather than on every notification as it used to.
+   */
+  const meetingHref = notification.meetingGroupId
+    ? `/groups/${notification.meetingGroupId}`
+    : notification.meetingConversationId
+      ? `/messages/${notification.meetingConversationId}`
+      : (groupHref ?? '/dashboard');
+
   switch (notification.type) {
     // ---- Groups ------------------------------------------------------------
     case 'group_request':
@@ -139,14 +162,14 @@ export function notificationCopy(notification: NotificationView): NotificationCo
       return {
         message: `${who} scheduled ${meeting}.`,
         cta: 'See when',
-        href: groupHref ?? '/dashboard',
+        href: meetingHref,
       };
 
     case 'meeting_cancelled':
       return {
         message: `${meeting} was called off.`,
         cta: null,
-        href: groupHref ?? '/dashboard',
+        href: meetingHref,
       };
 
     case 'rate_partner':

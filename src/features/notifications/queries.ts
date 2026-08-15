@@ -55,7 +55,7 @@ const NOTIFICATION_SELECT = `
   actor:profiles!notifications_actor_id_fkey ( full_name, avatar_url ),
   secondary:profiles!notifications_secondary_id_fkey ( full_name ),
   study_groups ( name ),
-  meetings ( title ),
+  meetings ( title, conversation_id, group_id ),
   wall_posts ( profile_owner_id ),
   post_comments ( post_id, wall_posts ( profile_owner_id ) )
 `;
@@ -73,7 +73,7 @@ interface NotificationRow {
   actor: { full_name: string | null; avatar_url: string | null } | null;
   secondary: { full_name: string | null } | null;
   study_groups: { name: string } | null;
-  meetings: { title: string } | null;
+  meetings: { title: string; conversation_id: string | null; group_id: string | null } | null;
   wall_posts: { profile_owner_id: string } | null;
   post_comments: { post_id: string; wall_posts: { profile_owner_id: string } | null } | null;
 }
@@ -97,6 +97,11 @@ function toNotificationView(row: NotificationRow): NotificationView {
     groupName: row.study_groups?.name ?? null,
     meetingId: row.meeting_id,
     meetingTitle: row.meetings?.title ?? null,
+    /* The chat the session was booked from. The meeting row is the only thing
+       that knows — notify_meeting_scheduled records the meeting and nothing
+       else, so the notification itself carries no scope. */
+    meetingConversationId: row.meetings?.conversation_id ?? null,
+    meetingGroupId: row.meetings?.group_id ?? null,
     groupRequestId: row.group_request_id,
     /* A comment carries its post's wall; a post carries its own. */
     wallOwnerId:

@@ -415,7 +415,12 @@ export function mergeSelectedSlots(
       open.endsAt === slot.startsAt &&
       /* Same calendar day in the reader's zone. Midnight is a boundary people
          think in, and a session that runs through it reads as two. */
-      localDayKey(open.startsAt) === localDayKey(slot.startsAt);
+      localDayKey(open.startsAt) === localDayKey(slot.startsAt) &&
+      /* AND THE CAP. meetings_bounded refuses a session over eight hours, so a
+         run that would pass it has to become two sessions here — without this
+         the picker builds a booking the database throws out, and the student
+         gets "we could not book those sessions" for a selection that was fine. */
+      open.slotCount < MEETING_MAX_HOURS / 2;
 
     if (continues) {
       open.endsAt = slot.endsAt;

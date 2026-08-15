@@ -35,6 +35,7 @@ function view(type: NotificationType, overrides: Partial<NotificationView> = {})
     secondaryId: 'b1', secondaryName: 'Amit Shani',
     groupId: 'g1', groupName: 'Sunday revision',
     meetingId: 'm1', meetingTitle: 'Past papers',
+    meetingConversationId: null, meetingGroupId: null,
     groupRequestId: 'r1',
     wallOwnerId: 'w1',
     isRead: false, createdAt: new Date().toISOString(),
@@ -74,6 +75,52 @@ describe('notificationCopy', () => {
     expect(copy!.message).not.toMatch(/Amit Shani/);
     /* It leads to the person being suggested, not to the bridge. */
     expect(copy!.href).toBe('/students/a1');
+  });
+
+  it('sends "See when" to the group a session was booked in', () => {
+    const copy = notificationCopy(
+      view('meeting_scheduled', { meetingGroupId: 'g9', meetingConversationId: null }),
+    );
+
+    expect(copy!.cta).toBe('See when');
+    expect(copy!.href).toBe('/groups/g9');
+  });
+
+  it('sends "See when" to the direct thread a session was booked in', () => {
+    /*
+     * THE BUG THIS PAIR EXISTS FOR. notify_meeting_scheduled writes meeting_id
+     * and nothing else, so the notification carries no scope of its own and the
+     * link fell through to /dashboard — the matches page — every single time,
+     * for group sessions as much as direct ones. The destination now comes off
+     * the meeting row, which is the only thing that knows.
+     */
+    const copy = notificationCopy(
+      view('meeting_scheduled', { meetingGroupId: null, meetingConversationId: 'c9' }),
+    );
+
+    expect(copy!.href).toBe('/messages/c9');
+  });
+
+  it('sends a cancellation to the same place as the booking', () => {
+    const copy = notificationCopy(
+      view('meeting_cancelled', { meetingGroupId: null, meetingConversationId: 'c9' }),
+    );
+
+    expect(copy!.href).toBe('/messages/c9');
+  });
+
+  it('falls back to the dashboard only when the chat is gone', () => {
+    /* Both scopes null means the conversation or group was deleted under it.
+       That is the one case the old fallback was actually for. */
+    const copy = notificationCopy(
+      view('meeting_scheduled', {
+        meetingGroupId: null,
+        meetingConversationId: null,
+        groupId: null,
+      }),
+    );
+
+    expect(copy!.href).toBe('/dashboard');
   });
 
   it('survives a notification whose subject has deleted their account', () => {
