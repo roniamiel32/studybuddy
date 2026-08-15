@@ -104,6 +104,7 @@ test.describe('study groups', () => {
   let db: SupabaseClient;
   let offeringId = '';
   let adminId = '';
+  let joinerId = '';
   let rejectedId = '';
 
   test.beforeAll(async () => {
@@ -123,7 +124,7 @@ test.describe('study groups', () => {
     offeringId = offering!.id;
 
     adminId = await createStudent(db, adminEmail, 'Group Admin', offeringId);
-    await createStudent(db, joinerEmail, 'Keen Joiner', offeringId);
+    joinerId = await createStudent(db, joinerEmail, 'Keen Joiner', offeringId);
     rejectedId = await createStudent(db, rejectedEmail, 'Polite Applicant', offeringId);
   });
 
@@ -407,6 +408,89 @@ test.describe('study groups', () => {
       .order('created_at', { ascending: false });
 
     expect(messages![0].body).toBe('Sorry! We have settled on just the two of us for this one.');
+  });
+
+  test('leaving voluntarily and asking again lands in the waiting state', async ({ page }) => {
+    /*
+     * BOTH HALVES OF THE RE-JOIN BUG, from the student's side.
+     *
+     * Leaving left an `approved` row behind, and the course page resolved
+     * "my status" from an unordered query that could pick it over the new
+     * `pending` one. The card then offered "Request to join" to somebody who
+     * already had a live request, and the press came back as the red "you have
+     * already asked to join this group" — about a request they could not see.
+     */
+    const { data: group } = await db
+      .from('study_groups')
+      .select('id')
+      .eq('name', 'Thursday revision')
+      .single();
+
+    await signIn(page, joinerEmail);
+    await page.goto(`/groups/${group!.id}`);
+
+    await page.getByRole('button', { name: 'Show members' }).click();
+    await page.getByRole('button', { name: 'Leave group' }).click();
+    await page.getByRole('button', { name: 'Yes, leave' }).click();
+
+    /* Leaving redirects out of a group they can no longer read. */
+    await expect(page).toHaveURL(/\/messages$/, { timeout: 15_000 });
+
+    await page.goto(`/courses/${offeringId}`);
+    const card = page
+      .getByRole('list', { name: 'Study groups' })
+      .getByRole('listitem')
+      .filter({ hasText: 'Thursday revision' });
+
+    await card.getByRole('button', { name: 'Request to join' }).click();
+
+    /* The state the card must reach — and no error in its place. */
+    await expect(card.getByText('Waiting for the admin to reply')).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText(/already asked to join/)).toHaveCount(0);
+
+    /* And the earlier membership is still on the record for the admin. */
+    const { data: history } = await db
+      .from('group_requests')
+      .select('status')
+      .eq('group_id', group!.id)
+      .eq('requester_id', joinerId)
+      .order('created_at');
+
+    expect((history ?? []).map((row) => row.status)).toEqual(['approved', 'pending']);
+  });
+
+  test('only the live request is actionable in the admin feed', async ({ page }) => {
+    /*
+     * THE HISTORY MUST BE VISIBLE WITHOUT BEING ACTIONABLE. By this point the
+     * joiner has asked three times over: approved, then left, then asked again
+     * — so the admin's feed holds several group_request notifications naming the
+     * same person and group. Exactly one of them is about a request that can
+     * still be decided.
+     *
+     * This is the assertion that would have caught both halves of the earlier
+     * mess: deduplicating the feed made the count 1 by hiding history, and
+     * matching on (actor, group) made it 3 by offering decisions that no longer
+     * existed. Counting the cards and the rows separately pins down both.
+     */
+    await signIn(page, adminEmail);
+    await page.goto('/notifications');
+
+    const feed = page.getByRole('list', { name: 'Notifications' });
+    await expect(feed).toBeVisible();
+
+    const joinerRows = feed
+      .getByRole('listitem')
+      .filter({ hasText: 'Keen Joiner' })
+      .filter({ hasText: 'asked to join' });
+
+    /* More than one, because the history is kept. */
+    expect(await joinerRows.count()).toBeGreaterThan(1);
+
+    /* And exactly one of them can still be acted on. */
+    await expect(joinerRows.getByRole('button', { name: 'Review' })).toHaveCount(1);
+    await expect(joinerRows.getByText('Pending')).toHaveCount(1);
   });
 
   test('a group the student is not in is a 404', async ({ page }) => {

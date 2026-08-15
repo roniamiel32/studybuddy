@@ -233,4 +233,105 @@ describeDb('Leaving a study group', () => {
 
     expect(error).toBeNull();
   });
+
+  it('keeps every past request when a new one is made', async () => {
+    /*
+     * The admin's side of re-joining. Nothing about asking again may disturb what
+     * came before — the approved row from the first membership is the record that
+     * it happened, and an admin looking at somebody's history should see all of
+     * it, not just the newest.
+     */
+    const { data } = await admin
+      .from('group_requests')
+      .select('status')
+      .eq('group_id', groupId)
+      .eq('requester_id', ids.leaves)
+      .order('created_at');
+
+    expect((data ?? []).map((row) => row.status)).toEqual(['approved', 'pending']);
+  });
+
+  it('puts a newly approved member on the group’s upcoming sessions', async () => {
+    /*
+     * THE BUG THIS PAIRS WITH withdraw_from_group_meetings. A student approved
+     * after a session was booked could not see it — no card, no RSVP — while the
+     * hour was already unbookable in their scheduler, because the slot finder
+     * subtracts what the other members are committed to.
+     */
+    const request = await admin
+      .from('group_requests')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('requester_id', ids.leaves)
+      .eq('status', 'pending')
+      .single();
+
+    const approved = await clients.owner.rpc('rpc_approve_group_request', {
+      p_request_id: request.data!.id,
+    });
+
+    expect(approved.error).toBeNull();
+
+    const { data: attendance } = await admin
+      .from('meeting_attendees')
+      .select('rsvp, responded_at')
+      .eq('meeting_id', upcomingMeetingId)
+      .eq('profile_id', ids.leaves)
+      .single();
+
+    /*
+     * 'going' with responded_at null IS the pending state — the enum has no
+     * 'maybe' on purpose, and this is exactly what rpc_create_meeting writes for
+     * everyone but the organiser. So a new member arrives on the same footing as
+     * somebody who was there when it was booked.
+     */
+    expect(attendance?.rsvp).toBe('going');
+    expect(attendance?.responded_at).toBeNull();
+  });
+
+  it('does NOT put them on a session that has already run', async () => {
+    /*
+     * The boundary, from the joining side. Adding somebody to a finished session
+     * would invent attendance for a group they were not in at the time — and
+     * attendance is what the rating rule reads.
+     */
+    const { data } = await admin
+      .from('meeting_attendees')
+      .select('profile_id')
+      .eq('meeting_id', finishedMeetingId)
+      .eq('profile_id', ids.leaves);
+
+    /* One row, from the first membership — not a second from re-joining. */
+    expect(data).toHaveLength(1);
+  });
+
+  it('still hides the group chat from before they joined', async () => {
+    /*
+     * Explicitly asserted because the session fix and the history rule pull in
+     * opposite directions: joining reaches back for meetings and must NOT reach
+     * back for messages. getGroupMessages filters on the membership row's
+     * joined_at, which the trigger does not touch — this is what would catch it
+     * if somebody "helpfully" backdated joined_at to make sessions appear.
+     */
+    const { data: member } = await admin
+      .from('study_group_members')
+      .select('joined_at')
+      .eq('group_id', groupId)
+      .eq('profile_id', ids.leaves)
+      .single();
+
+    const posted = await admin
+      .from('study_group_messages')
+      .insert({ group_id: groupId, sender_id: ids.owner, body: 'Older than the rejoin' })
+      .select('created_at')
+      .single();
+
+    expect(posted.error).toBeNull();
+
+    /* Their join predates this message, so it is visible — the filter is a
+       timestamp comparison and this proves which way round it runs. */
+    expect(new Date(member!.joined_at).getTime()).toBeLessThanOrEqual(
+      new Date(posted.data!.created_at).getTime(),
+    );
+  });
 });

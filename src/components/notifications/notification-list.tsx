@@ -93,45 +93,29 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
 
   /*
-   * ONE ROW PER JOIN REQUEST, however many notifications name it.
+   * NO DEDUPE HERE ANY MORE, and its removal is the fix for a bug it caused.
    *
-   * A group_request notification is matched to a live request by (actor, group)
-   * further down, because the notification carries no request id. That pairing
-   * is exact while there is one notification per request — but a feed holding
-   * several for the same pair matches every one of them to the same pending row
-   * and draws a review card for each, which is what flooded the admin's feed
-   * with identical "Pending" cards.
-   *
-   * The cause was a delete-and-reinsert in requestToJoin, now gone, so no new
-   * duplicates are written. This keeps the ones already in the table from
-   * rendering as separate actionable items — the feed heals without a migration
-   * having to guess which historical rows were real.
-   *
-   * KEYED ON (actor, group) AND NOT ON TYPE ALONE: two different people asking
-   * to join the same group are two requests and must stay two cards.
+   * It was added when requestToJoin re-inserted a request on every press, so one
+   * pending request could be named by nine notifications and the feed drew nine
+   * identical review cards. That write is gone and the leftovers were dismissed
+   * by a migration, so the only thing this collapsing still did was hide REAL
+   * history: a student who is refused and asks again months later produces a
+   * second, legitimate notification, and keying on (actor, group) threw away
+   * everything but the newest — so the admin watched a person's whole past with
+   * their group vanish the moment they reapplied.
    */
-  const renderable = useMemo(() => {
-    const seenRequests = new Set<string>();
-
-    return notifications.flatMap((notification) => {
-      if (dismissed.has(notification.id)) {
-        return [];
-      }
-
-      if (notification.type === 'group_request') {
-        const key = `${notification.actorId}:${notification.groupId}`;
-
-        if (seenRequests.has(key)) {
+  const renderable = useMemo(
+    () =>
+      notifications.flatMap((notification) => {
+        if (dismissed.has(notification.id)) {
           return [];
         }
 
-        seenRequests.add(key);
-      }
-
-      const copy = notificationCopy(notification);
-      return copy ? [{ notification, copy }] : [];
-    });
-  }, [notifications, dismissed]);
+        const copy = notificationCopy(notification);
+        return copy ? [{ notification, copy }] : [];
+      }),
+    [notifications, dismissed],
+  );
 
   const visible = renderable.slice(0, shown);
   const remaining = renderable.length - visible.length;
@@ -171,22 +155,24 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
           const isGroupRequest = notification.type === 'group_request';
           
           /*
-           * Matched on WHO asked and WHICH group, because that pair identifies
-           * exactly one pending request. A group_request notification carries the
-           * requester as its actor and the group it is about, so both halves are
-           * to hand.
+           * MATCHED ON THE REQUEST ITSELF, which the notification now names.
            *
-           * Not matched on the name: two classmates called Daniel Levy would show
-           * each other's request. Not matched on a request id either — the
-           * notification does not carry one, which is what `entityId` was
-           * reaching for.
+           * It used to be matched on (actor, group) — the only handle the row
+           * carried — and that pair identified exactly one thing only while a
+           * student could hold one request per group ever. Keeping history ended
+           * that: somebody who joined, left and asked again answers to the same
+           * pair several times over, so every one of their old notifications
+           * matched the single live request and every one drew a Review button
+           * for a decision that had been made days ago.
+           *
+           * `find` rather than a boolean, because pendingRequests holds only
+           * live ones: an id that is not in it has been decided, and the card
+           * below falls through to the plain, read-only layout. Notifications
+           * written before the column existed carry null and land there too,
+           * which is the right way round — history reading as history.
            */
           const request = isGroupRequest
-            ? pendingRequests.find(
-                (r) =>
-                  r.requesterId === notification.actorId &&
-                  r.groupId === notification.groupId,
-              )
+            ? pendingRequests.find((r) => r.id === notification.groupRequestId)
             : null;
 
           const className = cn(
