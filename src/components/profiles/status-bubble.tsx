@@ -4,12 +4,8 @@
  * Description: The line a student has put about themselves, floating above their
  *              avatar with a tail pointing down at it.
  *
- *              THE TAIL IS A ROTATED SQUARE, not a border triangle and not an
- *              SVG. A border triangle needs the colour written a second time in
- *              `border-top-color`, which then has to be kept in step with the
- *              bubble by hand; a square sharing the bubble's own background
- *              cannot drift from it. Half of it is tucked behind the bubble so
- *              only the point shows.
+ *              THE TAIL IS A THOUGHT TRAIL, made of two small circles of
+ *              decreasing size to look like a comic book thought bubble.
  *
  *              IT IS ABSOLUTELY POSITIONED AND POINTER-TRANSPARENT. The bubble
  *              hangs over the profile banner from a wrapper the avatar sits in,
@@ -22,9 +18,14 @@
  *              its punctuation on the wrong end, and a mixed status reads as
  *              nonsense. The browser picks the direction from the first strong
  *              character, which is exactly the rule wanted here.
- * Version:     0.39.0
+ * Version:     0.39.5
  *
  * Modifications:
+ *     0.39.5 - 2026-08-17 - Pushed bubble further top-right, stretched trail back to avatar
+ *     0.39.4 - 2026-08-17 - Moved bubble to the top-right with a diagonal thought trail
+ *     0.39.3 - 2026-08-17 - Changed tail to a thought bubble trail
+ *     0.39.2 - 2026-08-17 - Updated to white bubble with drop-shadow
+ *     0.39.1 - 2026-08-17 - Updated to iOS-style translucent bubble 
  *     0.39.0 - 2026-08-17 - Initial implementation (Phase 11A)
  */
 
@@ -46,26 +47,33 @@ export function StatusBubble({ status, interactive = false, className }: StatusB
   return (
     <span
       className={cn(
-        'pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2',
-        'max-w-[14rem] whitespace-nowrap',
+        // Pushed further up and out from the avatar center
+        'pointer-events-none absolute bottom-[85%] left-[85%] z-10 drop-shadow-md',
+        'max-w-[16rem]',
         className,
       )}
     >
       <span
         dir="auto"
         className={cn(
-          'bg-inverse-surface text-inverse-on-surface relative block truncate rounded-full',
-          'px-3 py-1 text-[13px] leading-tight shadow-clay-soft',
-          interactive && 'transition-colors group-hover/status:brightness-125',
+          'relative z-10 block truncate whitespace-nowrap',
+          'bg-white text-gray-800 px-5 py-2.5 rounded-[20px] text-sm font-medium',
+          interactive && 'transition-colors group-hover/status:bg-gray-50',
         )}
       >
         {status}
       </span>
 
-      {/* Half behind the bubble, so only the point is visible. */}
+      {/* Thought bubble trail - Medium circle (bottom-left area of the bubble) */}
       <span
         aria-hidden="true"
-        className="bg-inverse-surface absolute -bottom-1 left-1/2 size-3 -translate-x-1/2 rotate-45 rounded-[2px]"
+        className="absolute -bottom-1.5 left-3 z-0 size-2.5 rounded-full bg-white"
+      />
+      
+      {/* Thought bubble trail - Small circle (stretching back to touch the avatar) */}
+      <span
+        aria-hidden="true"
+        className="absolute -bottom-4 left-0 z-0 size-1.5 rounded-full bg-white"
       />
     </span>
   );

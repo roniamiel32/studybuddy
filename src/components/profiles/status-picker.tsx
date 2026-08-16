@@ -18,9 +18,14 @@
  *              treats an empty string as a clear, so the button here says what it
  *              does rather than being wired to a second endpoint that means the
  *              same thing.
- * Version:     0.39.0
+ * Version:     0.39.5
  *
  * Modifications:
+ *     0.39.5 - 2026-08-17 - Pushed empty state bubble further top-right
+ *     0.39.4 - 2026-08-17 - Moved empty state bubble to the top-right
+ *     0.39.3 - 2026-08-17 - Changed empty state to a thought bubble trail
+ *     0.39.2 - 2026-08-17 - Updated empty state bubble to match white styling
+ *     0.39.1 - 2026-08-17 - Updated empty state bubble to match iOS styling
  *     0.39.0 - 2026-08-17 - Initial implementation (Phase 11A)
  */
 
@@ -124,8 +129,18 @@ export function StatusPicker({ status }: StatusPickerProps) {
           <StatusBubble status={status} interactive />
         ) : (
           /* Only on your own profile, and only until there is one to show. */
-          <span className="bg-inverse-surface/85 text-inverse-on-surface absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-full px-3 py-1 text-[13px] leading-tight whitespace-nowrap opacity-0 transition-opacity group-hover/status:opacity-100 focus-visible:opacity-100">
-            Add a status
+          <span className="absolute bottom-[85%] left-[85%] drop-shadow-md opacity-0 transition-opacity group-hover/status:opacity-100 focus-visible:opacity-100">
+            <span className="relative z-10 block truncate whitespace-nowrap bg-white text-gray-800 px-5 py-2.5 rounded-[20px] text-sm font-medium transition-colors group-hover/status:bg-gray-50">
+              Add a status
+            </span>
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-1.5 left-3 z-0 size-2.5 rounded-full bg-white transition-colors group-hover/status:bg-gray-50"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-4 left-0 z-0 size-1.5 rounded-full bg-white transition-colors group-hover/status:bg-gray-50"
+            />
           </span>
         )}
       </button>
