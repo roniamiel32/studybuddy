@@ -1,36 +1,16 @@
-/**
- * File:        src/components/meetings/meeting-strip.tsx
- * Authors:     Roni Amiel & Eden Bitran
- * Description: The sessions booked from a chat, above its messages.
- *
- *              DISMISSAL IS A ROW IN THE DATABASE, NOT A KEY IN localStorage.
- *              The old version wrote `dismissed-meeting-<id>` to the browser,
- *              which made the banner come back on the student's phone after they
- *              cleared it on their laptop, and again on either one after a cache
- *              clear — and it cost a mount-gate that blanked the whole strip on
- *              the first paint of every chat, because the render could not know
- *              what localStorage held until the effect had run. A row per
- *              (person, meeting) is per account, survives devices, and arrives
- *              with the server render.
- *
- *              THE X IS ONLY DRAWN ONCE THE SESSION IS OVER. Before then the
- *              banner is the reminder that they agreed to go, and a student who
- *              does not want to go has a different control for that — the RSVP
- *              beside it, which the other attendees can see. Hiding a session you
- *              have not been to is how somebody quietly stops turning up. The
- *              INSERT policy on dismissed_meetings enforces the same rule, so
- *              this is presentation rather than the guard.
- * Version:     0.29.0
- *
- * Modifications:
- *     0.29.0 - 2026-08-14 - Per-account, time-restricted dismissal (Phase 9G)
- *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
- */
-
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertCircle, CalendarClock, Loader2, MapPin, Users, X } from 'lucide-react';
+import {
+  AlertCircle,
+  CalendarClock,
+  Loader2,
+  MapPin,
+  Users,
+  X,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 
 import { cancelMeeting, dismissMeeting, setMeetingRsvp } from '@/features/meetings/actions';
 import {
@@ -52,25 +32,66 @@ export interface MeetingStripProps {
  * do not expire.
  */
 export function MeetingStrip({ meetings }: MeetingStripProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const showing = meetings.filter((meeting) => isBannerMeeting(meeting));
 
   if (showing.length === 0) {
     return null;
   }
 
+  // Sort meetings so the closest upcoming session is always at the top
+  const sortedShowing = [...showing].sort(
+    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+  );
+
+  const closestMeeting = sortedShowing[0];
+  const otherMeetings = sortedShowing.slice(1);
+
   return (
-    <ul aria-label="Scheduled sessions" className="flex flex-col gap-2 px-4 pt-3">
-      {showing.map((meeting) => (
-        <MeetingCard key={meeting.id} meeting={meeting} />
-      ))}
-    </ul>
+    <div className="flex flex-col gap-2 px-4 pt-3">
+      {/* Always show the closest upcoming meeting */}
+      <ul aria-label="Next upcoming session" className="flex flex-col gap-2">
+        <MeetingCard
+          key={closestMeeting.id}
+          meeting={closestMeeting}
+          expandOptions={
+            otherMeetings.length > 0
+              ? {
+                  isExpanded,
+                  toggle: () => setIsExpanded(!isExpanded),
+                  count: otherMeetings.length,
+                }
+              : undefined
+          }
+        />
+      </ul>
+
+      {/* Scrollable list of the remaining meetings */}
+      {isExpanded && otherMeetings.length > 0 && (
+        <ul
+          aria-label="Other scheduled sessions"
+          className="flex max-h-64 flex-col gap-2 overflow-y-auto pr-1 mt-1"
+        >
+          {otherMeetings.map((meeting) => (
+            <MeetingCard key={meeting.id} meeting={meeting} />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
 /**
  * One session, with whatever the viewer can still do about it.
  */
-function MeetingCard({ meeting }: { meeting: MeetingView }) {
+function MeetingCard({
+  meeting,
+  expandOptions,
+}: {
+  meeting: MeetingView;
+  expandOptions?: { isExpanded: boolean; toggle: () => void; count: number };
+}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   /*
@@ -114,31 +135,53 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
   return (
     <li
       className={cn(
-        'relative rounded-md border px-3 py-2.5 transition-colors', 
+        'relative rounded-md border px-3 py-2.5 transition-colors',
         meeting.going
           ? 'border-brand/40 bg-brand-fixed/40'
-          : 'border-outline-variant/50 bg-surface-container-high/40',
+          : 'border-outline-variant/50 bg-surface-container-high/40'
       )}
     >
-      {/* Only once it is over, and only ever for this student. hasFinished is
-          computed on the server, so this does not appear mid-session without a
-          refresh — which is the same beat on which the RSVP controls disappear. */}
-      {meeting.hasFinished ? (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={handleDismiss}
-          className="absolute right-2 top-2 text-outline hover:text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 rounded-sm disabled:opacity-60"
-          aria-label={`Clear ${meeting.title} from your chat`}
-        >
-          <X className="size-4" aria-hidden="true" />
-        </button>
-      ) : null}
+      {/* Top right corner actions (Expand toggle and/or Dismiss button) */}
+      <div className="absolute right-2 top-2 flex items-center gap-1">
+        {expandOptions ? (
+          <button
+            type="button"
+            onClick={expandOptions.toggle}
+            className="text-outline hover:text-on-surface-variant flex items-center gap-0.5 rounded-sm p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35"
+            aria-label={
+              expandOptions.isExpanded
+                ? 'Collapse sessions'
+                : `Expand ${expandOptions.count} more sessions`
+            }
+          >
+            {!expandOptions.isExpanded && (
+              <span className="text-xs font-medium">+{expandOptions.count}</span>
+            )}
+            {expandOptions.isExpanded ? (
+              <ChevronUp className="size-4" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="size-4" aria-hidden="true" />
+            )}
+          </button>
+        ) : null}
+
+        {meeting.hasFinished ? (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={handleDismiss}
+            className="text-outline hover:text-on-surface-variant rounded-sm p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 disabled:opacity-60"
+            aria-label={`Clear ${meeting.title} from your chat`}
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
 
       <div
         className={cn(
           'flex flex-wrap items-start justify-between gap-x-4 gap-y-2',
-          meeting.hasFinished && 'pr-6',
+          (meeting.hasFinished || expandOptions) && 'pr-12' // Make room for top right icons
         )}
       >
         <div className="min-w-0">
@@ -163,7 +206,9 @@ function MeetingCard({ meeting }: { meeting: MeetingView }) {
               <Users className="size-3.5" aria-hidden="true" />
               {meeting.otherAttendees === 0
                 ? 'Nobody else is coming yet'
-                : `${meeting.otherAttendees} other${meeting.otherAttendees === 1 ? '' : 's'} coming`}
+                : `${meeting.otherAttendees} other${
+                    meeting.otherAttendees === 1 ? '' : 's'
+                  } coming`}
             </span>
 
             {meeting.location ? (
