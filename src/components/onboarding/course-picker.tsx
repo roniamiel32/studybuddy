@@ -16,12 +16,13 @@
  *              downstream — the score, the ranking, the reason shown on a match
  *              card — is built on shared courses, so a student who picks none is
  *              unmatchable and the next three steps cannot help them.
- * Version:     0.11.0
+ * Version:     0.42.0
  *
  * Modifications:
  *     0.6.0  - 2026-08-05 - Initial implementation (Phase 1c)
  *     0.10.0 - 2026-08-09 - Degree-scoped; Smart Course API; tracks removed
  *     0.11.0 - 2026-08-09 - Placeholder catalogs; Continue requires a course
+ *     0.42.0 - 2026-08-16 - Schedule import panel above the search
  */
 
 'use client';
@@ -29,6 +30,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Search, TriangleAlert } from 'lucide-react';
 
+import { CourseImport } from '@/components/onboarding/course-import';
 import { StepForm } from '@/components/onboarding/step-form';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
@@ -168,6 +170,15 @@ export function CoursePicker({
     );
   };
 
+  /*
+   * Additive only, and deduplicated. The import panel proposes courses; it never
+   * unticks one, because a student who ticked a course by hand and then uploaded
+   * a schedule that omitted it did not ask to have it removed.
+   */
+  const addOfferings = (offeringIds: string[]) => {
+    setSelected((current) => [...new Set([...current, ...offeringIds])]);
+  };
+
   const renderCourse = (offering: OfferingOption) => {
     const isSelected = selected.includes(offering.offeringId);
 
@@ -265,6 +276,15 @@ export function CoursePicker({
         <p className="bg-surface-container text-on-surface-variant rounded-md p-3 text-label-md">
           {notice}
         </p>
+      ) : null}
+
+      {/*
+        * Above the search, because it is the faster route for a student who has
+        * their timetable open. It needs a degree to compare against, so it is
+        * absent in the same case the Smart Course API lookup is.
+        */}
+      {degreeId ? (
+        <CourseImport degreeId={degreeId} selected={selected} onAdd={addOfferings} />
       ) : null}
 
       {/* The page heading already asks the question; a second copy here read as

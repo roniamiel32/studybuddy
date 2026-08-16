@@ -67,12 +67,15 @@ const serverSchema = z.object({
   /** Per-user daily cap on AI icebreaker generations. */
   AI_ICEBREAKER_DAILY_LIMIT: z.coerce.number().int().positive().default(30),
   /*
-   * Per-user daily cap on course-catalog generations, counted separately from
-   * the other two. A student needs one catalog per degree and almost never a
-   * second, so the cap is low; sharing the re-rank budget would mean tuning
-   * either one silently changed the other.
+   * Per-user daily cap on course work, counted separately from the other two.
+   *
+   * Covers both flows that log `course_generation`: building a degree's catalog,
+   * and reading a course out of an uploaded schedule or a typed name. Building a
+   * catalog happens about once per degree, but importing does not — a student
+   * adding four missing courses one at a time is four calls — which is why the
+   * cap is 20 rather than the handful the catalog alone needed.
    */
-  AI_COURSE_GENERATION_DAILY_LIMIT: z.coerce.number().int().positive().default(5),
+  AI_COURSE_GENERATION_DAILY_LIMIT: z.coerce.number().int().positive().default(20),
   /** Hours a cached row in `match_scores` stays fresh. */
   MATCH_CACHE_TTL_HOURS: z.coerce.number().int().positive().default(24),
 });
