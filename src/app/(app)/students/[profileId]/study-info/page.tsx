@@ -18,6 +18,8 @@
  */
 
 import type { Metadata } from 'next';
+
+import { getCompatibilityColor } from '@/components/matching/traits';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BookOpen, Pencil, Users } from 'lucide-react';
@@ -35,17 +37,6 @@ import {
 import { getStudentProfile } from '@/features/profiles/queries';
 
 export const metadata: Metadata = { title: 'Study info' };
-
-/**
- * 0-40: #FF6B7D
- * 41-79: #FF8A50
- * 80-100: #4f7b58ff
- */
-function getCompatibilityColor(score: number): string {
-  if (score <= 40) return '#FF6B7D';
-  if (score <= 79) return '#FF8A50';
-  return '#4f7b58ff';
-}
 
 /**
  * Renders the study information for a profile.

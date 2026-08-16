@@ -25,6 +25,7 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, Loader2, ThumbsDown, X } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { getCompatibilityColor } from '@/components/matching/traits';
 import { ProfileLink } from '@/components/profiles/profile-link';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
@@ -39,6 +40,40 @@ export interface ApplicantReviewDialogProps {
   request: GroupRequestView;
   /** Shown so the admin knows how much room is left before accepting. */
   placesLeft: number;
+}
+
+/**
+ * The applicant's fit with this group, in the same three colours the profile
+ * screen uses for a match percentage.
+ *
+ * NULL RENDERS NOTHING. A score that could not be worked out — nobody in the
+ * group has filled in their week, say — must not appear as a very bad one, and
+ * a grey "?" would only invite the founder to wonder whether it meant zero.
+ *
+ * The title says what the number is measured against, because "68%" beside a
+ * name reads as "68% like me" and this one is not that: it is the share of the
+ * hours the group ALREADY shares that the candidate can also make, blended with
+ * how they study.
+ *
+ * @param score - 0-100, or null when unavailable.
+ * @returns The bubble, or nothing.
+ */
+function GroupFitBadge({ score }: { score: number | null }) {
+  if (score === null) {
+    return null;
+  }
+
+  const rounded = Math.round(score);
+
+  return (
+    <span
+      title={`${rounded}% fit with this group — how much of the group's shared free time they can make, and how closely their study habits match the members`}
+      className="border-outline-variant/50 shrink-0 rounded-full border bg-white px-2 py-0.5 text-label-sm shadow-sm"
+      style={{ color: getCompatibilityColor(rounded) }}
+    >
+      {rounded}%
+    </span>
+  );
 }
 
 /**
@@ -136,10 +171,11 @@ export function ApplicantReviewDialog({ request, placesLeft }: ApplicantReviewDi
               />
             </ProfileLink>
             <div className="min-w-0">
-              <p className="font-heading text-[18px] leading-tight font-bold">
+              <p className="font-heading flex flex-wrap items-center gap-2 text-[18px] leading-tight font-bold">
                 <ProfileLink profileId={request.requesterId}>
                   {request.requesterName}
                 </ProfileLink>
+                <GroupFitBadge score={request.groupScore} />
               </p>
               <p className="text-on-surface-variant text-label-sm font-normal">
                 {[
@@ -314,8 +350,11 @@ export function ApplicantRow({
       </ProfileLink>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-label-md">
-          <ProfileLink profileId={request.requesterId}>{request.requesterName}</ProfileLink>
+        <p className="flex items-center gap-2 text-label-md">
+          <span className="truncate">
+            <ProfileLink profileId={request.requesterId}>{request.requesterName}</ProfileLink>
+          </span>
+          <GroupFitBadge score={request.groupScore} />
         </p>
         <p className="text-outline truncate text-label-sm font-normal">
           {[

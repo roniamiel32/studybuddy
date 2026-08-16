@@ -90,7 +90,7 @@ interface RequestRow {
  * @param row - The joined request row.
  * @returns The request as the admin's review screen consumes it.
  */
-function toRequestView(row: RequestRow): GroupRequestView {
+function toRequestView(row: RequestRow, groupScore: number | null = null): GroupRequestView {
   return {
     id: row.id,
     groupId: row.group_id,
@@ -103,7 +103,30 @@ function toRequestView(row: RequestRow): GroupRequestView {
     status: row.status,
     decisionNote: row.decision_note,
     createdAt: row.created_at,
+    groupScore,
   };
+}
+
+/**
+ * How well each pending applicant fits a group, keyed by request id.
+ *
+ * ONE CALL FOR THE WHOLE SCREEN. The founder opens the review with every
+ * pending request already listed, so scoring them from here one at a time would
+ * be a round trip per row. A failure is swallowed into an empty map on purpose:
+ * the number is an aid to a decision, and a review screen that will not load
+ * because a score could not be computed is worse than one without the score.
+ *
+ * @param supabase - The caller's client.
+ * @param groupId  - The group being reviewed.
+ * @returns Request id to score.
+ */
+async function groupRequestScores(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  groupId: string,
+): Promise<Map<string, number>> {
+  const { data } = await supabase.rpc('rpc_group_request_scores', { p_group_id: groupId });
+
+  return new Map((data ?? []).map((row) => [row.request_id, Number(row.score)]));
 }
 
 /**
@@ -337,10 +360,14 @@ export async function getGroup(groupId: string): Promise<StudyGroupView | null> 
       .order('created_at', { ascending: true }),
   ]);
 
+  const scores = await groupRequestScores(supabase, groupId);
+
   return toGroupView(
     data as unknown as GroupRow,
     user.id,
-    ((pending ?? []) as unknown as RequestRow[]).map(toRequestView),
+    ((pending ?? []) as unknown as RequestRow[]).map((row) =>
+      toRequestView(row, scores.get(row.id) ?? null),
+    ),
     (mine?.[0]?.status as StudyGroupView['myRequestStatus']) ?? null,
   );
 }
@@ -556,5 +583,20 @@ export async function getMyPendingRequests(): Promise<GroupRequestView[]> {
     .neq('requester_id', user.id)
     .order('created_at', { ascending: false });
 
-  return ((data ?? []) as unknown as RequestRow[]).map(toRequestView);
+  const rows = (data ?? []) as unknown as RequestRow[];
+
+  /*
+   * One score call per GROUP, not per request. These requests span every group
+   * the caller administers, and rpc_group_request_scores already answers for a
+   * whole group at once — so the number of round trips is the number of groups
+   * with somebody waiting, which is small and does not grow with the queue.
+   */
+  const groupIds = [...new Set(rows.map((row) => row.group_id))];
+  const scoreMaps = await Promise.all(
+    groupIds.map((groupId) => groupRequestScores(supabase, groupId)),
+  );
+
+  const scores = new Map(scoreMaps.flatMap((map) => [...map]));
+
+  return rows.map((row) => toRequestView(row, scores.get(row.id) ?? null));
 }

@@ -39,6 +39,15 @@ export interface GroupRequestView {
   status: 'pending' | 'approved' | 'rejected';
   decisionNote: string | null;
   createdAt: string;
+  /**
+   * How well they fit THE GROUP, 0-100, or null when it could not be worked out.
+   *
+   * Not the founder's own compatibility with them: a candidate can match the
+   * founder perfectly and still be free at no hour the group actually meets,
+   * which is the case this number exists to surface. Null rather than 0 when
+   * absent — "we do not know" and "they fit badly" must not render the same.
+   */
+  groupScore: number | null;
 }
 
 export interface StudyGroupView {
