@@ -32,6 +32,8 @@ import { usePathname } from 'next/navigation';
 import { ArrowLeft, CalendarClock, GraduationCap, Handshake, MapPin } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { StatusBubble } from '@/components/profiles/status-bubble';
+import { StatusPicker } from '@/components/profiles/status-picker';
 import { Chip } from '@/components/ui/chip';
 
 export interface ProfileHeaderProps {
@@ -45,6 +47,10 @@ export interface ProfileHeaderProps {
   connectionsSummary: string | null;
   /** Message / rate / edit, rendered by the server page that knows about them. */
   actions: ReactNode;
+  /** The line above the avatar, or null when they have none. */
+  statusMessage?: string | null;
+  /** True on your own profile, where the bubble becomes a control. */
+  isSelf?: boolean;
 }
 
 /**
@@ -63,6 +69,8 @@ export function ProfileHeader({
   weeklyFreeHours,
   connectionsSummary,
   actions,
+  statusMessage = null,
+  isSelf = false,
 }: ProfileHeaderProps) {
   const pathname = usePathname();
   const wallHref = `/students/${profileId}`;
@@ -78,22 +86,41 @@ export function ProfileHeader({
       <div className="p-6">
         {/* The avatar overlaps the banner, as a social profile does. */}
         <div className="-mt-16 mb-4 flex flex-wrap items-end justify-between gap-4">
-          {onStudyInfo ? (
-            <Link
-              href={wallHref}
-              aria-label={`Back to ${fullName}'s wall`}
-              className="focus-visible:ring-brand/35 rounded-full focus-visible:ring-4 focus-visible:outline-none"
-            >
+          {/*
+            * The avatar's own positioning context, so the bubble can hang above
+            * it without being placed against the card. `relative` is on this
+            * wrapper rather than the flex row: centred on the row, the tail
+            * would point at the gap between the avatar and the actions.
+            */}
+          <div className="relative shrink-0">
+            {onStudyInfo ? (
+              <Link
+                href={wallHref}
+                aria-label={`Back to ${fullName}'s wall`}
+                className="focus-visible:ring-brand/35 block rounded-full focus-visible:ring-4 focus-visible:outline-none"
+              >
+                <MatchAvatar
+                  fullName={fullName}
+                  avatarUrl={avatarUrl}
+                  size={96}
+                  className="border-4"
+                />
+              </Link>
+            ) : (
               <MatchAvatar
                 fullName={fullName}
                 avatarUrl={avatarUrl}
                 size={96}
                 className="border-4"
               />
-            </Link>
-          ) : (
-            <MatchAvatar fullName={fullName} avatarUrl={avatarUrl} size={96} className="border-4" />
-          )}
+            )}
+
+            {isSelf ? (
+              <StatusPicker status={statusMessage} />
+            ) : statusMessage ? (
+              <StatusBubble status={statusMessage} />
+            ) : null}
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">{actions}</div>
         </div>

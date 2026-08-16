@@ -26,6 +26,8 @@ import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES, uploadAvatar } from '@/features
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
 import { createClient, requireUser } from '@/lib/supabase/server';
 
+import { STATUS_MAX_LENGTH } from './status-options';
+
 /** The three buttons on the new-academic-year dialog. */
 const academicYearChoiceSchema = z.enum(['yes', 'no', 'later']);
 
@@ -407,5 +409,62 @@ export async function answerAcademicYearPrompt(
     return ok(undefined);
   } catch (error) {
     return toActionError(error, 'profile.answerAcademicYearPrompt');
+  }
+}
+/**
+ * Sets or clears the status shown above the student's avatar.
+ *
+ * WRITTEN STRAIGHT TO THE ROW, no RPC. It is one column on one row the caller
+ * owns, and `you can update only your own profile` is `id = auth.uid()` with no
+ * column list — the policy already says everything about who may do this.
+ *
+ * AN EMPTY STRING IS A CLEAR, not a validation error. The picker's "Remove"
+ * button and a free-text field the student emptied both arrive here as nothing,
+ * and both mean the same thing; refusing one of them would make Remove a special
+ * case for no reason. NULL rather than '' because the CHECK on the column
+ * refuses a blank, and because "has no status" is an absence, not an empty one.
+ *
+ * @param input - The new status, or empty to remove it.
+ * @returns Success, or a failure.
+ */
+export async function updateStatusMessage(input: {
+  status: string;
+}): Promise<ActionResult<void>> {
+  try {
+    const user = await requireUser();
+    const supabase = await createClient();
+
+    const parsed = z
+      .object({
+        status: z
+          .string()
+          .trim()
+          .max(
+            STATUS_MAX_LENGTH,
+            `Keep it under ${STATUS_MAX_LENGTH} characters.`,
+          ),
+      })
+      .parse(input);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ status_message: parsed.status.length > 0 ? parsed.status : null })
+      .eq('id', user.id);
+
+    if (error) {
+      return fail(ERROR_CODES.UNEXPECTED, 'We could not save your status. Try again.');
+    }
+
+    /*
+     * The bubble is on their profile, and the profile is reachable from the
+     * header on every page — so the layout goes too rather than just the one
+     * route, the same as updateProfileDetails does for a changed name.
+     */
+    revalidatePath(`/students/${user.id}`);
+    revalidatePath('/', 'layout');
+
+    return ok(undefined);
+  } catch (error) {
+    return toActionError(error, 'profile.updateStatusMessage');
   }
 }

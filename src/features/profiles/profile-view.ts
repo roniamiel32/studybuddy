@@ -74,6 +74,13 @@ export interface StudentProfileView {
   studiesOnSaturday: boolean | null;
   /** Weekly free hours, summed — the shape of their week without the detail. */
   weeklyFreeHours: number;
+  /**
+   * The line they have put above their avatar, or null.
+   *
+   * Never expires and is only ever set by its owner, so this is simply whatever
+   * they last chose — there is no freshness to weigh and nothing to recompute.
+   */
+  statusMessage: string | null;
   /** True when the viewer is looking at their own profile. */
   isSelf: boolean;
 

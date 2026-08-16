@@ -119,19 +119,29 @@ test.describe('scheduling a session from a chat', () => {
     /*
      * Lopsided weeks, on purpose.
      *
-     *   Mia  Sunday 10-12, 12-14, 14-16
-     *   Paul Sunday        12-14, 14-16
+     *   Mia  10-12, 12-14, 14-16
+     *   Paul        12-14, 14-16
      *
      * They share 12-16 and nothing else, so 10-12 is the hour that must never
-     * be offered.
+     * be offered — which is what the assertion in the second test is about.
+     *
+     * ON EVERY WEEKDAY, NOT JUST SUNDAY, and that is a fix rather than padding.
+     * The pattern used to be Sunday-only, which was fine while the picker looked
+     * fourteen days ahead: next Sunday was always inside the window. Phase 9H
+     * narrowed it to seven, so on a Sunday afternoon today's slots are already
+     * past and next Sunday is a day beyond the edge — the suite passed six days
+     * a week and failed on the seventh. Repeating the same lopsided shape across
+     * the week keeps every assertion identical and stops the calendar deciding.
      */
-    await db.from('availability_slots').insert([
-      { profile_id: meId, day_of_week: SUNDAY, starts_at: '10:00', ends_at: '12:00' },
-      { profile_id: meId, day_of_week: SUNDAY, starts_at: '12:00', ends_at: '14:00' },
-      { profile_id: meId, day_of_week: SUNDAY, starts_at: '14:00', ends_at: '16:00' },
-      { profile_id: partnerId, day_of_week: SUNDAY, starts_at: '12:00', ends_at: '14:00' },
-      { profile_id: partnerId, day_of_week: SUNDAY, starts_at: '14:00', ends_at: '16:00' },
-    ]);
+    await db.from('availability_slots').insert(
+      Array.from({ length: 7 }, (_, day) => [
+        { profile_id: meId, day_of_week: day, starts_at: '10:00', ends_at: '12:00' },
+        { profile_id: meId, day_of_week: day, starts_at: '12:00', ends_at: '14:00' },
+        { profile_id: meId, day_of_week: day, starts_at: '14:00', ends_at: '16:00' },
+        { profile_id: partnerId, day_of_week: day, starts_at: '12:00', ends_at: '14:00' },
+        { profile_id: partnerId, day_of_week: day, starts_at: '14:00', ends_at: '16:00' },
+      ]).flat(),
+    );
 
     const { data: conversation, error } = await db
       .from('conversations')
@@ -228,7 +238,12 @@ test.describe('scheduling a session from a chat', () => {
     await signIn(page, partnerEmail);
     await page.goto(`/messages/${conversationId}`);
 
-    const strip = page.getByRole('list', { name: 'Scheduled sessions' });
+    /*
+     * "Next upcoming session", not "Scheduled sessions". The strip was split in
+     * two — the soonest session on its own, the rest under "Other scheduled
+     * sessions" — and this pair has exactly one, so it is the next one.
+     */
+    const strip = page.getByRole('list', { name: 'Next upcoming session' });
     await expect(strip).toContainText('Past papers');
     await expect(strip).toContainText('Library, floor 2');
   });
@@ -237,7 +252,7 @@ test.describe('scheduling a session from a chat', () => {
     await signIn(page, partnerEmail);
     await page.goto(`/messages/${conversationId}`);
 
-    const strip = page.getByRole('list', { name: 'Scheduled sessions' });
+    const strip = page.getByRole('list', { name: 'Next upcoming session' });
     await strip.getByRole('button', { name: 'Cannot make it' }).click();
 
     await expect(strip.getByText('You are not going to this one.')).toBeVisible({

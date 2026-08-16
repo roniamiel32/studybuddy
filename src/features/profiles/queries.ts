@@ -46,7 +46,7 @@ export async function getStudentProfile(
   const { data: profile, error } = await supabase
     .from('profiles')
     .select(
-      'id, full_name, avatar_url, year_of_study, city, is_discoverable, onboarding_completed_at, universities(name), degrees(name, level)',
+      'id, full_name, avatar_url, year_of_study, city, is_discoverable, onboarding_completed_at, status_message, universities(name), degrees(name, level)',
     )
     .eq('id', profileId)
     .maybeSingle();
@@ -123,6 +123,7 @@ export async function getStudentProfile(
     spokenLanguages: preferences?.spoken_languages ?? [],
     studiesOnSaturday: preferences?.studies_on_saturday ?? null,
     weeklyFreeHours: Math.round(weeklyFreeHours * 10) / 10,
+    statusMessage: profile.status_message,
     isSelf,
     sharedCourses,
     sharedGroups,

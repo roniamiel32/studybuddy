@@ -79,6 +79,8 @@ export default async function StudentProfilePage({
         city={profile.city}
         weeklyFreeHours={profile.weeklyFreeHours}
         connectionsSummary={connectionsSummary(profile.positiveConnections.length)}
+        statusMessage={profile.statusMessage}
+        isSelf={profile.isSelf}
         actions={
           profile.isSelf ? (
             <Link

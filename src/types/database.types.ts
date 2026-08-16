@@ -1567,6 +1567,7 @@ export type Database = {
           is_discoverable: boolean
           last_year_prompt_date: string | null
           onboarding_completed_at: string | null
+          status_message: string | null
           university_id: string
           updated_at: string
           year_of_study: number | null
@@ -1583,6 +1584,7 @@ export type Database = {
           is_discoverable?: boolean
           last_year_prompt_date?: string | null
           onboarding_completed_at?: string | null
+          status_message?: string | null
           university_id: string
           updated_at?: string
           year_of_study?: number | null
@@ -1599,6 +1601,7 @@ export type Database = {
           is_discoverable?: boolean
           last_year_prompt_date?: string | null
           onboarding_completed_at?: string | null
+          status_message?: string | null
           university_id?: string
           updated_at?: string
           year_of_study?: number | null
