@@ -18,9 +18,10 @@
  *              treats an empty string as a clear, so the button here says what it
  *              does rather than being wired to a second endpoint that means the
  *              same thing.
- * Version:     0.39.5
+ * Version:     0.39.6
  *
  * Modifications:
+ *     0.39.6 - 2026-08-17 - Made bubble itself the clickable area when status exists
  *     0.39.5 - 2026-08-17 - Pushed empty state bubble further top-right
  *     0.39.4 - 2026-08-17 - Moved empty state bubble to the top-right
  *     0.39.3 - 2026-08-17 - Changed empty state to a thought bubble trail
@@ -121,8 +122,11 @@ export function StatusPicker({ status }: StatusPickerProps) {
         aria-haspopup="dialog"
         aria-label={status ? `Your status: ${status}. Change it.` : 'Add a status'}
         className={cn(
-          'group/status focus-visible:ring-brand/35 absolute inset-0 z-20 rounded-full',
+          'group/status focus-visible:ring-brand/35 absolute z-20 text-left',
           'focus-visible:ring-4 focus-visible:outline-none',
+          status 
+            ? 'bottom-[85%] left-[85%] rounded-[20px]' // Tight wrap around the bubble
+            : 'inset-0 rounded-full' // Wrap the avatar so hovering the avatar shows the "Add" bubble
         )}
       >
         {status ? (

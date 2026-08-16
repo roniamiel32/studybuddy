@@ -18,9 +18,10 @@
  *              its punctuation on the wrong end, and a mixed status reads as
  *              nonsense. The browser picks the direction from the first strong
  *              character, which is exactly the rule wanted here.
- * Version:     0.39.5
+ * Version:     0.39.6
  *
  * Modifications:
+ *     0.39.6 - 2026-08-17 - Uncoupled absolute positioning for interactive mode
  *     0.39.5 - 2026-08-17 - Pushed bubble further top-right, stretched trail back to avatar
  *     0.39.4 - 2026-08-17 - Moved bubble to the top-right with a diagonal thought trail
  *     0.39.3 - 2026-08-17 - Changed tail to a thought bubble trail
@@ -47,9 +48,11 @@ export function StatusBubble({ status, interactive = false, className }: StatusB
   return (
     <span
       className={cn(
-        // Pushed further up and out from the avatar center
-        'pointer-events-none absolute bottom-[85%] left-[85%] z-10 drop-shadow-md',
-        'max-w-[16rem]',
+        'max-w-[16rem] drop-shadow-md',
+        // If it's a button, let the parent button position it. If it's view-only, position it absolutely over the avatar wrapper.
+        interactive 
+          ? 'relative block' 
+          : 'pointer-events-none absolute bottom-[85%] left-[85%] z-10',
         className,
       )}
     >
