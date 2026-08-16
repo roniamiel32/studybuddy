@@ -143,6 +143,7 @@ function toGroupView(
   viewerId: string,
   requests: GroupRequestView[],
   myStatus: StudyGroupView['myRequestStatus'],
+  matchScore: number | null = null,
 ): StudyGroupView {
   /*
    * ADMIN COMES FROM THE MEMBERSHIP ROW, not from admin_id. Since Phase 7A a
@@ -176,6 +177,7 @@ function toGroupView(
     adminName: row.admin?.full_name ?? 'a former member',
     createdAt: row.created_at,
     members,
+    matchScore,
     isAdmin: members.some((member) => member.profileId === viewerId && member.isAdmin),
     isFounder: row.admin_id !== null && row.admin_id === viewerId,
     isMember: members.some((member) => member.profileId === viewerId),
@@ -217,7 +219,7 @@ export async function getCourseGroups(offeringId: string): Promise<StudyGroupVie
 
   const groupIds = rows.map((row) => row.id);
 
-  const [{ data: mine }, { data: pending }] = await Promise.all([
+  const [{ data: mine }, { data: pending }, { data: scoreRows }] = await Promise.all([
     supabase
       .from('group_requests')
       .select('group_id, status, created_at')
@@ -233,6 +235,12 @@ export async function getCourseGroups(offeringId: string): Promise<StudyGroupVie
       .eq('kind', 'request')
       .in('group_id', groupIds)
       .order('created_at', { ascending: true }),
+    /*
+     * One call for the page rather than one per card. Each score costs an
+     * intersection across a group's members plus a trait comparison per member,
+     * so a round trip each would be the slowest thing here.
+     */
+    supabase.rpc('rpc_course_group_scores', { p_course_offering_id: offeringId }),
   ]);
 
   /*
@@ -263,8 +271,21 @@ export async function getCourseGroups(offeringId: string): Promise<StudyGroupVie
     pendingByGroup.set(view.groupId, [...(pendingByGroup.get(view.groupId) ?? []), view]);
   }
 
+  /*
+   * Absent for the groups the caller is already in — the function skips those,
+   * because a member is inside the intersection the score is measured against.
+   * `?? null` is the whole handling: the badge renders nothing for a null.
+   */
+  const scores = new Map((scoreRows ?? []).map((row) => [row.group_id, Number(row.score)]));
+
   return rows.map((row) =>
-    toGroupView(row, user.id, pendingByGroup.get(row.id) ?? [], myStatuses.get(row.id) ?? null),
+    toGroupView(
+      row,
+      user.id,
+      pendingByGroup.get(row.id) ?? [],
+      myStatuses.get(row.id) ?? null,
+      scores.get(row.id) ?? null,
+    ),
   );
 }
 

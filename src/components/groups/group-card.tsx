@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AlertCircle, Crown, Loader2, MessagesSquare, UserPlus, Users } from 'lucide-react';
 
+import { GroupFitBadge } from '@/components/groups/group-fit-badge';
 import { MatchAvatar } from '@/components/matching/match-avatar';
 import { Chip } from '@/components/ui/chip';
 import { requestToJoin } from '@/features/groups/actions';
@@ -52,7 +53,20 @@ export function GroupCard({ group }: GroupCardProps) {
   const blocked = joinBlockedReason(group);
 
   return (
-    <li className="clay-card flex flex-col p-5">
+    /* `relative`, so the fit badge can sit in the corner the way MatchCard's
+       score does. */
+    <li className="clay-card relative flex flex-col p-5">
+      {/*
+        * Top corner, as on a student's match card — and never beside the Admin
+        * chip, because the two are mutually exclusive: matchScore is null for
+        * groups the viewer is in, which is the only time that chip shows.
+        */}
+      <GroupFitBadge
+        score={group.matchScore}
+        subject="group"
+        className="absolute top-4 right-4"
+      />
+
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="font-heading text-[17px] leading-snug text-balance">{group.name}</h4>

@@ -72,6 +72,16 @@ export interface StudyGroupView {
   myRequestStatus: 'pending' | 'approved' | 'rejected' | null;
   /** Pending requests, and only ever populated for the admin. */
   pendingRequests: GroupRequestView[];
+  /**
+   * How well the VIEWER fits this group, 0-100, or null.
+   *
+   * Null on the groups they are already in, deliberately: the score measures a
+   * candidate against the hours the members share, and a member is part of what
+   * makes those hours — the number would be measuring them against a week they
+   * themselves helped define. Null also where the list was loaded without
+   * scores, which is every surface but the course page.
+   */
+  matchScore: number | null;
 }
 
 export interface GroupMessageView {

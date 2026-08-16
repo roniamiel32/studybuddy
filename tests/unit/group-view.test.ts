@@ -50,6 +50,7 @@ function group(overrides: Partial<StudyGroupView> = {}): StudyGroupView {
     isFounder: false,
     isMember: false,
     myRequestStatus: null,
+    matchScore: null,
     pendingRequests: [],
     ...overrides,
   };

@@ -2124,6 +2124,13 @@ export type Database = {
         }
         Returns: string[]
       }
+      rpc_course_group_scores: {
+        Args: { p_course_offering_id: string }
+        Returns: {
+          group_id: string
+          score: number
+        }[]
+      }
       rpc_group_candidate_score: {
         Args: { p_group_id: string; p_profile_id: string }
         Returns: number
