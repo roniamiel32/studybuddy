@@ -66,6 +66,8 @@ import {
 } from '@/features/meetings/meeting-view';
 import { cn } from '@/lib/utils';
 
+import { mergeConsecutiveSlots } from '@/lib/utils';
+
 export interface ScheduleMeetingDialogProps {
   open: boolean;
   onClose: () => void;
@@ -98,7 +100,14 @@ function toTimeValue(iso: string): string {
  * @returns The new instant, as ISO.
  */
 function withTime(iso: string, value: string): string {
+  // הגנה מפני קלט ריק (למשל בעת מחיקת השעה בשדה)
+  if (!value) return iso;
+
   const [hours, minutes] = value.split(':').map(Number);
+  
+  // הגנה מפני קלט לא חוקי שיוצר NaN
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return iso;
+
   const date = new Date(iso);
 
   date.setHours(hours, minutes, 0, 0);
@@ -556,7 +565,8 @@ function SlotListView({
           <p className="text-on-surface-variant mb-2 text-label-sm">{day.label}</p>
 
           <div className="flex flex-wrap gap-2">
-            {day.slots.map((slot) => {
+            {/* {day.slots.map((slot) => { */}
+            {mergeConsecutiveSlots(day.slots).map((slot) => {
               const isOn = selected.includes(slot.startsAt);
 
               return (
@@ -657,7 +667,7 @@ function FineTune({
               suppressHydrationWarning
               className="text-on-surface-variant min-w-28 text-label-sm"
             >
-              {new Date(session.run.startsAt).toLocaleDateString(undefined, {
+              {new Date(session.run.startsAt).toLocaleDateString('en-US', {
                 weekday: 'short',
                 day: 'numeric',
                 month: 'short',
