@@ -148,14 +148,6 @@ export function MissingCourseField({
         </Button>
       </div>
 
-      <p
-        id={`${idPrefix}-hint`}
-        className="text-outline flex items-start gap-1.5 text-label-sm"
-      >
-        <Sparkles className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-        Matched against your degree’s course list. Nobody checks a new course
-        against the syllabus, so type its full name.
-      </p>
     </div>
   );
 }

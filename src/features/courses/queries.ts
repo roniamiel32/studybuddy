@@ -1,13 +1,15 @@
 /**
  * File:        src/features/courses/queries.ts
  * Authors:     Roni Amiel & Eden Bitran
- * Description: Reads for the Courses grid and the per-course page.
+ * Description: Reads for the Courses grid and the per-course page, plus
+ *              safe deletion for user-generated placeholder courses.
  *
  *              Every query runs as the signed-in student, so RLS has already
  *              scoped the rows before this code sees one.
- * Version:     0.14.0
+ * Version:     0.15.0
  *
  * Modifications:
+ *     0.15.0 - Added deleteUserGeneratedCourse for MVP spam control
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
  */
 
@@ -259,4 +261,56 @@ export async function getMyDegree(): Promise<{ id: string; name: string } | null
     .maybeSingle();
 
   return data?.degree_id ? { id: data.degree_id, name: data.degrees?.name ?? 'your degree' } : null;
+}
+
+/**
+ * Deletes a user-generated course if the current user created it and no one else is enrolled.
+ *
+ * @param offeringId - The offering ID of the course to delete.
+ * @returns Boolean indicating success.
+ */
+export async function deleteUserGeneratedCourse(offeringId: string): Promise<boolean> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  /* 1. Find the parent course for this offering */
+  const { data: offering } = await supabase
+    .from('course_offerings')
+    .select('course_id')
+    .eq('id', offeringId)
+    .maybeSingle();
+
+  if (!offering) return false;
+
+  /* 2. Verify the course exists and the current user is the actual creator */
+  const response = await supabase
+    .from('courses')
+    .select('*')
+    .eq('id', offering.course_id)
+    .maybeSingle();
+
+  const course = response.data as any;
+
+  if (!course || course.created_by !== user.id) {
+    return false; // Not authorized to delete
+  }
+
+  /* 3. Check if anyone ELSE is enrolled (to prevent breaking other users' schedules) */
+  const { count } = await supabase
+    .from('enrollments')
+    .select('profile_id', { count: 'exact', head: true })
+    .eq('course_offering_id', offeringId)
+    .neq('profile_id', user.id);
+
+  if (count && count > 0) {
+    return false; // Cannot delete, another student is using this course
+  }
+
+  /* 4. Safe to delete. Deleting the course cascades to offerings and enrollments. */
+  const { error } = await supabase
+    .from('courses')
+    .delete()
+    .eq('id', course.id);
+
+  return !error;
 }

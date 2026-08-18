@@ -338,12 +338,37 @@ function candidatesFor(text: string, existing: ExistingCourse[]): Candidate[] {
 }
 
 /**
+ * Words commonly found in valid academic course names.
+ * Used as a strict whitelist to prevent spam inputs like "hello world" or "low".
+ */
+const ACADEMIC_DICTIONARY = [
+  // English Academic Terms
+  'introduction', 'intro', 'advanced', 'programming', 'systems', 'theory',
+  'data', 'engineering', 'law', 'seminar', 'science', 'history',
+  'mathematics', 'math', 'physics', 'calculus', 'algebra', 'algorithms',
+  'computer', 'business', 'management', 'psychology', 'philosophy',
+  'economics', 'microeconomics', 'finance', 'statistics', 'ethics', 'learning',
+  'english', 'logic', 'structures', 'digital', 'architecture', 'architectures',
+  'probability', 'fundamentals', 'operating', 'computational', 'models',
+  'machine', 'computability', 'complexity', 'networks', 'deep', 'graphics',
+  'software', 'artificial', 'intelligence', 'principles', 'israeli',
+  
+  // Hebrew Academic Terms
+  'מבוא', 'סמינר', 'תכנות', 'מערכות', 'תיאוריה', 'נתונים', 'הנדסה',
+  'משפטים', 'מדע', 'היסטוריה', 'מתמטיקה', 'פיזיקה', 'חדוא', 'חדו"א', 'אלגברה',
+  'אלגוריתמים', 'מחשבים', 'עסקים', 'ניהול', 'פסיכולוגיה', 'פילוסופיה',
+  'כלכלה', 'מימון', 'סטטיסטיקה', 'אתיקה', 'למידה', 'אנגלית', 'לוגיקה',
+  'מבני', 'דיגיטליות', 'הסתברות', 'מודלים', 'חישוביות', 'סיבוכיות',
+  'רשתות', 'גרפיקה', 'מלאכותית', 'עקרונות'
+];
+
+/**
  * Whether a string is shaped like a course name.
  *
  * A SHAPE CHECK, NOT A FACT CHECK. It rejects the things that are obviously not
  * courses — a room number, a lunch break, a greeting, a keyboard mash — and
- * accepts everything else, because nothing here knows what a real syllabus
- * contains. The message the caller shows says as much.
+ * accepts everything else, provided it meets minimum length and contains at
+ * least one recognized academic keyword.
  *
  * @param text - What the student typed.
  * @returns True when it could be a course name.
@@ -352,22 +377,32 @@ function looksLikeCourseName(text: string): boolean {
   const trimmed = text.trim().toLowerCase();
   const key = comparisonKey(text);
 
-  /* Long enough to be a name, and not just a number. */
-  if (key.length < 3 || !/[a-z֐-׿]/.test(key)) {
+  /* Rule 1: Must be at least 5 characters long and contain letters. */
+  if (trimmed.length < 5 || !/[a-z֐-׿]/.test(key)) {
     return false;
   }
 
-  /* A sentence is not a course name. */
+  /* Rule 2: A full paragraph is not a course name. */
   if (tokens(text).length > 12) {
     return false;
   }
 
-  /* Latin words need a vowel; Hebrew has none to require. */
+  /* Rule 3: Latin words need a vowel; Hebrew has none to require. */
   if (!/[֐-׿]/.test(key) && !/[aeiouy]/.test(key)) {
     return false;
   }
 
-  return !NOT_A_COURSE.some((pattern) => pattern.test(trimmed));
+  /* Rule 4: Hardcoded blocklist (greetings, keys mashing). */
+  if (NOT_A_COURSE.some((pattern) => pattern.test(trimmed))) {
+    return false;
+  }
+
+  /* Rule 5: MUST contain at least one word from the academic dictionary. */
+  const hasAcademicWord = ACADEMIC_DICTIONARY.some((word) => 
+    trimmed.includes(word)
+  );
+
+  return hasAcademicWord;
 }
 
 /**

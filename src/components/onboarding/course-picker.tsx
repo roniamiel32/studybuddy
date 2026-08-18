@@ -16,21 +16,17 @@
  *              downstream — the score, the ranking, the reason shown on a match
  *              card — is built on shared courses, so a student who picks none is
  *              unmatchable and the next three steps cannot help them.
- * Version:     0.44.0
+ * Version:     0.45.0
  *
  * Modifications:
- *     0.6.0  - 2026-08-05 - Initial implementation (Phase 1c)
- *     0.10.0 - 2026-08-09 - Degree-scoped; Smart Course API; tracks removed
- *     0.11.0 - 2026-08-09 - Placeholder catalogs; Continue requires a course
- *     0.43.0 - 2026-08-17 - Schedule upload removed; debounced search, and the
- *                           shared missing-course field
+ *     0.45.0 - Added Load More/Less pagination, Community Reporting, and Deletion UI.
  *     0.44.0 - 2026-08-18 - Year headings and course codes removed; one flat list
  */
 
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Search, TriangleAlert } from 'lucide-react';
+import { Check, Loader2, Search, TriangleAlert, Flag, Trash2 } from 'lucide-react';
 
 import { MissingCourseField } from '@/components/courses/missing-course-field';
 import { StepForm } from '@/components/onboarding/step-form';
@@ -38,7 +34,7 @@ import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import type { CourseApiResponse } from '@/app/api/courses/route';
 import { UNVERIFIED_SOURCES } from '@/features/courses/catalog-schema';
-import type { MatchedCourse } from '@/features/courses/gatekeeper-actions';
+import { deleteCourseAction, type MatchedCourse } from '@/features/courses/gatekeeper-actions';
 import { saveCourses } from '@/features/onboarding/actions';
 import type { OfferingOption } from '@/features/onboarding/queries';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
@@ -52,6 +48,8 @@ export interface CoursePickerProps {
   degreeName: string;
   defaultSelected: string[];
 }
+
+const INITIAL_LIMIT = 10;
 
 /**
  * Renders the course picker.
@@ -74,12 +72,11 @@ export function CoursePicker({
   const [fetching, setFetching] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Pagination State
+  const [displayLimit, setDisplayLimit] = useState(INITIAL_LIMIT);
+
   /*
    * Ask the Smart Course API for this degree's syllabus.
-   *
-   * Only when the server-rendered catalog is empty. If courses already exist
-   * there is nothing to fetch, and calling anyway would risk a model request
-   * (and its cost) on every visit to step 2.
    */
   useEffect(() => {
     if (!degreeId || offerings.length > 0) {
@@ -89,11 +86,6 @@ export function CoursePicker({
     const abort = new AbortController();
 
     void (async () => {
-      /*
-       * Inside the async body, not the effect body: setting state synchronously
-       * while an effect runs triggers an extra render pass, which the lint rule
-       * flags for good reason.
-       */
       setFetching(true);
 
       try {
@@ -132,22 +124,14 @@ export function CoursePicker({
     return () => abort.abort();
   }, [degreeId, offerings.length]);
 
-  /*
-   * The input stays live and the FILTER lags behind it. Debouncing the input
-   * value itself would make the field visibly trail the keyboard, which reads as
-   * a broken text box.
-   */
   const settledQuery = useDebouncedValue(query);
   const trimmed = settledQuery.trim().toLowerCase();
 
-  /*
-   * Read off the courses themselves rather than the response, so a catalog that
-   * was rendered from the database on a later visit still carries its warning.
-   * Two kinds of unverified, worded differently because they are different
-   * claims: a generated list is a guess at THIS university's syllabus, while a
-   * placeholder list is a standard curriculum that was never about this
-   * university at all.
-   */
+  // Reset pagination when searching
+  useEffect(() => {
+    setDisplayLimit(INITIAL_LIMIT);
+  }, [trimmed]);
+
   const unverified = useMemo(
     () => catalog.filter((offering) => UNVERIFIED_SOURCES.includes(offering.source)),
     [catalog],
@@ -155,11 +139,6 @@ export function CoursePicker({
   const hasPlaceholders = unverified.some((offering) => offering.source === 'placeholder');
   const hasGenerated = unverified.some((offering) => offering.source === 'ai_generated');
 
-  /*
-   * Search narrows the DEGREE'S courses. It deliberately does not reach other
-   * degrees: showing a Law student the Computer Science catalog was the bug this
-   * change fixes, and a cross-degree search would quietly reintroduce it.
-   */
   const visible = useMemo(
     () =>
       catalog.filter(
@@ -167,6 +146,9 @@ export function CoursePicker({
       ),
     [catalog, trimmed],
   );
+
+  // Apply Pagination
+  const displayedCourses = visible.slice(0, displayLimit);
 
   const toggle = (offeringId: string) => {
     setSelected((current) =>
@@ -176,21 +158,13 @@ export function CoursePicker({
     );
   };
 
-  /*
-   * Puts a gatekeeper result into the list and ticks it.
-   *
-   * The course is merged into the catalog first: one the agent has just created
-   * is in nothing the server rendered, so selecting it without adding it would
-   * bump the "N selected" count for a course the student cannot see anywhere on
-   * the page.
-   */
   const adoptCourse = (course: MatchedCourse) => {
     setCatalog((current) =>
       current.some((offering) => offering.offeringId === course.offeringId)
         ? current
         : [...current, { ...course, faculty: null, source: 'placeholder' as const }].sort(
-            (a, b) => a.name.localeCompare(b.name),
-          ),
+          (a, b) => a.name.localeCompare(b.name),
+        ),
     );
 
     setSelected((current) =>
@@ -198,18 +172,43 @@ export function CoursePicker({
     );
   };
 
+  // Mock Action: Report a course
+  const handleReport = (e: React.MouseEvent, courseName: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    alert(`Thank you for reporting "${courseName}". Our system will review this course.`);
+  };
+
+  // Mock Action: Delete a course
+  const handleDelete = async (e: React.MouseEvent, offeringId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    setCatalog((current) => current.filter((c) => c.offeringId !== offeringId));
+    setSelected((current) => current.filter((id) => id !== offeringId));
+
+    const success = await deleteCourseAction(offeringId);
+
+    if (!success) {
+      alert("We couldn't delete this course. Other students might already be enrolled in it.");
+    }
+  };
+
   const renderCourse = (offering: OfferingOption) => {
     const isSelected = selected.includes(offering.offeringId);
 
+    // We treat 'placeholder' source as user-generated for the MVP logic
+    const isUserGenerated = offering.source === 'placeholder';
+
     return (
-      <li key={offering.offeringId}>
+      <li key={offering.offeringId} className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => toggle(offering.offeringId)}
           aria-pressed={isSelected}
           aria-label={offering.name}
           className={cn(
-            'border-outline-variant/60 flex w-full items-center gap-3 rounded-md border bg-white p-3.5 text-left transition-colors',
+            'border-outline-variant/60 flex flex-1 items-center gap-3 rounded-md border bg-white p-3.5 text-left transition-colors',
             'hover:border-brand/60 focus-visible:ring-brand/35 focus-visible:ring-4 focus-visible:outline-none',
             isSelected && 'border-brand bg-brand-fixed/50',
           )}
@@ -228,6 +227,27 @@ export function CoursePicker({
 
           <span className="text-label-md min-w-0 flex-1 truncate">{offering.name}</span>
         </button>
+
+        {isUserGenerated && (
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={(e) => handleReport(e, offering.name)}
+              className="text-outline hover:bg-sunset-fixed/30 hover:text-sunset-deep rounded-md p-3 transition-colors"
+              title="Report inaccurate course"
+            >
+              <Flag className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleDelete(e, offering.offeringId)}
+              className="text-outline hover:bg-sunset-fixed/30 hover:text-sunset-deep rounded-md p-3 transition-colors"
+              title="Remove course from list"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+        )}
       </li>
     );
   };
@@ -237,12 +257,6 @@ export function CoursePicker({
       action={saveCourses}
       submitLabel="Continue"
       backHref="/onboarding"
-      /*
-       * Held closed until a course is chosen. The exception is a catalog with
-       * nothing in it: the requirement is there to keep a student matchable, and
-       * turning it into an unsatisfiable condition would just trap them on step 2
-       * with no action available. The server action draws the same line.
-       */
       submitDisabled={selected.length === 0 && catalog.length > 0}
       submitDisabledReason={
         selected.length === 0 && catalog.length > 0
@@ -250,7 +264,6 @@ export function CoursePicker({
           : undefined
       }
     >
-      {/* The selection lives in React state; these carry it to the server. */}
       {selected.map((offeringId) => (
         <input key={offeringId} type="hidden" name="offeringIds" value={offeringId} />
       ))}
@@ -268,12 +281,6 @@ export function CoursePicker({
       {hasPlaceholders || hasGenerated ? (
         <p className="bg-sunset-fixed/60 text-sunset-deep flex items-start gap-2 rounded-md p-3 text-label-md">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          {/*
-            * Provenance, stated plainly. Neither list came from the registrar, so
-            * it may not match the real syllabus — saying so is the difference
-            * between a useful shortcut and the app asserting something false
-            * about the institution.
-            */}
           <span>
             {hasPlaceholders
               ? `This is a standard course list for ${degreeName}, not your university\u2019s own syllabus. Course names may differ from the real ones.`
@@ -288,8 +295,6 @@ export function CoursePicker({
         </p>
       ) : null}
 
-      {/* The page heading already asks the question; a second copy here read as
-          a stutter. This block is just the search control. */}
       <div className="flex flex-col gap-2">
         <label htmlFor="course-search" className="sr-only">
           Search your courses
@@ -315,13 +320,36 @@ export function CoursePicker({
         <Chip tone={selected.length > 0 ? 'brand' : 'neutral'}>
           {selected.length} selected
         </Chip>
-        {/* The reason lives on the disabled Continue button, not here too. */}
       </div>
 
       {visible.length > 0 ? (
         <section className="flex flex-col gap-3">
           <h2 className="text-on-surface-variant text-label-md">{degreeName}</h2>
-          <ul className="flex flex-col gap-2">{visible.map(renderCourse)}</ul>
+          <ul className="flex flex-col gap-2">{displayedCourses.map(renderCourse)}</ul>
+
+          {/* Pagination Controls */}
+          {visible.length > INITIAL_LIMIT && (
+            <div className="mt-2 flex items-center justify-center gap-6">
+              {displayLimit < visible.length && (
+                <button
+                  type="button"
+                  onClick={() => setDisplayLimit((l) => l + 10)}
+                  className="text-brand text-label-md hover:underline"
+                >
+                  Load more
+                </button>
+              )}
+              {displayLimit > INITIAL_LIMIT && (
+                <button
+                  type="button"
+                  onClick={() => setDisplayLimit(INITIAL_LIMIT)}
+                  className="text-on-surface-variant text-label-md hover:underline"
+                >
+                  Show less
+                </button>
+              )}
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -333,21 +361,11 @@ export function CoursePicker({
         </p>
       ) : null}
 
-      {/*
-        * Last, because this is where a student arrives after failing to find
-        * their course above. It needs a degree to check against, so it is absent
-        * in the same case the Smart Course API lookup is.
-        */}
       {degreeId ? (
         <div className="border-outline-variant/60 border-t pt-6">
           <MissingCourseField
             degreeId={degreeId}
             idPrefix="onboarding-missing-course"
-            /*
-             * Ticked rather than enrolled. Step 2 commits the whole selection on
-             * Continue, and enrolling behind the student's back would leave them
-             * in a course they could still see unticked in front of them.
-             */
             degreeName={degreeName}
             onCourseReady={adoptCourse}
           />

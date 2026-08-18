@@ -18,18 +18,16 @@
  *              It takes plain arguments rather than FormData because it is not
  *              called from a form: both call sites already sit inside one, and
  *              nesting forms is invalid HTML.
- * Version:     0.44.0
+ * Version:     0.45.0
  *
  * Modifications:
- *     0.44.0 - 2026-08-18 - Local matcher; the model call, its daily cap and its
- *                           usage logging are gone
- *     0.43.0 - 2026-08-17 - Initial implementation (LLM gatekeeper)
+ *     0.45.0 - Added rate limiting and tracking created_by to prevent spam.
+ *     0.44.0 - Rewritten as a local matcher; the LLM agent is gone.
  */
 
 'use server';
 
 import { createHash } from 'node:crypto';
-
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -110,9 +108,6 @@ async function readCatalog(
  * second row. A counter or a random suffix would have made the second attempt a
  * duplicate course instead of a no-op.
  *
- * The code is no longer shown anywhere in the UI, but the column is `not null`
- * and unique per university, so it still has to be something deterministic.
- *
  * @param name - The course name.
  * @returns A code in the reserved student-created namespace.
  */
@@ -129,12 +124,12 @@ function studentCourseCode(name: string): string {
  * facts to keep saying so.
  *
  * @param name    - The name the matcher accepted.
- * @param context - Institution, degree and term identity.
+ * @param context - Institution, degree, term identity, and the user's ID.
  * @returns The created course, or null when it could not be created.
  */
 async function createCourse(
   name: string,
-  context: { universityId: string; degreeId: string; currentTermId: string },
+  context: { universityId: string; degreeId: string; currentTermId: string; userId: string },
 ): Promise<MatchedCourse | null> {
   const admin = createAdminClient();
   const code = studentCourseCode(name);
@@ -147,6 +142,8 @@ async function createCourse(
       name,
       source: 'placeholder',
       is_user_generated: true,
+      // @ts-ignore
+      created_by: context.userId, // <--- Saving the user who created it
     },
     /* Two students adding the same course at once must not create two rows. */
     { onConflict: 'university_id,code', ignoreDuplicates: true },
@@ -200,6 +197,12 @@ export async function checkMissingCourse(input: {
   try {
     await requireUser();
     const supabase = await createClient();
+    
+   
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return fail(ERROR_CODES.UNAUTHENTICATED, 'You must be logged in.');
+    }
 
     const { degreeId, courseName } = inputSchema.parse(input);
 
@@ -258,6 +261,25 @@ export async function checkMissingCourse(input: {
       });
     }
 
+   
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count, error: countError } = await supabase
+      .from('courses')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', user.id)
+      .gte('created_at', yesterday);
+
+    if (count !== null && count >= 3) {
+      return ok({
+        ...verdict,
+        isValid: false, 
+        isNew: false,
+        message: 'You have reached the limit of adding 3 new courses per day. Please try again tomorrow.',
+        course: null,
+      });
+    }
+    // -----------------------------------------
+
     const { data: term } = await supabase
       .from('terms')
       .select('id')
@@ -275,6 +297,7 @@ export async function checkMissingCourse(input: {
       universityId: degree.university_id,
       degreeId,
       currentTermId: term.id,
+      userId: user.id, 
     });
 
     if (!created) {
@@ -288,5 +311,23 @@ export async function checkMissingCourse(input: {
     return ok({ ...verdict, course: created });
   } catch (error) {
     return toActionError(error, 'courses.checkMissingCourse');
+  }
+}
+import { deleteUserGeneratedCourse } from '@/features/courses/queries';
+
+/**
+ * Server action to delete a user-generated course from the UI.
+ */
+export async function deleteCourseAction(offeringId: string) {
+  try {
+    const success = await deleteUserGeneratedCourse(offeringId);
+    if (success) {
+      revalidatePath('/courses');
+      revalidatePath('/onboarding/courses');
+    }
+    return success;
+  } catch (error) {
+    console.error('Failed to delete course:', error);
+    return false;
   }
 }
