@@ -120,7 +120,7 @@ export async function pushMeetingToCalendar(
      * Google does not have. The other order would leave a link pointing at
      * nothing, and a later delete would silently do nothing.
      */
-    await admin.from('calendar_event_links').upsert(
+    const { error: linkError } = await admin.from('calendar_event_links').upsert(
       {
         meeting_id: meetingId,
         profile_id: profileId,
@@ -128,6 +128,18 @@ export async function pushMeetingToCalendar(
       },
       { onConflict: 'meeting_id,profile_id', ignoreDuplicates: true },
     );
+
+    if (linkError) {
+      /*
+       * The event exists in Google but we failed to write down its id, so nothing
+       * can ever remove it. Logged loudly: it is the one failure in this file
+       * that leaves the two sides genuinely out of step.
+       */
+      console.error(
+        '[calendar.writeSync] event created but the link could not be stored:',
+        linkError.message,
+      );
+    }
   } catch (error) {
     console.error('[calendar.writeSync] push threw:', error);
   }

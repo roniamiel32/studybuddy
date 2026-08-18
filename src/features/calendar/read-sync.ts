@@ -43,9 +43,35 @@ export type SyncOutcome =
   | { ok: true; slotCount: number; timeZone: string }
   | {
       ok: false;
-      reason: 'not_connected' | 'auth_revoked' | 'request_failed' | 'write_failed';
+      reason:
+        | 'not_connected'
+        | 'auth_revoked'
+        | 'insufficient_scope'
+        | 'request_failed'
+        | 'write_failed';
       message: string;
     };
+
+/**
+ * Records why a sync failed, so the card can say it.
+ *
+ * Best effort by design: this runs on the failure path, and a second failure
+ * while writing down the first one must not replace it with a stack trace.
+ *
+ * @param profileId - Whose connection failed.
+ * @param message   - The sentence to store.
+ * @returns Nothing.
+ */
+async function recordSyncError(profileId: string, message: string): Promise<void> {
+  try {
+    await createAdminClient()
+      .from('calendar_connections')
+      .update({ last_sync_error: message })
+      .eq('profile_id', profileId);
+  } catch (error) {
+    console.error('[calendar.readSync] could not record the error:', error);
+  }
+}
 
 /**
  * Pulls the student's busy time and rewrites their availability from it.
@@ -79,22 +105,36 @@ export async function runReadSync(profileId: string): Promise<SyncOutcome> {
 
   if (!busy.ok) {
     if (busy.reason === 'auth_revoked') {
-      await markDisconnected(
-        profileId,
-        'Google access was revoked. Reconnect to resume syncing.',
-      );
-      return {
-        ok: false,
-        reason: 'auth_revoked',
-        message: 'Google access was revoked. Reconnect to resume syncing.',
-      };
+      const message = 'Google access was revoked. Reconnect to resume syncing.';
+      await markDisconnected(profileId, message);
+      return { ok: false, reason: 'auth_revoked', message };
     }
 
-    return {
-      ok: false,
-      reason: 'request_failed',
-      message: 'We could not reach Google Calendar just now. Try again in a moment.',
-    };
+    if (busy.reason === 'insufficient_scope') {
+      /*
+       * Consent came back without permission to read the calendar — usually the
+       * calendar scopes are missing from the Google Cloud consent screen, or the
+       * student unticked one. Reconnecting is the fix, so the connection is left
+       * in place and the message says what to approve.
+       */
+      const message =
+        'Google did not grant permission to read your calendar. Disconnect, reconnect, and approve the calendar access.';
+      await markDisconnected(profileId, message);
+      return { ok: false, reason: 'insufficient_scope', message };
+    }
+
+    /*
+     * Google's own words, kept. "We could not reach Google" is what this used to
+     * say for an API that was not enabled, a quota that was exhausted, and a
+     * network blip alike — three problems with three different fixes.
+     */
+    const message = busy.detail
+      ? `Google Calendar refused the request: ${busy.detail}`
+      : 'We could not reach Google Calendar just now. Try again in a moment.';
+
+    await recordSyncError(profileId, message);
+
+    return { ok: false, reason: 'request_failed', message };
   }
 
   const timeZone = connection.calendarTimezone ?? 'UTC';
@@ -119,6 +159,7 @@ export async function runReadSync(profileId: string): Promise<SyncOutcome> {
 
   if (clearError) {
     console.error('[calendar.readSync] clearing slots failed:', clearError.message);
+    await recordSyncError(profileId, `Could not update your availability: ${clearError.message}`);
     return {
       ok: false,
       reason: 'write_failed',
@@ -139,6 +180,7 @@ export async function runReadSync(profileId: string): Promise<SyncOutcome> {
 
     if (insertError) {
       console.error('[calendar.readSync] inserting slots failed:', insertError.message);
+      await recordSyncError(profileId, `Could not save your availability: ${insertError.message}`);
       return {
         ok: false,
         reason: 'write_failed',

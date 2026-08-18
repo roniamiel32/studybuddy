@@ -83,7 +83,12 @@ function readCallbackStatus(
     },
     'sync-failed': {
       tone: 'error',
-      message: 'Calendar connected, but the first sync failed. Try Resync.',
+      message:
+        'Calendar connected, but the first sync failed. The reason is shown on the card below.',
+    },
+    'connect-failed': {
+      tone: 'error',
+      message: 'Google approved the connection but we could not save it. Try again.',
     },
     'signed-out': { tone: 'error', message: 'You were signed out. Sign in and try again.' },
   };
@@ -215,9 +220,7 @@ export function CalendarSyncCard({ status, origin }: CalendarSyncCardProps) {
 
           {status.connected ? (
             <p className="text-on-surface-variant mt-1 text-body-md text-pretty">
-              Connected{status.accountEmail ? ` as ${status.accountEmail}` : ''}. Your free
-              time between 08:00 and 22:00 is filled in from your calendar, and study
-              sessions you join are added back to it.
+              Connected{status.accountEmail ? ` as ${status.accountEmail}` : ''}. 
             </p>
           ) : (
             <p className="text-on-surface-variant mt-1 text-body-md text-pretty">
