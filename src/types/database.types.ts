@@ -164,6 +164,95 @@ export type Database = {
           },
         ]
       }
+      calendar_connections: {
+        Row: {
+          access_token: string
+          calendar_timezone: string | null
+          created_at: string
+          expires_at: string | null
+          google_email: string | null
+          last_sync_error: string | null
+          last_synced_at: string | null
+          profile_id: string
+          provider: string
+          refresh_token: string | null
+          scope: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          calendar_timezone?: string | null
+          created_at?: string
+          expires_at?: string | null
+          google_email?: string | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          profile_id: string
+          provider?: string
+          refresh_token?: string | null
+          scope?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          calendar_timezone?: string | null
+          created_at?: string
+          expires_at?: string | null
+          google_email?: string | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          profile_id?: string
+          provider?: string
+          refresh_token?: string | null
+          scope?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_connections_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_event_links: {
+        Row: {
+          created_at: string
+          google_event_id: string
+          meeting_id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          google_event_id: string
+          meeting_id: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          google_event_id?: string
+          meeting_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_event_links_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_event_links_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comment_likes: {
         Row: {
           comment_id: string
@@ -614,6 +703,7 @@ export type Database = {
         Row: {
           code: string
           created_at: string
+          created_by: string | null
           degree_id: string | null
           faculty: string | null
           generated_at: string | null
@@ -627,6 +717,7 @@ export type Database = {
         Insert: {
           code: string
           created_at?: string
+          created_by?: string | null
           degree_id?: string | null
           faculty?: string | null
           generated_at?: string | null
@@ -640,6 +731,7 @@ export type Database = {
         Update: {
           code?: string
           created_at?: string
+          created_by?: string | null
           degree_id?: string | null
           faculty?: string | null
           generated_at?: string | null
@@ -1542,18 +1634,21 @@ export type Database = {
         Row: {
           created_at: string
           date_of_birth: string | null
+          google_calendar_sync_enabled: boolean
           profile_id: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           date_of_birth?: string | null
+          google_calendar_sync_enabled?: boolean
           profile_id: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           date_of_birth?: string | null
+          google_calendar_sync_enabled?: boolean
           profile_id?: string
           updated_at?: string
         }

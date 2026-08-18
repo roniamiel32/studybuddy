@@ -23,6 +23,7 @@ import { z } from 'zod';
 import { availabilitySchema } from '@/features/onboarding/schema';
 import { snoozedPromptDate } from '@/features/profile/academic-year';
 import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES, uploadAvatar } from '@/features/profile/avatar';
+import { standDownCalendarSync } from '@/features/calendar/connection';
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
 import { createClient, requireUser } from '@/lib/supabase/server';
 
@@ -267,6 +268,13 @@ export async function updateAvailability(
         return { dayOfWeek, startsAt, endsAt };
       }),
     });
+
+    /*
+     * A hand-drawn week and a synced one must never coexist — see
+     * standDownCalendarSync for why the arithmetic breaks if they do. Saving the
+     * grid is an explicit choice to own the week, so calendar rows go first.
+     */
+    await standDownCalendarSync(user.id);
 
     const { error: clearError } = await supabase
       .from('availability_slots')

@@ -225,11 +225,25 @@ describe('runGatekeeper — new courses', () => {
     ).toBe(false);
   });
 
-  it('accepts a Hebrew course name', () => {
-    const result = runGatekeeper('ראייה ממוחשבת', CATALOG);
+  it('accepts a Hebrew course name carrying an academic term', () => {
+    /*
+     * The plausibility check requires a recognised academic word, in either
+     * alphabet. 'מבוא' (introduction) is one, so this reads as a course; a bare
+     * 'ראייה ממוחשבת' does not and is refused by the case below.
+     */
+    const result = runGatekeeper('מבוא לראייה ממוחשבת', CATALOG);
 
     expect(result.isValid).toBe(true);
     expect(result.isNew).toBe(true);
+  });
+
+  it('refuses a name with no academic term in it', () => {
+    // The allowlist is what stops "Bob's Tuesday Thing" becoming a course in the
+    // shared catalog. It is a blunt instrument and it is meant to be.
+    const result = runGatekeeper('Bobs Tuesday Thing', CATALOG);
+
+    expect(result.isValid).toBe(false);
+    expect(result.isNew).toBe(false);
   });
 });
 
