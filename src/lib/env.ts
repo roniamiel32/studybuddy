@@ -78,6 +78,32 @@ const serverSchema = z.object({
   AI_COURSE_GENERATION_DAILY_LIMIT: z.coerce.number().int().positive().default(20),
   /** Hours a cached row in `match_scores` stays fresh. */
   MATCH_CACHE_TTL_HOURS: z.coerce.number().int().positive().default(24),
+  /*
+   * Google Calendar — optional, and both halves are needed together.
+   *
+   * Absent means the integration is switched off: the Connect button explains
+   * that instead of appearing broken, and nothing else in the app changes.
+   * Empty assignments normalise to absent for the same reason AI_API_KEY does.
+   */
+  GOOGLE_CLIENT_ID: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(10, 'looks too short to be a Google client id').optional(),
+  ),
+  GOOGLE_CLIENT_SECRET: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(10, 'looks too short to be a Google client secret').optional(),
+  ),
+  /*
+   * How far ahead the read sync looks. Two weeks gives two of every weekday,
+   * which is the minimum that lets "free on Mondays" mean more than one Monday.
+   */
+  GOOGLE_CALENDAR_HORIZON_DAYS: z.coerce.number().int().min(7).max(60).default(14),
+  /*
+   * NEXT_PUBLIC_SITE_URL is read on the server too, because the OAuth redirect
+   * URI has to be absolute and has to match the Google Cloud entry exactly.
+   * Declared here so a server-side typo fails at boot rather than at consent.
+   */
+  NEXT_PUBLIC_SITE_URL: z.url('must be a full URL, e.g. http://localhost:3000'),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -179,6 +205,20 @@ export function serverEnv(): ServerEnv {
 export function isAiConfigured(): boolean {
   const env = serverEnv();
   return Boolean(env.AI_API_KEY && env.AI_MODEL);
+}
+
+/**
+ * Reports whether the Google Calendar integration is configured.
+ *
+ * Both halves or neither: a client id without a secret cannot complete an
+ * exchange, and letting a student through the consent screen only to fail on the
+ * callback is worse than telling them up front that it is off.
+ *
+ * @returns True when the integration can be used.
+ */
+export function isGoogleCalendarConfigured(): boolean {
+  const env = serverEnv();
+  return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 }
 
 /**

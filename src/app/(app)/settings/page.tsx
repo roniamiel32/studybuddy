@@ -3,9 +3,10 @@
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The Profile tab — photo, personal details, and the global study
  *              preferences every course inherits.
- * Version:     0.19.0
+ * Version:     0.46.0
  *
  * Modifications:
+ *     0.46.0 - 2026-08-18 - Google Calendar sync card
  *     0.23.0 - 2026-08-12 - Change password and delete account (Phase 9A)
  *     0.19.0 - 2026-08-11 - The week is edited in place, not in onboarding
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
@@ -14,6 +15,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { CalendarSyncCard } from '@/components/calendar/calendar-sync-card';
 import { AvailabilityDialog } from '@/components/profile/availability-dialog';
 import { AvatarForm } from '@/components/profile/avatar-form';
 import { ChangePasswordForm } from '@/components/profile/change-password-form';
@@ -22,6 +24,7 @@ import {
   GlobalPreferencesForm,
   ProfileDetailsForm,
 } from '@/components/profile/preferences-section';
+import { getCalendarStatus } from '@/features/calendar/queries';
 import { hasOverride } from '@/features/courses/course-view';
 import { getMyCourses } from '@/features/courses/queries';
 import {
@@ -40,11 +43,12 @@ export const metadata: Metadata = { title: 'Profile' };
  * @returns The page element.
  */
 export default async function SettingsPage() {
-  const [profile, preferences, courses, slots] = await Promise.all([
+  const [profile, preferences, courses, slots, calendar] = await Promise.all([
     getOnboardingProfile(),
     getMyPreferences(),
     getMyCourses(),
     getMyAvailability(),
+    getCalendarStatus(),
   ]);
 
   /* Preferences are set in onboarding step 3; without them this page has nothing
@@ -107,6 +111,17 @@ export default async function SettingsPage() {
           <p className="text-on-surface-variant mt-1 mb-4 text-body-md text-pretty">
             Overlapping free hours are the largest single part of a match score.
           </p>
+          <div className="mb-4">
+            <CalendarSyncCard status={calendar} origin="settings" />
+          </div>
+
+          {calendar.syncEnabled ? (
+            <p className="bg-surface-container text-on-surface-variant mb-4 rounded-md p-3 text-label-md">
+              Your week is coming from Google Calendar. Editing it by hand switches back
+              to a hand-drawn week and stops syncing.
+            </p>
+          ) : null}
+
           {/* Reuses the onboarding grid rather than duplicating it. The editor
               is the same editor; only the way out of it differs. */}
           <AvailabilityDialog defaultSelected={selectedSlots} />

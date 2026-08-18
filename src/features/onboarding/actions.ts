@@ -18,6 +18,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 
 import { uploadAvatar } from '@/features/profile/avatar';
+import { standDownCalendarSync } from '@/features/calendar/connection';
 import { ERROR_CODES, fail, toActionError, type ActionResult } from '@/lib/errors';
 import { createClient, requireUser } from '@/lib/supabase/server';
 
@@ -343,6 +344,13 @@ export async function saveAvailabilityAndFinish(
         'Answer the study preference questions before finishing.',
       );
     }
+
+    /*
+     * A hand-drawn week and a synced one must never coexist — see
+     * standDownCalendarSync for why the arithmetic breaks if they do. Saving the
+     * grid is an explicit choice to own the week, so calendar rows go first.
+     */
+    await standDownCalendarSync(user.id);
 
     const { error: clearError } = await supabase
       .from('availability_slots')

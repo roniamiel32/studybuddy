@@ -25,6 +25,12 @@
 import { revalidatePath } from 'next/cache';
 
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
+import {
+  pushMeetingToCalendar,
+  removeMeetingFromAllCalendars,
+  removeMeetingFromCalendar,
+  syncUpcomingMeetings,
+} from '@/features/calendar/write-sync';
 import { createClient, requireUser } from '@/lib/supabase/server';
 
 import type { MeetingSlotView } from './meeting-view';
@@ -109,7 +115,7 @@ export async function createMeeting(
   formData: FormData,
 ): Promise<ActionResult<void>> {
   try {
-    await requireUser();
+    const user = await requireUser();
 
     /*
      * getAll, paired by position. The picker renders one hidden input of each
@@ -168,6 +174,14 @@ export async function createMeeting(
       );
     }
 
+    /*
+     * Reconciled rather than pushed by id: the RPC books every session in one
+     * call and does not hand their ids back. Awaited so the calendar is already
+     * right when the page revalidates — it never throws, and a student with no
+     * calendar connected pays one cheap query for it.
+     */
+    await syncUpcomingMeetings(user.id);
+
     revalidateMeetingSurfaces();
 
     return ok(undefined);
@@ -221,6 +235,18 @@ export async function setMeetingRsvp(input: {
       }
 
       return fail(ERROR_CODES.UNEXPECTED, 'We could not update that. Try again.');
+    }
+
+    /*
+     * Mirrored into Google after the RSVP has actually been accepted, so the
+     * calendar never shows a session the database refused to record. Never
+     * throws: attendance is the product, and a stale Google token must not be
+     * able to fail it.
+     */
+    if (parsed.going) {
+      await pushMeetingToCalendar(user.id, parsed.meetingId);
+    } else {
+      await removeMeetingFromCalendar(user.id, parsed.meetingId);
     }
 
     revalidateMeetingSurfaces();
@@ -311,6 +337,13 @@ export async function cancelMeeting(input: { meetingId: string }): Promise<Actio
         'That session is not yours to cancel, or has already started.',
       );
     }
+
+    /*
+     * Every attendee's copy, not just the organiser's. A cancelled session that
+     * stays in four other people's calendars is worse than one that was never
+     * mirrored — they would each turn up.
+     */
+    await removeMeetingFromAllCalendars(parsed.meetingId);
 
     revalidateMeetingSurfaces();
 
