@@ -74,6 +74,7 @@ export function CoursePicker({
 
   // Pagination State
   const [displayLimit, setDisplayLimit] = useState(INITIAL_LIMIT);
+  const [sessionAddedCourses, setSessionAddedCourses] = useState<string[]>([]);
 
   /*
    * Ask the Smart Course API for this degree's syllabus.
@@ -170,6 +171,7 @@ export function CoursePicker({
     setSelected((current) =>
       current.includes(course.offeringId) ? current : [...current, course.offeringId],
     );
+    setSessionAddedCourses((current) => [...current, course.offeringId]);
   };
 
   // Mock Action: Report a course
@@ -179,17 +181,18 @@ export function CoursePicker({
     alert(`Thank you for reporting "${courseName}". Our system will review this course.`);
   };
 
-  // Mock Action: Delete a course
+// Mock Action: Delete a course
   const handleDelete = async (e: React.MouseEvent, offeringId: string) => {
     e.preventDefault();
     e.stopPropagation();
-
-    setCatalog((current) => current.filter((c) => c.offeringId !== offeringId));
-    setSelected((current) => current.filter((id) => id !== offeringId));
-
+    
     const success = await deleteCourseAction(offeringId);
-
-    if (!success) {
+    
+    if (success) {
+      setCatalog((current) => current.filter((c) => c.offeringId !== offeringId));
+      setSelected((current) => current.filter((id) => id !== offeringId));
+      setSessionAddedCourses((current) => current.filter((id) => id !== offeringId));
+    } else {
       alert("We couldn't delete this course. Other students might already be enrolled in it.");
     }
   };
@@ -198,8 +201,7 @@ export function CoursePicker({
     const isSelected = selected.includes(offering.offeringId);
 
     // We treat 'placeholder' source as user-generated for the MVP logic
-    const isUserGenerated = offering.source === 'placeholder';
-
+const isUserGenerated = sessionAddedCourses.includes(offering.offeringId);
     return (
       <li key={offering.offeringId} className="flex items-center gap-2">
         <button
