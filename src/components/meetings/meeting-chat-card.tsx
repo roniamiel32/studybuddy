@@ -69,6 +69,7 @@ export function MeetingChatCard({ meeting }: MeetingChatCardProps) {
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
+        suppressHydrationWarning
         aria-label={`Study session: ${meeting.title}, ${when}. Open for details.`}
         className="group bg-[#ffdbcc] border-[#fd894f]/20 focus-visible:ring-[#fd894f]/35 mt-2 flex w-full items-center justify-between rounded-2xl border p-4 text-left shadow-sm focus-visible:ring-4 focus-visible:outline-none hover:bg-[#ffd0bc] transition-colors"
       >
