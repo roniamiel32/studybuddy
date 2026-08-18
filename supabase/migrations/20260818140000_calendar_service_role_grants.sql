@@ -1,0 +1,32 @@
+-- =============================================================================
+-- File:        supabase/migrations/20260818140000_calendar_service_role_grants.sql
+-- Authors:     Roni Amiel & Eden Bitran
+-- Description: Grants service_role the privileges it needs on the two calendar
+--              tables.
+--
+--              WHY THEY WERE MISSING. `20260803120900_grants.sql` runs
+--              `grant all privileges on all tables in schema public to
+--              service_role`, which reads as a standing rule and is not one: it
+--              applies to the tables that existed the moment it ran. Every
+--              migration since has re-granted explicitly for its own tables —
+--              degrees, conversations, study_groups all do — and the calendar
+--              migration did not, because its comment reasoned about RLS and
+--              stopped there.
+--
+--              BYPASSING RLS IS NOT THE SAME AS HAVING PRIVILEGES. service_role
+--              skips row-level policies; it still needs a table-level GRANT like
+--              any other role. Without one, every write from the sync failed with
+--              42501 and the student was told the sync failed, which was true and
+--              useless.
+--
+--              `authenticated` is deliberately still absent from
+--              calendar_connections: nothing in the browser has any use for a
+--              refresh token.
+-- Version:     0.47.0
+--
+-- Modifications:
+--     0.47.0 - 2026-08-18 - Initial implementation (calendar sync grants fix)
+-- =============================================================================
+
+grant all privileges on public.calendar_connections to service_role;
+grant all privileges on public.calendar_event_links to service_role;

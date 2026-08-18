@@ -50,7 +50,16 @@ const TIMEOUT_MS = 15_000;
 
 export type GoogleResult<T> =
   | { ok: true; data: T }
-  | { ok: false; reason: 'not_configured' | 'auth_revoked' | 'request_failed'; detail?: string };
+  | {
+      ok: false;
+      reason: 'not_configured' | 'auth_revoked' | 'insufficient_scope' | 'request_failed';
+      /*
+       * Google's own words, trimmed. Carried all the way to the student's screen
+       * and the connection row, because "the sync failed" is a true sentence that
+       * has never once helped anybody work out what to do next.
+       */
+      detail?: string;
+    };
 
 export interface GoogleTokens {
   accessToken: string;
@@ -165,15 +174,15 @@ async function postToken(body: Record<string, string>): Promise<GoogleResult<Goo
        * revoked access, or the refresh token was already replaced. Retrying will
        * never help, so it is reported separately and the caller disconnects.
        */
-      const detail = await response.text();
-      const revoked = response.status === 400 && detail.includes('invalid_grant');
+      const body = (await response.text()).slice(0, 500);
+      const revoked = response.status === 400 && body.includes('invalid_grant');
 
-      console.error('[google.token] exchange failed', response.status);
+      console.error('[google.token] exchange failed', response.status, body.slice(0, 200));
 
       return {
         ok: false,
         reason: revoked ? 'auth_revoked' : 'request_failed',
-        detail: `status ${response.status}`,
+        detail: body.slice(0, 200) || `status ${response.status}`,
       };
     }
 
@@ -215,12 +224,41 @@ export async function refreshAccessToken(
 }
 
 /**
+ * Reads an error body without letting it become the problem.
+ *
+ * Google returns JSON with a `message` worth showing; anything else is truncated
+ * so a stray HTML error page cannot end up in a database column or a toast.
+ *
+ * @param response - The failed response.
+ * @returns A short description.
+ */
+async function readError(response: Response): Promise<string> {
+  try {
+    const text = (await response.text()).slice(0, 500);
+
+    try {
+      const parsed = JSON.parse(text) as { error?: { message?: string; status?: string } };
+      const message = parsed.error?.message;
+      if (message) {
+        return message.slice(0, 200);
+      }
+    } catch {
+      /* Not JSON. The raw text below is still better than nothing. */
+    }
+
+    return text.slice(0, 200) || `status ${response.status}`;
+  } catch {
+    return `status ${response.status}`;
+  }
+}
+
+/**
  * Calls a Calendar API endpoint with a bearer token.
  *
  * @param accessToken - A valid access token.
- * @param path        - Path under the Calendar v3 base.
+ * @param url         - The absolute endpoint URL.
  * @param init        - Fetch options.
- * @returns The parsed body, or why not. 401 and 403 are reported as revoked.
+ * @returns The parsed body, or why not.
  */
 async function callApi<T>(
   accessToken: string,
@@ -244,14 +282,37 @@ async function callApi<T>(
       return { ok: true, data: undefined as T };
     }
 
-    if (response.status === 401 || response.status === 403) {
-      console.error('[google.api] not authorised', response.status);
-      return { ok: false, reason: 'auth_revoked', detail: `status ${response.status}` };
-    }
-
     if (!response.ok) {
-      console.error('[google.api] call failed', response.status, url);
-      return { ok: false, reason: 'request_failed', detail: `status ${response.status}` };
+      const detail = await readError(response);
+
+      /*
+       * 401 means the token is dead — revoked, or the grant was withdrawn.
+       * Reconnecting fixes it.
+       */
+      if (response.status === 401) {
+        console.error('[google.api] token rejected:', detail);
+        return { ok: false, reason: 'auth_revoked', detail };
+      }
+
+      /*
+       * 403 is two very different things wearing one status code. A missing
+       * scope is a consent problem the student can fix by reconnecting; anything
+       * else — the API not enabled on the project, a quota — is the deployment's
+       * problem and telling a student to reconnect would waste their time.
+       */
+      if (response.status === 403) {
+        const scopeProblem = /insufficient|scope/i.test(detail);
+        console.error('[google.api] forbidden:', detail);
+
+        return {
+          ok: false,
+          reason: scopeProblem ? 'insufficient_scope' : 'request_failed',
+          detail,
+        };
+      }
+
+      console.error('[google.api] call failed', response.status, detail);
+      return { ok: false, reason: 'request_failed', detail };
     }
 
     return { ok: true, data: (await response.json()) as T };

@@ -126,7 +126,17 @@ export async function GET(request: NextRequest) {
    * rather than overwriting. If there genuinely is none, the sync below is what
    * discovers it, and it reports the failure in words the student can act on.
    */
-  await saveConnection(user.id, tokens.data);
+  const saved = await saveConnection(user.id, tokens.data);
+
+  /*
+   * Reported separately from a sync failure. These are different problems with
+   * different fixes — one is our database, the other is Google — and collapsing
+   * them into one message is what sent the first real bug report looking at the
+   * calendar API when the row had never been written at all.
+   */
+  if (!saved) {
+    return clearing(back(request, destination, 'connect-failed'));
+  }
 
   /*
    * The first sync runs here rather than being left to the student. Connecting a

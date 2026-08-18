@@ -53,12 +53,12 @@ export interface StoredConnection {
  *
  * @param profileId - Whose connection this is.
  * @param tokens    - What the exchange returned.
- * @returns Nothing.
+ * @returns True when the row was actually written.
  */
 export async function saveConnection(
   profileId: string,
   tokens: GoogleTokens,
-): Promise<void> {
+): Promise<boolean> {
   const admin = createAdminClient();
 
   /* Asked for once, at connect time: both are stable, and re-reading them on
@@ -81,7 +81,22 @@ export async function saveConnection(
     ...(tokens.refreshToken ? { refresh_token: tokens.refreshToken } : {}),
   };
 
-  await admin.from('calendar_connections').upsert(row, { onConflict: 'profile_id' });
+  const { error } = await admin
+    .from('calendar_connections')
+    .upsert(row, { onConflict: 'profile_id' });
+
+  if (error) {
+    /*
+     * Checked, because it used to be discarded. A failed write here leaves no
+     * connection row, so the sync that follows reports "not connected" and the
+     * student is told the SYNC failed — which is downstream of the real problem
+     * and sends everyone looking in the wrong place. It cost an afternoon once.
+     */
+    console.error('[calendar.connection] storing the connection failed:', error.message);
+    return false;
+  }
+
+  return true;
 }
 
 /**
