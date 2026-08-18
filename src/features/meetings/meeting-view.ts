@@ -292,7 +292,7 @@ export interface SlotGridColumn {
   /** Second line of the heading — "16 Aug". */
   dayLabel: string;
   /** Offered slots that day, keyed by their local start time. */
-  slotsByTime: Record<string, MeetingSlotView>;
+  slotsByTime: Record<string, MeetingSlotView[]>;
 }
 
 /** The grid the picker opens on. */
@@ -326,7 +326,7 @@ export interface SlotGrid {
  */
 export function buildSlotGrid(
   slots: MeetingSlotView[],
-  days: number = SCHEDULER_WINDOW_DAYS,
+  days: number = 7,
   now: Date = new Date(),
 ): SlotGrid {
   const columns: SlotGridColumn[] = [];
@@ -340,29 +340,32 @@ export function buildSlotGrid(
       ).padStart(2, '0')}`,
       weekday: day.toLocaleDateString(undefined, { weekday: 'short' }),
       dayLabel: day.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
-      slotsByTime: {},
+      slotsByTime: {}, // מתחיל ריק
     });
   }
 
   const byDate = new Map(columns.map((column) => [column.date, column]));
-  const times = new Set<string>();
+  const times = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00'];
 
   for (const slot of slots) {
     const column = byDate.get(localDayKey(slot.startsAt));
+    if (!column) continue;
 
-    /* Outside the window. The RPC is asked for the same number of days, so this
-       only catches a slot that straddles midnight in the reader's zone. */
-    if (!column) {
-      continue;
+    const timeStr = localTimeKey(slot.startsAt);
+    const [hourStr] = timeStr.split(':');
+    const baseHour = Math.floor(parseInt(hourStr, 10) / 2) * 2;
+    const matchingRowTime = `${String(baseHour).padStart(2, '0')}:00`;
+
+    if (times.includes(matchingRowTime)) {
+      // יצירת המערך אם הוא לא קיים, ואז הוספת הסלוט
+      if (!column.slotsByTime[matchingRowTime]) {
+        column.slotsByTime[matchingRowTime] = [];
+      }
+      column.slotsByTime[matchingRowTime].push(slot);
     }
-
-    const time = localTimeKey(slot.startsAt);
-
-    column.slotsByTime[time] = slot;
-    times.add(time);
   }
 
-  return { columns, times: [...times].sort() };
+  return { columns, times };
 }
 
 /** A session the picker will book: one contiguous run of selected slots. */

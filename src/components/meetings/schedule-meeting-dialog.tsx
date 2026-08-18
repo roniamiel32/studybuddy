@@ -483,7 +483,10 @@ function SlotGridView({
               </th>
 
               {grid.columns.map((column) => {
-                const slot = column.slotsByTime[time];
+                // המערך של הסלוטים המותאמים לשעה וליום הזה
+                const slotsArray = column.slotsByTime[time];
+                // לוקחים את הסלוט הראשון מהמערך לצורך התצוגה במשבצת
+                const slot = slotsArray?.[0];
 
                 if (!slot) {
                   /*
@@ -534,7 +537,6 @@ function SlotGridView({
     </div>
   );
 }
-
 /**
  * The same times as a list, a few days at a time.
  *
