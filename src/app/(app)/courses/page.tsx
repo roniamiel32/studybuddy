@@ -3,10 +3,11 @@
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The Courses tab — the student's courses as a grid of cards, with
  *              controls to add a course or drop one.
- * Version:     0.14.0
+ * Version:     0.43.0
  *
  * Modifications:
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
+ *     0.43.0 - 2026-08-17 - Degree passed down for the missing-course field
  */
 
 import type { Metadata } from 'next';
@@ -15,7 +16,11 @@ import { BookOpen } from 'lucide-react';
 
 import { AddCoursePanel } from '@/components/courses/add-course-panel';
 import { CourseCard } from '@/components/courses/course-card';
-import { getAddableOfferings, getMyCourses } from '@/features/courses/queries';
+import {
+  getAddableOfferings,
+  getMyCourses,
+  getMyDegree,
+} from '@/features/courses/queries';
 
 export const metadata: Metadata = { title: 'Your courses' };
 
@@ -25,7 +30,11 @@ export const metadata: Metadata = { title: 'Your courses' };
  * @returns The page element.
  */
 export default async function CoursesPage() {
-  const [courses, addable] = await Promise.all([getMyCourses(), getAddableOfferings()]);
+  const [courses, addable, degree] = await Promise.all([
+    getMyCourses(),
+    getAddableOfferings(),
+    getMyDegree(),
+  ]);
 
   return (
     <>
@@ -41,7 +50,7 @@ export default async function CoursesPage() {
           </p>
         </div>
 
-        <AddCoursePanel options={addable} />
+        <AddCoursePanel options={addable} degree={degree} />
       </div>
 
       {courses.length > 0 ? (

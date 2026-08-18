@@ -9,51 +9,92 @@
  *
  *              Offers only courses on the student's own degree that they are not
  *              already in — the same scoping the onboarding picker uses, for the
- *              same reason a Law student should never be offered CS-3040.
- * Version:     0.14.0
+ *              same reason a Law student should never be offered CS-3040 — and
+ *              carries the same missing-course field, so a student who joins a
+ *              course mid-semester is not sent back through onboarding to add it.
+ * Version:     0.44.0
  *
  * Modifications:
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
+ *     0.43.0 - 2026-08-17 - Debounced search, missing-course field
+ *     0.44.0 - 2026-08-18 - Year headings and course codes removed; one flat list
  */
 
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { AlertCircle, Loader2, Plus, Search, X } from 'lucide-react';
 
+import { MissingCourseField } from '@/components/courses/missing-course-field';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/toast';
 import { joinCourse } from '@/features/courses/actions';
+import type { MatchedCourse } from '@/features/courses/gatekeeper-actions';
+import { useDebouncedValue } from '@/lib/use-debounced-value';
 
 export interface AddCoursePanelProps {
   /** Current-term offerings on the student's degree they are not enrolled in. */
-  options: Array<{ offeringId: string; code: string; name: string }>;
+  options: Array<{ offeringId: string; name: string }>;
+  /** Drives the missing-course check. Null before onboarding step 1 is done. */
+  degree: { id: string; name: string } | null;
 }
 
 /**
  * Renders the add-a-course panel.
  *
  * @param options - Courses available to add.
+ * @param degree  - The student's degree.
  * @returns The panel element.
  */
-export function AddCoursePanel({ options }: AddCoursePanelProps) {
+export function AddCoursePanel({ options, degree }: AddCoursePanelProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [state, formAction, pending] = useActionState(joinCourse, null);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [joining, startJoining] = useTransition();
+  const notify = useToast();
+  const router = useRouter();
 
   const error = state && !state.ok ? state.error : null;
-  const trimmed = query.trim().toLowerCase();
+
+  /*
+   * The input stays live and the FILTER lags behind it. Debouncing the input
+   * value itself would make the field visibly trail the keyboard.
+   */
+  const settledQuery = useDebouncedValue(query);
+  const trimmed = settledQuery.trim().toLowerCase();
 
   const visible = useMemo(
     () =>
-      options.filter(
-        (option) =>
-          !trimmed ||
-          option.name.toLowerCase().includes(trimmed) ||
-          option.code.toLowerCase().includes(trimmed),
-      ),
+      options.filter((option) => !trimmed || option.name.toLowerCase().includes(trimmed)),
     [options, trimmed],
   );
+
+  /*
+   * Here a checked course is enrolled in straight away.
+   *
+   * Onboarding only ticks it, because step 2 commits the whole selection on
+   * Continue. On this screen there is no later commit — the student pressed the
+   * button that adds a course, so leaving it unadded would be the surprising
+   * outcome.
+   */
+  const enrolInChecked = (course: MatchedCourse) => {
+    startJoining(async () => {
+      const formData = new FormData();
+      formData.set('offeringId', course.offeringId);
+
+      const result = await joinCourse(null, formData);
+
+      if (!result.ok) {
+        notify({ tone: 'error', message: result.error.message });
+        return;
+      }
+
+      /* The grid behind the panel is server-rendered and now one course short. */
+      router.refresh();
+    });
+  };
 
   if (!open) {
     return (
@@ -102,14 +143,14 @@ export function AddCoursePanel({ options }: AddCoursePanelProps) {
               aria-hidden="true"
             />
             <label htmlFor="add-course-search" className="sr-only">
-              Search courses by name or code
+              Search courses by name
             </label>
             <Input
               id="add-course-search"
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by name or code"
+              placeholder="Search by name"
               className="pl-10"
             />
           </div>
@@ -142,12 +183,7 @@ export function AddCoursePanel({ options }: AddCoursePanelProps) {
                     ) : (
                       <Plus className="text-brand size-4 shrink-0" aria-hidden="true" />
                     )}
-                    <span className="min-w-0 flex-1">
-                      <span className="text-label-md block truncate">{option.name}</span>
-                      <span className="text-outline block truncate text-label-sm font-normal">
-                        {option.code}
-                      </span>
-                    </span>
+                    <span className="text-label-md min-w-0 flex-1 truncate">{option.name}</span>
                   </button>
                 </form>
               </li>
@@ -156,11 +192,34 @@ export function AddCoursePanel({ options }: AddCoursePanelProps) {
 
           {visible.length === 0 ? (
             <p className="text-on-surface-variant bg-surface-container rounded-md p-4 text-body-md">
-              No course matches &ldquo;{query}&rdquo;. Try the course code instead.
+              No course matches &ldquo;{query}&rdquo;. Add it below if it is missing.
             </p>
           ) : null}
         </>
       )}
+
+      {/*
+        * Outside the options branch, so it is reachable even when the student is
+        * already in every course on the list — which is exactly the state in
+        * which the thing they are looking for is missing from it.
+        */}
+      {degree ? (
+        <div className="border-outline-variant/60 mt-5 border-t pt-5">
+          <MissingCourseField
+            degreeId={degree.id}
+            degreeName={degree.name}
+            idPrefix="courses-missing-course"
+            onCourseReady={enrolInChecked}
+          />
+
+          {joining ? (
+            <p role="status" className="text-outline mt-2 flex items-center gap-2 text-label-sm">
+              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+              Adding it to your courses…
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

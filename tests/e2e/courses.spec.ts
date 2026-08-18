@@ -238,19 +238,24 @@ test.describe('courses and profile', () => {
     await page.getByRole('button', { name: 'Add a course' }).click();
     await expect(page.getByRole('heading', { name: 'Add a course' })).toBeVisible();
 
-    /* Whatever the degree offers that they are not already in. */
-    const first = page.getByRole('button', { name: /CS-/ }).first();
-    const label = (await first.textContent()) ?? '';
-    const code = /CS-\d+/.exec(label)?.[0] ?? '';
-    expect(code).not.toBe('');
+    /*
+     * Whatever the degree offers that they are not already in, picked by NAME:
+     * course codes are unverified for the MVP and are no longer rendered.
+     */
+    const first = page
+      .getByRole('list', { name: 'Courses you can add' })
+      .getByRole('button')
+      .first();
+    const name = ((await first.textContent()) ?? '').trim();
+    expect(name).not.toBe('');
 
     await first.click();
 
-    await expect(grid(page).getByRole('listitem').filter({ hasText: code })).toBeVisible();
+    await expect(grid(page).getByRole('listitem').filter({ hasText: name })).toBeVisible();
     await expect(grid(page).getByRole('listitem')).toHaveCount(3);
 
     /* And back out again, through the two-step confirmation. */
-    const card = grid(page).getByRole('listitem').filter({ hasText: code });
+    const card = grid(page).getByRole('listitem').filter({ hasText: name });
     await card.getByRole('button', { name: /^Drop / }).click();
     await card.getByRole('button', { name: /^Confirm dropping/ }).click();
 

@@ -12,11 +12,11 @@
  *              unconfigured or failing model is an expected state here — the app
  *              is designed to work without one — so callers have to handle it
  *              rather than being able to ignore an exception.
- * Version:     0.42.0
+ * Version:     0.43.0
  *
  * Modifications:
- *     0.42.0 - 2026-08-16 - `user` accepts content blocks, so a caller can send
- *                           an image or a PDF alongside its text
+ *     0.43.0 - 2026-08-17 - Content blocks removed with the schedule upload;
+ *                           back to text in, text out
  *     0.10.0 - 2026-08-09 - Initial implementation (Smart Course API)
  */
 
@@ -28,42 +28,20 @@ export type AiResult =
   | { ok: true; text: string; model: string; latencyMs: number }
   | { ok: false; reason: 'not_configured' | 'request_failed' | 'empty'; detail?: string };
 
-/**
- * A piece of a user turn.
- *
- * Only the three shapes this app actually sends. Images and documents are
- * inlined as base64 rather than uploaded first, because the file never needs to
- * outlive the one request that reads it — a stored file would be a second
- * lifecycle to manage, and a second thing to delete when a student leaves.
- */
-export type AiContentBlock =
-  | { type: 'text'; text: string }
-  | {
-      type: 'image';
-      source: { type: 'base64'; media_type: string; data: string };
-    }
-  | {
-      type: 'document';
-      source: { type: 'base64'; media_type: 'application/pdf'; data: string };
-    };
-
 /** Hard ceiling on a single call, so a hanging model cannot hang a request. */
 const TIMEOUT_MS = 30_000;
 
 /**
  * Asks the configured model to complete a prompt.
  *
- * @param options - `system` frames the task, `user` carries the request — plain
- *                  text, or content blocks when a file is part of it —
- *                  `maxTokens` caps the reply, and `timeoutMs` overrides the
- *                  default ceiling for calls that legitimately take longer.
+ * @param options - `system` frames the task, `user` carries the request, and
+ *                  `maxTokens` caps the reply.
  * @returns The model's text, or a reason it produced none.
  */
 export async function completeJson(options: {
   system: string;
-  user: string | AiContentBlock[];
+  user: string;
   maxTokens?: number;
-  timeoutMs?: number;
 }): Promise<AiResult> {
   if (!isAiConfigured()) {
     return { ok: false, reason: 'not_configured' };
@@ -87,7 +65,7 @@ export async function completeJson(options: {
         system: options.system,
         messages: [{ role: 'user', content: options.user }],
       }),
-      signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
 
     if (!response.ok) {

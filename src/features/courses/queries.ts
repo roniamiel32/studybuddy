@@ -202,7 +202,7 @@ export async function getGlobalPreferences(): Promise<CoursePreferenceValues | n
  * @returns Offerings available to add.
  */
 export async function getAddableOfferings(): Promise<
-  Array<{ offeringId: string; code: string; name: string }>
+  Array<{ offeringId: string; name: string }>
 > {
   const user = await requireUser();
   const supabase = await createClient();
@@ -220,7 +220,7 @@ export async function getAddableOfferings(): Promise<
   const [{ data: offerings }, { data: mine }] = await Promise.all([
     supabase
       .from('course_offerings')
-      .select('id, terms!inner(is_current), courses!inner(code, name, degree_id)')
+      .select('id, terms!inner(is_current), courses!inner(name, degree_id)')
       .eq('courses.degree_id', profile.degree_id)
       .eq('terms.is_current', true),
     supabase.from('enrollments').select('course_offering_id').eq('profile_id', user.id),
@@ -232,8 +232,31 @@ export async function getAddableOfferings(): Promise<
     .filter((row) => !enrolled.has(row.id))
     .map((row) => ({
       offeringId: row.id,
-      code: row.courses.code,
       name: row.courses.name,
     }))
-    .sort((a, b) => a.code.localeCompare(b.code));
+    /* By name: the codes are unverified and no longer shown anywhere. */
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Returns the signed-in student's degree, or null before step 1 is done.
+ *
+ * The add-a-course panel needs the id to check a typed course name against the
+ * right catalog, and the name for the field's placeholder. Read here rather than
+ * passed down from the layout, so the Courses page does not have to reach into
+ * the onboarding feature for two fields.
+ *
+ * @returns The degree, or null.
+ */
+export async function getMyDegree(): Promise<{ id: string; name: string } | null> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from('profiles')
+    .select('degree_id, degrees(name)')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  return data?.degree_id ? { id: data.degree_id, name: data.degrees?.name ?? 'your degree' } : null;
 }

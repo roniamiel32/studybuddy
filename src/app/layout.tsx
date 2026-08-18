@@ -5,15 +5,19 @@
  *              the html/body shell only. The authenticated navigation shell
  *              lives in the (app) route group so that public pages do not
  *              render it.
- * Version:     0.2.1
+ * Version:     0.43.0
  *
  * Modifications:
+ *     0.43.0 - 2026-08-17 - ToastProvider, mounted here so both the onboarding
+ *                           and the app route groups can reach it
  *     0.2.1 - 2026-08-10 - Added ThemeProvider for dark mode support
  *     0.2.0 - 2026-08-03 - Initial implementation (Phase 0.5 scaffold)
  */
 
 import type { Metadata } from 'next';
 import { Nunito, Plus_Jakarta_Sans } from 'next/font/google';
+
+import { ToastProvider } from '@/components/ui/toast';
 
 import './globals.css';
 
@@ -57,7 +61,7 @@ export default function RootLayout({
       className={`${headingFont.variable} ${plusJakartaSans.variable} h-full antialiased`}
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

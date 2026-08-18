@@ -27,7 +27,6 @@ export interface DegreeOption {
 export interface OfferingOption {
   offeringId: string;
   courseId: string;
-  code: string;
   name: string;
   faculty: string | null;
   /** Where the course came from; see UNVERIFIED_SOURCES. */
@@ -146,7 +145,7 @@ export async function getDegreeOfferings(degreeId: string | null): Promise<Offer
 
   const { data } = await supabase
     .from('course_offerings')
-    .select('id, terms!inner(is_current), courses!inner(id, code, name, faculty, degree_id, source)')
+    .select('id, terms!inner(is_current), courses!inner(id, name, faculty, degree_id, source)')
     .eq('courses.degree_id', degreeId)
     .eq('terms.is_current', true);
 
@@ -154,12 +153,12 @@ export async function getDegreeOfferings(degreeId: string | null): Promise<Offer
     .map((offering) => ({
       offeringId: offering.id,
       courseId: offering.courses.id,
-      code: offering.courses.code,
       name: offering.courses.name,
       faculty: offering.courses.faculty,
       source: offering.courses.source,
     }))
-    .sort((a, b) => a.code.localeCompare(b.code));
+    /* By name: the codes are unverified and no longer shown anywhere. */
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**

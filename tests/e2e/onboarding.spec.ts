@@ -149,8 +149,15 @@ test.describe('signup and onboarding', () => {
     await expect(page.getByRole('button', { name: 'Continue' })).toBeDisabled();
     await expect(page.getByText(/Choose a course first/)).toBeVisible();
 
-    await courseButtons.nth(0).click();
-    await courseButtons.nth(1).click();
+    /*
+     * Named, not positional. The dashboard assertion at the end of this test
+     * needs courses the seeded cohort is actually enrolled in, and "the first
+     * two in the list" stopped being those when the picker moved to
+     * alphabetical order (course codes are no longer shown, so sorting by them
+     * had become sorting by something invisible).
+     */
+    await page.getByRole('button', { name: 'Data Structures', exact: true }).click();
+    await page.getByRole('button', { name: 'Algorithms', exact: true }).click();
     await expect(page.getByText('2 selected')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Continue' })).toBeEnabled();
 

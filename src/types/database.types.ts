@@ -618,9 +618,11 @@ export type Database = {
           faculty: string | null
           generated_at: string | null
           id: string
+          is_user_generated: boolean
           name: string
           source: Database["public"]["Enums"]["course_source"]
           university_id: string
+          year: number | null
         }
         Insert: {
           code: string
@@ -629,9 +631,11 @@ export type Database = {
           faculty?: string | null
           generated_at?: string | null
           id?: string
+          is_user_generated?: boolean
           name: string
           source?: Database["public"]["Enums"]["course_source"]
           university_id: string
+          year?: number | null
         }
         Update: {
           code?: string
@@ -640,9 +644,11 @@ export type Database = {
           faculty?: string | null
           generated_at?: string | null
           id?: string
+          is_user_generated?: boolean
           name?: string
           source?: Database["public"]["Enums"]["course_source"]
           university_id?: string
+          year?: number | null
         }
         Relationships: [
           {
@@ -1376,6 +1382,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "notifications_group_request_id_fkey"
+            columns: ["group_request_id"]
+            isOneToOne: false
+            referencedRelation: "group_requests"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "notifications_meeting_id_fkey"
             columns: ["meeting_id"]
             isOneToOne: false
@@ -2025,6 +2038,11 @@ export type Database = {
         }[]
       }
       app_current_university_id: { Args: never; Returns: string }
+      app_engagement_points: {
+        Args: { p_a: string; p_b: string }
+        Returns: number
+      }
+      app_group_week_spans: { Args: { p_group_id: string }; Returns: unknown }
       app_is_connected_to: {
         Args: { other_profile_id: string }
         Returns: boolean
@@ -2077,17 +2095,29 @@ export type Database = {
         Args: { profile_a: string; profile_b: string }
         Returns: number[]
       }
+      app_trait_affinity: {
+        Args: { p_a: string; p_b: string; p_course_offering_id?: string }
+        Returns: number
+      }
       app_university_timezone: {
         Args: { target_profile_id: string }
         Returns: string
       }
       app_wall_post_owner: { Args: { target_post_id: string }; Returns: string }
+      app_week_spans: { Args: { p_profile_id: string }; Returns: unknown }
       rpc_advance_academic_year: { Args: never; Returns: number }
       rpc_approve_group_request: {
         Args: { p_request_id: string }
         Returns: string
       }
       rpc_cancel_meeting: { Args: { p_meeting_id: string }; Returns: undefined }
+      rpc_course_group_scores: {
+        Args: { p_course_offering_id: string }
+        Returns: {
+          group_id: string
+          score: number
+        }[]
+      }
       rpc_course_tips: {
         Args: { p_offering_id: string }
         Returns: {
@@ -2124,24 +2154,6 @@ export type Database = {
         }
         Returns: string[]
       }
-      rpc_course_group_scores: {
-        Args: { p_course_offering_id: string }
-        Returns: {
-          group_id: string
-          score: number
-        }[]
-      }
-      rpc_group_candidate_score: {
-        Args: { p_group_id: string; p_profile_id: string }
-        Returns: number
-      }
-      rpc_group_request_scores: {
-        Args: { p_group_id: string }
-        Returns: {
-          request_id: string
-          score: number
-        }[]
-      }
       rpc_find_candidates: {
         Args: { p_course_offering_id?: string; p_limit?: number }
         Returns: {
@@ -2171,6 +2183,17 @@ export type Database = {
           study_environments: Database["public"]["Enums"]["study_environment"][]
           study_formats: Database["public"]["Enums"]["study_format"][]
           year_of_study: number
+        }[]
+      }
+      rpc_group_candidate_score: {
+        Args: { p_group_id: string; p_profile_id: string }
+        Returns: number
+      }
+      rpc_group_request_scores: {
+        Args: { p_group_id: string }
+        Returns: {
+          request_id: string
+          score: number
         }[]
       }
       rpc_group_unread_counts: {
@@ -2251,8 +2274,8 @@ export type Database = {
         | "comment_reply"
         | "comment_like"
         | "group_invite"
-        | "group_join_approved"
         | "rate_partner"
+        | "group_join_approved"
       rating_sentiment: "positive" | "negative"
       study_environment: "discussion" | "quiet"
       study_format: "in_person" | "remote"
@@ -2424,6 +2447,7 @@ export const Constants = {
         "comment_like",
         "group_invite",
         "rate_partner",
+        "group_join_approved",
       ],
       rating_sentiment: ["positive", "negative"],
       study_environment: ["discussion", "quiet"],

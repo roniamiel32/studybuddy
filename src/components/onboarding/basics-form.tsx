@@ -50,7 +50,7 @@ export interface BasicsFormProps {
 }
 
 const selectClasses =
-  'border-outline-variant/60 bg-field focus-visible:border-brand focus-visible:ring-brand/25 h-11 w-full rounded-md border px-4 text-body-md transition-colors outline-none focus-visible:bg-white focus-visible:ring-4';
+  'border-outline-variant/60 bg-field focus-visible:border-brand focus-visible:ring-brand/35 h-11 w-full rounded-md border px-4 text-body-md transition-colors outline-none focus-visible:bg-white focus-visible:ring-4';
 
 /**
  * Renders the step 1 form.

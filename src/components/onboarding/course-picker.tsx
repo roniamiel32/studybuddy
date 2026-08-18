@@ -16,13 +16,15 @@
  *              downstream — the score, the ranking, the reason shown on a match
  *              card — is built on shared courses, so a student who picks none is
  *              unmatchable and the next three steps cannot help them.
- * Version:     0.42.0
+ * Version:     0.44.0
  *
  * Modifications:
  *     0.6.0  - 2026-08-05 - Initial implementation (Phase 1c)
  *     0.10.0 - 2026-08-09 - Degree-scoped; Smart Course API; tracks removed
  *     0.11.0 - 2026-08-09 - Placeholder catalogs; Continue requires a course
- *     0.42.0 - 2026-08-16 - Schedule import panel above the search
+ *     0.43.0 - 2026-08-17 - Schedule upload removed; debounced search, and the
+ *                           shared missing-course field
+ *     0.44.0 - 2026-08-18 - Year headings and course codes removed; one flat list
  */
 
 'use client';
@@ -30,14 +32,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Search, TriangleAlert } from 'lucide-react';
 
-import { CourseImport } from '@/components/onboarding/course-import';
+import { MissingCourseField } from '@/components/courses/missing-course-field';
 import { StepForm } from '@/components/onboarding/step-form';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import type { CourseApiResponse } from '@/app/api/courses/route';
 import { UNVERIFIED_SOURCES } from '@/features/courses/catalog-schema';
+import type { MatchedCourse } from '@/features/courses/gatekeeper-actions';
 import { saveCourses } from '@/features/onboarding/actions';
 import type { OfferingOption } from '@/features/onboarding/queries';
+import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { cn } from '@/lib/utils';
 
 export interface CoursePickerProps {
@@ -106,7 +110,6 @@ export function CoursePicker({
           payload.courses.map((course) => ({
             offeringId: course.offeringId,
             courseId: course.courseId,
-            code: course.code,
             name: course.name,
             faculty: course.faculty,
             source: course.source,
@@ -129,7 +132,13 @@ export function CoursePicker({
     return () => abort.abort();
   }, [degreeId, offerings.length]);
 
-  const trimmed = query.trim().toLowerCase();
+  /*
+   * The input stays live and the FILTER lags behind it. Debouncing the input
+   * value itself would make the field visibly trail the keyboard, which reads as
+   * a broken text box.
+   */
+  const settledQuery = useDebouncedValue(query);
+  const trimmed = settledQuery.trim().toLowerCase();
 
   /*
    * Read off the courses themselves rather than the response, so a catalog that
@@ -154,10 +163,7 @@ export function CoursePicker({
   const visible = useMemo(
     () =>
       catalog.filter(
-        (offering) =>
-          !trimmed ||
-          offering.name.toLowerCase().includes(trimmed) ||
-          offering.code.toLowerCase().includes(trimmed),
+        (offering) => !trimmed || offering.name.toLowerCase().includes(trimmed),
       ),
     [catalog, trimmed],
   );
@@ -171,12 +177,25 @@ export function CoursePicker({
   };
 
   /*
-   * Additive only, and deduplicated. The import panel proposes courses; it never
-   * unticks one, because a student who ticked a course by hand and then uploaded
-   * a schedule that omitted it did not ask to have it removed.
+   * Puts a gatekeeper result into the list and ticks it.
+   *
+   * The course is merged into the catalog first: one the agent has just created
+   * is in nothing the server rendered, so selecting it without adding it would
+   * bump the "N selected" count for a course the student cannot see anywhere on
+   * the page.
    */
-  const addOfferings = (offeringIds: string[]) => {
-    setSelected((current) => [...new Set([...current, ...offeringIds])]);
+  const adoptCourse = (course: MatchedCourse) => {
+    setCatalog((current) =>
+      current.some((offering) => offering.offeringId === course.offeringId)
+        ? current
+        : [...current, { ...course, faculty: null, source: 'placeholder' as const }].sort(
+            (a, b) => a.name.localeCompare(b.name),
+          ),
+    );
+
+    setSelected((current) =>
+      current.includes(course.offeringId) ? current : [...current, course.offeringId],
+    );
   };
 
   const renderCourse = (offering: OfferingOption) => {
@@ -188,11 +207,7 @@ export function CoursePicker({
           type="button"
           onClick={() => toggle(offering.offeringId)}
           aria-pressed={isSelected}
-          /*
-           * Explicit, because the name and code sit in adjacent spans and would
-           * otherwise be announced run together as "Constitutional LawLAW-102".
-           */
-          aria-label={`${offering.name} (${offering.code})`}
+          aria-label={offering.name}
           className={cn(
             'border-outline-variant/60 flex w-full items-center gap-3 rounded-md border bg-white p-3.5 text-left transition-colors',
             'hover:border-brand/60 focus-visible:ring-brand/35 focus-visible:ring-4 focus-visible:outline-none',
@@ -211,12 +226,7 @@ export function CoursePicker({
             {isSelected ? <Check className="size-3.5" /> : null}
           </span>
 
-          <span className="min-w-0 flex-1">
-            <span className="text-label-md block truncate">{offering.name}</span>
-            <span className="text-outline block truncate text-label-sm font-normal">
-              {offering.code}
-            </span>
-          </span>
+          <span className="text-label-md min-w-0 flex-1 truncate">{offering.name}</span>
         </button>
       </li>
     );
@@ -266,7 +276,7 @@ export function CoursePicker({
             */}
           <span>
             {hasPlaceholders
-              ? `This is a standard course list for ${degreeName}, not your university\u2019s own syllabus. Course names and codes may differ from the real ones.`
+              ? `This is a standard course list for ${degreeName}, not your university\u2019s own syllabus. Course names may differ from the real ones.`
               : `This course list was suggested automatically and has not been verified against your university\u2019s syllabus. Check it before relying on it.`}
           </span>
         </p>
@@ -278,20 +288,11 @@ export function CoursePicker({
         </p>
       ) : null}
 
-      {/*
-        * Above the search, because it is the faster route for a student who has
-        * their timetable open. It needs a degree to compare against, so it is
-        * absent in the same case the Smart Course API lookup is.
-        */}
-      {degreeId ? (
-        <CourseImport degreeId={degreeId} selected={selected} onAdd={addOfferings} />
-      ) : null}
-
       {/* The page heading already asks the question; a second copy here read as
           a stutter. This block is just the search control. */}
       <div className="flex flex-col gap-2">
         <label htmlFor="course-search" className="sr-only">
-          Search all courses by name or code
+          Search your courses
         </label>
 
         <div className="relative">
@@ -304,7 +305,7 @@ export function CoursePicker({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search all courses by name or code"
+            placeholder="Search your courses"
             className="pl-10"
           />
         </div>
@@ -327,11 +328,31 @@ export function CoursePicker({
       {visible.length === 0 && !fetching ? (
         <p className="text-on-surface-variant bg-surface-container rounded-md p-4 text-body-md">
           {trimmed
-            ? `No courses in ${degreeName} match \u201C${query}\u201D. Try the course code instead.`
+            ? `No courses in ${degreeName} match \u201C${query}\u201D. Add it below if it is missing.`
             : `We have no course list for ${degreeName} yet. You can continue and add courses later.`}
         </p>
       ) : null}
 
+      {/*
+        * Last, because this is where a student arrives after failing to find
+        * their course above. It needs a degree to check against, so it is absent
+        * in the same case the Smart Course API lookup is.
+        */}
+      {degreeId ? (
+        <div className="border-outline-variant/60 border-t pt-6">
+          <MissingCourseField
+            degreeId={degreeId}
+            idPrefix="onboarding-missing-course"
+            /*
+             * Ticked rather than enrolled. Step 2 commits the whole selection on
+             * Continue, and enrolling behind the student's back would leave them
+             * in a course they could still see unticked in front of them.
+             */
+            degreeName={degreeName}
+            onCourseReady={adoptCourse}
+          />
+        </div>
+      ) : null}
     </StepForm>
   );
 }
