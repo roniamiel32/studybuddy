@@ -111,7 +111,7 @@ function withTime(iso: string, value: string): string {
   if (!value) return iso;
 
   const [hours, minutes] = value.split(':').map(Number);
-  
+
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return iso;
 
   const date = new Date(iso);
@@ -143,7 +143,7 @@ export function ScheduleMeetingDialog({
   const [selected, setSelected] = useState<string[]>([]);
   const [edits, setEdits] = useState<RunEdits>({});
   const [visibleDays, setVisibleDays] = useState(LIST_PAGE_DAYS);
-
+  const [weekOffset, setWeekOffset] = useState(0);
   const [loading, startLoading] = useTransition();
 
   const error = state && !state.ok ? state.error : null;
@@ -192,6 +192,7 @@ export function ScheduleMeetingDialog({
     setEdits({});
     setVisibleDays(LIST_PAGE_DAYS);
     setView('grid');
+    setWeekOffset(0);
     /* Or a failure from last time would still be on screen while this open is
        still loading, describing an attempt nobody made. */
     setLoadError(null);
@@ -209,7 +210,12 @@ export function ScheduleMeetingDialog({
   /* Memoised, not `slots ?? []` inline: a fresh array every render would make
      every memo below it recompute, which is the whole cost they exist to avoid. */
   const offered = useMemo(() => slots ?? [], [slots]);
-  const grid = useMemo(() => buildSlotGrid(offered), [offered]);
+  const grid = useMemo(() => {
+    const baseDate = new Date();
+    baseDate.setDate(baseDate.getDate() + (weekOffset * 7));
+
+    return buildSlotGrid(offered, SCHEDULER_WINDOW_DAYS, baseDate);
+  }, [offered, weekOffset]);
   const days = useMemo(() => groupSlotsByDay(offered), [offered]);
   const runs = useMemo(() => mergeSelectedSlots(offered, selected), [offered, selected]);
 
@@ -318,7 +324,29 @@ export function ScheduleMeetingDialog({
             </div>
 
             {view === 'grid' ? (
-              <SlotGridView grid={grid} selected={selected} onToggle={toggle} />
+              <div className="flex flex-col gap-2">
+                <SlotGridView grid={grid} selected={selected} onToggle={toggle} />
+
+                <div className="flex items-center justify-between px-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setWeekOffset((current) => current - 1)}
+                    disabled={weekOffset === 0}
+                    className="text-brand hover:text-brand-bright focus-visible:ring-brand/35 rounded-md text-label-sm font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:ring-4 focus-visible:outline-none"
+                  >
+                    &lt; Previous week
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setWeekOffset((current) => current + 1)}
+                    disabled={weekOffset >= 1}
+                    className="text-brand hover:text-brand-bright focus-visible:ring-brand/35 rounded-md text-label-sm font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:ring-4 focus-visible:outline-none"
+                  >
+                    Next week &gt;
+                  </button>
+                </div>
+              </div>
             ) : (
               <SlotListView
                 days={days}
