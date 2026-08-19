@@ -17,9 +17,10 @@
  *              `study_group_members.last_seen_at` is that state, so the number is
  *              now honest for both — and the union no longer needs the renderer
  *              to special-case which kind it is holding before showing a badge.
- * Version:     0.26.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - The thread subtitle is the course name
  *     0.27.0 - 2026-08-13 - Group threads count unread against last_seen_at
  *                           (Phase 9E)
  *     0.26.0 - 2026-08-13 - Initial implementation (Phase 9D)
@@ -79,7 +80,7 @@ export function personThread(conversation: ConversationView): PersonThreadView {
     href: `/messages/${conversation.id}`,
     title: conversation.partnerName,
     avatarUrl: conversation.partnerAvatarUrl,
-    subtitle: conversation.courseCode,
+    subtitle: conversation.courseName,
     lastMessageAt: conversation.lastMessageAt,
     lastMessageBody: conversation.lastMessageBody,
     lastMessageFromMe: conversation.lastMessageFromMe,

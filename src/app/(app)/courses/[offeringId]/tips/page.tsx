@@ -54,7 +54,6 @@ export default async function CourseTipsPage({
       <CourseHeader
         offeringId={course.offeringId}
         name={course.name}
-        code={course.code}
         faculty={course.faculty}
         classmateCount={course.classmateCount}
         globals={globals}
@@ -64,7 +63,7 @@ export default async function CourseTipsPage({
       <div className="mb-6">
         <h2 className="font-heading text-headline-md">Course tips</h2>
         <p className="text-on-surface-variant mt-1 max-w-2xl text-body-md text-pretty">
-          Advice from students taking {course.code} or who have taken it, with the
+          Advice from students taking {course.name} or who have taken it, with the
           best-rated first. Rate a tip and it moves for everyone.
         </p>
       </div>
@@ -74,7 +73,7 @@ export default async function CourseTipsPage({
       <div className="max-w-3xl">
         <CourseTipsFeed
           offeringId={course.offeringId}
-          courseCode={course.code}
+          courseName={course.name}
           tips={tips}
         />
       </div>

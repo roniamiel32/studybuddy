@@ -21,9 +21,10 @@
  *              round trip is one either way. A union view would have to flatten
  *              three row types into one and be maintained every time any of them
  *              gained a column.
- * Version:     0.26.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - A course result is subtitled by faculty, not by code
  *     0.26.0 - 2026-08-13 - Initial implementation (Phase 9D)
  */
 
@@ -87,7 +88,7 @@ export async function searchEverything(rawQuery: string): Promise<ActionResult<S
     const [enrolments, students, groups] = await Promise.all([
       supabase
         .from('enrollments')
-        .select('course_offering_id, course_offerings ( courses ( name, code ) )')
+        .select('course_offering_id, course_offerings ( courses ( name, code, faculty ) )')
         .eq('profile_id', user.id),
       supabase
         .from('profiles')
@@ -103,7 +104,9 @@ export async function searchEverything(rawQuery: string): Promise<ActionResult<S
 
     interface EnrolmentRow {
       course_offering_id: string;
-      course_offerings: { courses: { name: string; code: string } | null } | null;
+      course_offerings: {
+        courses: { name: string; code: string; faculty: string | null } | null;
+      } | null;
     }
 
     interface StudentRow {
@@ -146,7 +149,10 @@ export async function searchEverything(rawQuery: string): Promise<ActionResult<S
                 kind: 'course' as const,
                 id: row.course_offering_id,
                 title: course.name,
-                subtitle: course.code,
+                /* The faculty, not the catalogue number — codes are gone from
+                   the interface. The code is still MATCHED on above, because a
+                   student who types one should still find their course. */
+                subtitle: course.faculty,
                 href: `/courses/${row.course_offering_id}`,
                 avatarUrl: null,
               },

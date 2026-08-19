@@ -7,9 +7,10 @@
  *              above the list of existing groups would push them off the screen and
  *              push people towards making a second group instead of joining one —
  *              the opposite of what the feature is for.
- * Version:     0.15.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - The default group name uses the course name
  *     0.15.0 - 2026-08-10 - Initial implementation (Phase 5)
  */
 
@@ -26,22 +27,22 @@ import { MAX_PARTICIPANTS, MIN_PARTICIPANTS } from '@/features/groups/group-view
 
 export interface CreateGroupPanelProps {
   offeringId: string;
-  courseCode: string;
+  courseName: string;
 }
 
 /**
  * Renders the create-a-group control and its form.
  *
  * @param offeringId - The course the group belongs to.
- * @param courseCode - Used in the default name, so the field is never empty.
+ * @param courseName - Used in the default name, so the field is never empty.
  * @returns The panel element.
  */
-export function CreateGroupPanel({ offeringId, courseCode }: CreateGroupPanelProps) {
+export function CreateGroupPanel({ offeringId, courseName }: CreateGroupPanelProps) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createGroup, null);
 
   /* Controlled, so a rejected submit does not wipe what they typed. */
-  const [name, setName] = useState(`${courseCode} study group`);
+  const [name, setName] = useState(`${courseName} study group`);
   const [description, setDescription] = useState('');
   const [size, setSize] = useState('4');
 

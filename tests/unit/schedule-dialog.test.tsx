@@ -19,9 +19,11 @@
  *              findMeetingSlots is mocked. It is a 'use server' module that
  *              opens a Supabase client from cookies, and what is under test here
  *              is what the component does with an answer, not how it gets one.
- * Version:     0.30.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Fixtures anchored on the week's Sunday, matching the
+ *                           grid; the title assertion names the partner
  *     0.30.0 - 2026-08-14 - Initial tests (Phase 9H)
  */
 
@@ -31,10 +33,29 @@ import userEvent from '@testing-library/user-event';
 
 import type { MeetingSlotView } from '@/features/meetings/meeting-view';
 
-/** Built from local components, because the picker renders in the reader's zone. */
-function slotAt(daysAhead: number, hour: number): MeetingSlotView {
+/**
+ * A slot on a weekday of THE CURRENT WEEK, in the reader's own zone.
+ *
+ * ANCHORED ON SUNDAY RATHER THAN ON TODAY, and that is what stops the calendar
+ * deciding whether this suite passes. buildSlotGrid draws Sunday to Saturday of
+ * the week it is called in, so fixtures written as "today plus four days" fall
+ * off the end of the grid from Wednesday onwards — the run would find three
+ * cells where it expected five, on three days out of seven. Written as weekdays,
+ * every fixture lands in the window whatever day the suite runs on.
+ *
+ * @param dayOfWeek - 0 = Sunday, the numbering the grid uses.
+ * @param hour      - Local start hour.
+ * @returns The slot.
+ */
+function slotAt(dayOfWeek: number, hour: number): MeetingSlotView {
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysAhead, hour);
+  const sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+  const start = new Date(
+    sunday.getFullYear(),
+    sunday.getMonth(),
+    sunday.getDate() + dayOfWeek,
+    hour,
+  );
 
   return {
     startsAt: start.toISOString(),
@@ -43,8 +64,9 @@ function slotAt(daysAhead: number, hour: number): MeetingSlotView {
   };
 }
 
-/* Today 14–16 and 16–18, and 14–16 on three later days. Deliberately lopsided:
-   a grid that filled every cell would hide a bug that ignores the day. */
+/* Sunday 14–16 and 16–18, and 14–16 on Tuesday, Thursday and Saturday.
+   Deliberately lopsided: a grid that filled every cell would hide a bug that
+   ignores the day. */
 const SLOTS = [slotAt(0, 14), slotAt(0, 16), slotAt(2, 14), slotAt(4, 14), slotAt(6, 14)];
 
 const findMeetingSlots = vi.fn(async () => ({ ok: true as const, data: SLOTS }));
@@ -88,7 +110,6 @@ async function openPicker() {
       onClose={() => {}}
       conversationId="11111111-1111-4111-8111-111111111111"
       withLabel="Pat Partner"
-      courseCode="CS-3040"
     />,
   );
 
@@ -128,13 +149,24 @@ describe('the picker opens on the grid', () => {
     expect(within(screen.getByRole('table')).getAllByRole('columnheader')).toHaveLength(8);
   });
 
+  it('offers a title naming the study partner, and no course code', async () => {
+    await openPicker();
+
+    const title = screen.getByLabelText('What is it for?');
+
+    /* The exact string the server falls back to, so a form posted with the
+       field untouched and one posted without it produce the same row. */
+    expect(title).toHaveValue('Study session with Pat Partner');
+    expect(title).not.toHaveValue(expect.stringContaining('CS-'));
+  });
+
   it('makes unavailable cells not controls at all', async () => {
     await openPicker();
 
     /*
-     * Five offered slots across a 7-day, 2-row grid: fourteen cells, five of
-     * which are selectable. The other nine must not be buttons — not disabled
-     * buttons, not buttons at all.
+     * Five offered slots across a 7-day, 7-row grid: forty-nine cells, five of
+     * which are selectable. The other forty-four must not be buttons — not
+     * disabled buttons, not buttons at all.
      */
     expect(gridCells()).toHaveLength(SLOTS.length);
     expect(
@@ -171,7 +203,7 @@ describe('selecting times', () => {
     const user = await openPicker();
     const cells = gridCells();
 
-    /* Today 14–16 and a different day's 14–16: two days, so two sessions. */
+    /* Sunday 14–16 and Thursday 14–16: two days, so two sessions. */
     await user.click(cells[0]);
     await user.click(cells[2]);
 
@@ -185,10 +217,10 @@ describe('selecting times', () => {
     const cells = gridCells();
 
     /*
-     * The grid renders row-major — a whole 14:00 row across the days it is free
-     * on, then the 16:00 row — so today's two contiguous blocks are the first
-     * cell and the last, not two neighbours. Being contiguous, they book one
-     * session rather than two.
+     * The grid renders row-major — the whole 14:00 row across the days it is
+     * free on, then the 16:00 row — so Sunday's two contiguous blocks are the
+     * first cell and the last, not two neighbours. Being contiguous, they book
+     * one session rather than two.
      */
     await user.click(cells[0]);
     await user.click(cells.at(-1)!);
@@ -282,7 +314,6 @@ describe('when there is nothing to offer', () => {
         onClose={() => {}}
         conversationId="11111111-1111-4111-8111-111111111111"
         withLabel="Pat Partner"
-        courseCode="CS-3040"
       />,
     );
 
@@ -302,7 +333,6 @@ describe('when there is nothing to offer', () => {
         onClose={() => {}}
         conversationId="11111111-1111-4111-8111-111111111111"
         withLabel="Pat Partner"
-        courseCode="CS-3040"
       />,
     );
 

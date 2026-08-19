@@ -7,17 +7,19 @@
  *              and a person are both things you arrive at, look over and act on,
  *              and giving them the same banner, the same title block and the same
  *              actions area means a student learns the shape once. Where the
- *              profile puts an avatar this puts the course code in the same
- *              circle, because a course has no face and an empty ring would read
- *              as a missing photo.
+ *              profile puts an avatar this puts the course's initials in the
+ *              same circle, because a course has no face and an empty ring would
+ *              read as a missing photo. It held the catalogue number until
+ *              0.48.0, which took course numbers off every screen.
  *
  *              IT OWNS THE NAVIGATION BETWEEN THE TWO VIEWS, exactly as the
  *              profile header does: "Course Tips" leads out, the title leads
  *              back, and usePathname decides which — so a page cannot forget to
  *              say where it is and end up offering a link to itself.
- * Version:     0.25.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Course numbers off the header; the badge shows initials
  *     0.25.0 - 2026-08-13 - Initial implementation (Phase 9C)
  */
 
@@ -25,19 +27,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, BookOpen, GraduationCap, Lightbulb, Users } from 'lucide-react';
+import { ArrowLeft, GraduationCap, Lightbulb, Users } from 'lucide-react';
 
 import { CoursePreferencesDialog } from '@/components/courses/course-preferences-dialog';
 import { Chip } from '@/components/ui/chip';
-import type {
-  CoursePreferenceOverride,
-  CoursePreferenceValues,
+import {
+  courseInitials,
+  type CoursePreferenceOverride,
+  type CoursePreferenceValues,
 } from '@/features/courses/course-view';
 
 export interface CourseHeaderProps {
   offeringId: string;
   name: string;
-  code: string;
   faculty: string | null;
   classmateCount: number;
   globals: CoursePreferenceValues;
@@ -53,7 +55,6 @@ export interface CourseHeaderProps {
 export function CourseHeader({
   offeringId,
   name,
-  code,
   faculty,
   classmateCount,
   globals,
@@ -71,18 +72,20 @@ export function CourseHeader({
       />
 
       <div className="p-6">
-        {/* The code badge overlaps the banner, where a profile puts its avatar. */}
+        {/* The badge overlaps the banner, where a profile puts its avatar. It
+            carries the course's initials — it used to carry its catalogue
+            number, which is no longer shown anywhere. */}
         <div className="-mt-16 mb-4 flex flex-wrap items-end justify-between gap-4">
           {onTips ? (
             <Link
               href={courseHref}
-              aria-label={`Back to ${code}`}
+              aria-label={`Back to ${name}`}
               className="focus-visible:ring-brand/35 rounded-2xl focus-visible:ring-4 focus-visible:outline-none"
             >
-              <CourseBadge code={code} />
+              <CourseBadge name={name} />
             </Link>
           ) : (
-            <CourseBadge code={code} />
+            <CourseBadge name={name} />
           )}
 
           <div className="flex flex-wrap items-center gap-2">
@@ -103,7 +106,7 @@ export function CourseHeader({
             */}
             <CoursePreferencesDialog
               offeringId={offeringId}
-              courseCode={code}
+              courseName={name}
               globals={globals}
               override={override}
               triggerLabel="Preferences"
@@ -138,15 +141,9 @@ export function CourseHeader({
           )}
         </h1>
 
-        <p className="text-on-surface-variant mt-1 text-body-md">
-          {[code, faculty].filter(Boolean).join(' · ')}
-        </p>
+        <p className="text-on-surface-variant mt-1 text-body-md">{faculty}</p>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Chip tone="brand">
-            <BookOpen className="size-3" aria-hidden="true" />
-            {code}
-          </Chip>
           {faculty ? (
             <Chip tone="neutral">
               <GraduationCap className="size-3" aria-hidden="true" />
@@ -166,15 +163,21 @@ export function CourseHeader({
 }
 
 /**
- * The course code in the circle a profile puts its photo in.
+ * The course's initials, in the circle a profile puts its photo in.
  *
- * @param code - The course code.
+ * aria-hidden: the initials are a visual anchor, and the course's name is the
+ * heading a few lines below. Reading "DSA" out before it would be noise.
+ *
+ * @param name - The course's name.
  * @returns The badge element.
  */
-function CourseBadge({ code }: { code: string }) {
+function CourseBadge({ name }: { name: string }) {
   return (
-    <span className="border-surface bg-brand-fixed text-brand flex size-24 items-center justify-center rounded-2xl border-4 text-center font-heading text-headline-md">
-      {code}
+    <span
+      aria-hidden="true"
+      className="border-surface bg-brand-fixed text-brand flex size-24 items-center justify-center rounded-2xl border-4 text-center font-heading text-headline-md"
+    >
+      {courseInitials(name)}
     </span>
   );
 }

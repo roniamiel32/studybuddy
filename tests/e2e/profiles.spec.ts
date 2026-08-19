@@ -221,7 +221,7 @@ test.describe('student profiles', () => {
      * knowing — a screen reader now hears these as loose links rather than as a
      * list of shared courses.
      */
-    await expect(page.getByText('CS-3040').first()).toBeVisible();
+    await expect(page.getByText('Full-Stack Web Development').first()).toBeVisible();
     await expect(page.getByText('Compatibility')).toBeVisible();
     await expect(page.getByText(/^\d+%$/)).toBeVisible();
 

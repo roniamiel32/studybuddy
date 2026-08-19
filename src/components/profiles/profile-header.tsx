@@ -9,6 +9,11 @@
  *                "Learn more" goes to the study information — an explicit button,
  *                because leaving the wall is a decision.
  *
+ *                "Meeting History" sits beside it AND ONLY ON YOUR OWN PROFILE.
+ *                It is a private record, so a classmate is never shown a link to
+ *                it — the route itself 404s for them, and a link they could see
+ *                but not follow would be worse than no link.
+ *
  *                THE AVATAR AND NAME GO BACK, and only when there is somewhere to
  *                go back to. A picture that navigates is a convention students
  *                already know from every social product; making it the way home
@@ -18,9 +23,11 @@
  *              needs to know that its parent would otherwise have to remember to
  *              tell it, and a page that forgot would render a "Learn more" button
  *              on the page it already points at.
- * Version:     0.20.0
+ * Version:     0.47.0
  *
  * Modifications:
+ *     0.47.0 - 2026-08-19 - The private Meeting History link, and the back
+ *                           navigation generalised to any sub-view
  *     0.20.0 - 2026-08-11 - Extracted from the profile page (Phase 8B)
  */
 
@@ -74,7 +81,11 @@ export function ProfileHeader({
 }: ProfileHeaderProps) {
   const pathname = usePathname();
   const wallHref = `/students/${profileId}`;
-  const onStudyInfo = pathname?.endsWith('/study-info') ?? false;
+  /* Any view that is not the wall itself. Tested this way rather than against a
+     list of names so a fourth view gets the back navigation for free — which is
+     what /meeting-history did. */
+  const onSubView = Boolean(pathname) && pathname !== wallHref;
+  const onMeetingHistory = pathname?.endsWith('/meeting-history') ?? false;
 
   return (
     <section aria-labelledby="profile-heading" className="clay-card mb-6 overflow-hidden p-0">
@@ -93,7 +104,7 @@ export function ProfileHeader({
             * would point at the gap between the avatar and the actions.
             */}
           <div className="relative shrink-0">
-            {onStudyInfo ? (
+            {onSubView ? (
               <Link
                 href={wallHref}
                 aria-label={`Back to ${fullName}'s wall`}
@@ -125,7 +136,7 @@ export function ProfileHeader({
           <div className="flex flex-wrap items-center gap-2">{actions}</div>
         </div>
 
-        {onStudyInfo ? (
+        {onSubView ? (
           <Link
             href={wallHref}
             className="text-on-surface-variant hover:text-brand focus-visible:ring-brand/35 mb-2 inline-flex items-center gap-1.5 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none"
@@ -141,7 +152,7 @@ export function ProfileHeader({
           * is a dead control.
           */}
         <h1 id="profile-heading" className="font-heading text-[28px] leading-9 text-balance">
-          {onStudyInfo ? (
+          {onSubView ? (
             <Link
               href={wallHref}
               className="hover:text-brand focus-visible:ring-brand/35 rounded-md transition-colors focus-visible:ring-4 focus-visible:outline-none"
@@ -180,14 +191,25 @@ export function ProfileHeader({
           ) : null}
         </div>
 
-        {!onStudyInfo ? (
-          <Link
-            href={`${wallHref}/study-info`}
-            className="mt-5 inline-block px-3 py-1 rounded-md text-sm text-neutral-600 transition-colors duration-200 hover:bg-neutral-100 hover:text-indigo-900"
-          >
-            Learn more
-          </Link>
-        ) : null}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {!onSubView ? (
+            <Link
+              href={`${wallHref}/study-info`}
+              className="inline-block px-3 py-1 rounded-md text-sm text-neutral-600 transition-colors duration-200 hover:bg-neutral-100 hover:text-indigo-900"
+            >
+              Learn more
+            </Link>
+          ) : null}
+
+          {isSelf && !onMeetingHistory ? (
+            <Link
+              href={`${wallHref}/meeting-history`}
+              className="inline-block px-3 py-1 rounded-md text-sm text-neutral-600 transition-colors duration-200 hover:bg-neutral-100 hover:text-indigo-900"
+            >
+              Meeting History
+            </Link>
+          ) : null}
+        </div>
       </div>
     </section>
   );

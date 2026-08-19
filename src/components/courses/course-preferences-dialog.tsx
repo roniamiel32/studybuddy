@@ -14,9 +14,10 @@
  *              than a copy — otherwise a later change to the global preference
  *              would silently skip this course and the student would have no way
  *              to know why.
- * Version:     0.14.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Titled by course name, not course code
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
  */
 
@@ -43,7 +44,7 @@ import {
 
 export interface CoursePreferencesDialogProps {
   offeringId: string;
-  courseCode: string;
+  courseName: string;
   globals: CoursePreferenceValues;
   override: CoursePreferenceOverride;
   /*
@@ -62,14 +63,14 @@ export interface CoursePreferencesDialogProps {
  * Renders the override control and its dialog.
  *
  * @param offeringId - The course being edited.
- * @param courseCode - Shown in the dialog title.
+ * @param courseName - Shown in the dialog title.
  * @param globals    - The student's global answers, shown as the baseline.
  * @param override   - The stored override, nulls meaning inherit.
  * @returns The button and dialog elements.
  */
 export function CoursePreferencesDialog({
   offeringId,
-  courseCode,
+  courseName,
   globals,
   override,
   triggerLabel = 'Edit preferences for this course',
@@ -144,7 +145,7 @@ export function CoursePreferencesDialog({
         <div className="border-outline-variant/30 flex items-start justify-between gap-4 border-b p-5">
           <div>
             <h2 id="course-prefs-title" className="font-heading text-headline-md">
-              Preferences for {courseCode}
+              Preferences for {courseName}
             </h2>
             <p className="text-on-surface-variant mt-1 text-body-md text-pretty">
               These apply to this course only. Everything else keeps your defaults.

@@ -10,9 +10,10 @@
  *              into the browser bundle and the build fails. The chat is the most
  *              client-heavy screen in the app, so this split matters more here
  *              than anywhere else.
- * Version:     0.12.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - courseCode dropped; the header shows the name
  *     0.12.0 - 2026-08-10 - Initial implementation (Phase 3)
  */
 
@@ -35,8 +36,13 @@ export interface ConversationView {
   partnerName: string;
   partnerAvatarUrl: string | null;
   partnerDegreeName: string | null;
-  /** The course that brought them together, for the header. */
-  courseCode: string | null;
+  /**
+   * The course that brought them together, for the header.
+   *
+   * THE NAME, AND NO LONGER THE CODE BESIDE IT. A catalogue number is an
+   * administrative handle, not something a student recognises a chat by, and it
+   * is gone from every screen — see the sweep in 0.48.0.
+   */
   courseName: string | null;
   lastMessageAt: string;
   /** Null only in the moment between creating a conversation and its first message. */

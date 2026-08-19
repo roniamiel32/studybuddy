@@ -14,9 +14,10 @@
  *              sits beside a feed that is itself scrollable — two things loading
  *              on scroll in one viewport fight each other, and the one you did
  *              not mean to extend is always the one that moves.
- * Version:     0.25.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Named by course name, not course code
  *     0.25.0 - 2026-08-13 - Initial implementation (Phase 9C)
  */
 
@@ -33,7 +34,7 @@ import { memberSubtitle, type CourseMemberView } from '@/features/course-wall/co
 
 export interface CourseMembersWidgetProps {
   offeringId: string;
-  courseCode: string;
+  courseName: string;
   /** The first page, rendered on the server. */
   initialMembers: CourseMemberView[];
   initialHasMore: boolean;
@@ -52,7 +53,7 @@ const PAGE_SIZE = 6;
  */
 export function CourseMembersWidget({
   offeringId,
-  courseCode,
+  courseName,
   initialMembers,
   initialHasMore,
   classmateCount,
@@ -73,7 +74,7 @@ export function CourseMembersWidget({
       </div>
 
       <p className="text-on-surface-variant mt-1 mb-4 text-body-md text-pretty">
-        Classmates taking {courseCode} with you.
+        Classmates taking {courseName} with you.
       </p>
 
       {members.length > 0 ? (
@@ -148,7 +149,7 @@ export function CourseMembersWidget({
         </>
       ) : (
         <p className="text-on-surface-variant bg-surface-container rounded-md p-4 text-body-md text-pretty">
-          Nobody else has joined {courseCode} yet. You are early.
+          Nobody else has joined {courseName} yet. You are early.
         </p>
       )}
     </section>

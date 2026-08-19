@@ -8,9 +8,10 @@
  *              ConversationsRefresh, which re-renders this on the server when a
  *              message arrives, so the previews and the unread pills stay right
  *              without this component holding client state.
- * Version:     0.12.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - The chip shows the course name
  *     0.12.0 - 2026-08-10 - Initial implementation (Phase 3)
  */
 
@@ -91,8 +92,8 @@ export function ConversationList({ conversations }: ConversationListProps) {
                 </p>
 
                 <div className="mt-1.5 flex items-center gap-2">
-                  {conversation.courseCode ? (
-                    <Chip tone="brand">{conversation.courseCode}</Chip>
+                  {conversation.courseName ? (
+                    <Chip tone="brand">{conversation.courseName}</Chip>
                   ) : null}
                   {unread ? (
                     <Chip tone="sunset">

@@ -13,9 +13,11 @@
  *              dialog asks for it on open, from the client — the intersection is
  *              too expensive to compute for a chat nobody has opened the
  *              scheduler on.
- * Version:     0.29.0
+ * Version:     0.47.0
  *
  * Modifications:
+ *     0.47.0 - 2026-08-19 - The default title names the study partner, and is
+ *                           applied here rather than only in the picker
  *     0.29.0 - 2026-08-14 - dismissMeeting, the one-sided banner (Phase 9G)
  *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
  */
@@ -33,7 +35,7 @@ import {
 } from '@/features/calendar/write-sync';
 import { createClient, requireUser } from '@/lib/supabase/server';
 
-import type { MeetingSlotView } from './meeting-view';
+import { defaultMeetingTitle, type MeetingSlotView } from './meeting-view';
 import {
   createMeetingSchema,
   meetingIdSchema,
@@ -96,6 +98,56 @@ export async function findMeetingSlots(input: {
 }
 
 /**
+ * Who a chat is with, for the default session title.
+ *
+ * A conversation answers with the other student; a group answers with its own
+ * name. Read as the caller, so it can only ever name a chat they are in — the
+ * conversations and study_groups policies have already said so.
+ *
+ * @param supabase - The caller's client.
+ * @param scope    - The conversation or the group the session is booked from.
+ * @param viewerId - The signed-in student, so the other participant can be picked out.
+ * @returns The label, or null when it cannot be read.
+ */
+async function scopePartnerLabel(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  scope: { conversationId?: string; groupId?: string },
+  viewerId: string,
+): Promise<string | null> {
+  if (scope.groupId) {
+    const { data } = await supabase
+      .from('study_groups')
+      .select('name')
+      .eq('id', scope.groupId)
+      .maybeSingle();
+
+    return data?.name ?? null;
+  }
+
+  if (!scope.conversationId) {
+    return null;
+  }
+
+  const { data } = await supabase
+    .from('conversations')
+    .select(
+      `participant_a,
+       a:profiles!conversations_participant_a_fkey ( full_name ),
+       b:profiles!conversations_participant_b_fkey ( full_name )`,
+    )
+    .eq('id', scope.conversationId)
+    .maybeSingle();
+
+  if (!data) {
+    return null;
+  }
+
+  const partner = data.participant_a === viewerId ? data.b : data.a;
+
+  return partner?.full_name ?? null;
+}
+
+/**
  * Books every session the picker selected, for everyone in the chat.
  *
  * ONE RPC FOR THE WHOLE SELECTION, NOT ONE CALL PER SESSION. Looping here would
@@ -125,10 +177,27 @@ export async function createMeeting(
     const startsAt = formData.getAll('startsAt').map(String).filter(Boolean);
     const endsAt = formData.getAll('endsAt').map(String).filter(Boolean);
 
-    const raw = {
+    const scope = {
       conversationId: String(formData.get('conversationId') ?? '') || undefined,
       groupId: String(formData.get('groupId') ?? '') || undefined,
-      title: String(formData.get('title') ?? ''),
+    };
+
+    const supabase = await createClient();
+
+    /*
+     * THE DEFAULT TITLE IS DECIDED HERE, not only in the picker. The field is
+     * pre-filled client-side so the student can see and edit what they are
+     * booking, but a form posted without it must still produce the same
+     * sentence — the title is what lands in Google Calendar, and a blank one
+     * would be rejected by the schema as a validation error about a field the
+     * student was never asked to fill in.
+     */
+    const typedTitle = String(formData.get('title') ?? '').trim();
+    const title = typedTitle || defaultMeetingTitle(await scopePartnerLabel(supabase, scope, user.id));
+
+    const raw = {
+      ...scope,
+      title,
       location: String(formData.get('location') ?? '') || undefined,
       sessions: startsAt.map((start, index) => ({
         startsAt: start,
@@ -137,7 +206,6 @@ export async function createMeeting(
     };
 
     const input = createMeetingSchema.parse(raw);
-    const supabase = await createClient();
 
     const { error } = await supabase.rpc('rpc_create_meetings', {
       p_conversation_id: input.conversationId,

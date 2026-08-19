@@ -127,7 +127,7 @@ test.describe('matches dashboard', () => {
     // shared days spelled out rather than a raw minute count.
     await expect(page.getByText(/% match/)).toBeVisible();
     await expect(page.getByText('Sun, Tue · 8h a week')).toBeVisible();
-    await expect(page.getByText('CS-3040').first()).toBeVisible();
+    await expect(page.getByText('Full-Stack Web Development').first()).toBeVisible();
   });
 
   test('explains why a match was made when asked', async ({ page }) => {

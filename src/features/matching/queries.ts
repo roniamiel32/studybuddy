@@ -4,9 +4,10 @@
  * Description: Reads for the matching screens. The scoring lives in SQL
  *              (`rpc_find_candidates`); this layer only shapes the result for
  *              display.
- * Version:     0.10.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Shared courses are named, not coded
  *     0.10.0 - 2026-08-09 - Matching v2 columns; track_name dropped
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
  */
@@ -53,8 +54,8 @@ export async function getMatches(options?: {
     const existing = byCandidate.get(row.candidate_id);
 
     if (existing) {
-      if (!existing.sharedCourseCodes.includes(row.course_code)) {
-        existing.sharedCourseCodes.push(row.course_code);
+      if (!existing.sharedCourseNames.includes(row.course_name)) {
+        existing.sharedCourseNames.push(row.course_name);
       }
       /* Rows arrive score-ordered, so the first one seen is already the best. */
       continue;
@@ -69,8 +70,7 @@ export async function getMatches(options?: {
       score: Number(row.rule_score),
       overlapMinutes: row.overlap_minutes,
       sharedDays: row.shared_days ?? [],
-      sharedCourseCodes: [row.course_code],
-      bestCourseCode: row.course_code,
+      sharedCourseNames: [row.course_name],
       bestCourseName: row.course_name,
       bestCourseOfferingId: row.course_offering_id,
       preferredTimeBlocks: row.preferred_time_blocks ?? [],

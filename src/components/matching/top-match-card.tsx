@@ -4,9 +4,10 @@
  * Description: The best candidate, given the bento treatment from the source
  *              design: large avatar, score badge, trait chips, shared
  *              availability, and the primary call to action.
- * Version:     0.18.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Courses are named, not coded
  *     0.18.0 - 2026-08-10 - The name links to the student's profile (Phase 6)
  *     0.12.0 - 2026-08-10 - Send message opens a conversation (Phase 3)
  *     0.10.0 - 2026-08-09 - Study track no longer shown
@@ -91,7 +92,7 @@ export function TopMatchCard({ match }: TopMatchCardProps) {
           <ul className="mt-3 mb-4 flex flex-wrap gap-2">
             <li>
               <Chip tone="brand" icon="📘">
-                {match.bestCourseCode}
+                {match.bestCourseName}
               </Chip>
             </li>
             {chips.map((chip) => (
@@ -108,9 +109,9 @@ export function TopMatchCard({ match }: TopMatchCardProps) {
             <p className="text-body-md font-semibold">
               {availability ?? 'No overlapping free time yet — add more to your week'}
             </p>
-            {match.sharedCourseCodes.length > 1 ? (
+            {match.sharedCourseNames.length > 1 ? (
               <p className="text-outline mt-2 text-label-sm font-normal">
-                Also together in {match.sharedCourseCodes.slice(1).join(', ')}
+                Also together in {match.sharedCourseNames.slice(1).join(', ')}
               </p>
             ) : null}
           </div>

@@ -12,9 +12,10 @@
  *
  *              Kept out of queries.ts because that module is `server-only` and the
  *              rating dialog is a client component.
- * Version:     0.18.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Course names replace course codes throughout
  *     0.18.0 - 2026-08-10 - Initial implementation (Phase 6)
  */
 
@@ -29,7 +30,6 @@ import {
 /** A course both students are taking. */
 export interface SharedCourseView {
   offeringId: string;
-  code: string;
   name: string;
 }
 
@@ -50,7 +50,7 @@ export interface PositiveConnectionView {
   raterId: string;
   raterName: string;
   raterAvatarUrl: string | null;
-  courseCode: string | null;
+  courseName: string | null;
   ratedAt: string;
 }
 
@@ -90,7 +90,7 @@ export interface StudentProfileView {
   /** Best compatibility score across their shared courses, or null. */
   compatibilityScore: number | null;
   /** The course that score came from, so the number can be explained. */
-  compatibilityCourseCode: string | null;
+  compatibilityCourseName: string | null;
   /** Public positive connections, newest first. */
   positiveConnections: PositiveConnectionView[];
   /** Whether the viewer has a conversation with them, which gates rating. */

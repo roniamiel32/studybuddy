@@ -14,9 +14,10 @@
  *              decides the order and the revalidation brings the new one; moving
  *              a card under the cursor that just rated it would lose the reader's
  *              place to reward them for taking part.
- * Version:     0.25.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Named by course name, not course code
  *     0.25.0 - 2026-08-13 - Initial implementation (Phase 9C)
  */
 
@@ -34,7 +35,7 @@ import { timeAgo } from '@/features/notifications/notification-view';
 
 export interface CourseTipsFeedProps {
   offeringId: string;
-  courseCode: string;
+  courseName: string;
   tips: CourseTipView[];
 }
 
@@ -44,7 +45,7 @@ export interface CourseTipsFeedProps {
  * @param props - The course, and its tips in the order the class put them.
  * @returns The feed element.
  */
-export function CourseTipsFeed({ offeringId, courseCode, tips }: CourseTipsFeedProps) {
+export function CourseTipsFeed({ offeringId, courseName, tips }: CourseTipsFeedProps) {
   const [state, formAction, posting] = useActionState(createCourseTip, null);
   const [draft, setDraft] = useState('');
 
@@ -58,7 +59,7 @@ export function CourseTipsFeed({ offeringId, courseCode, tips }: CourseTipsFeedP
   const error = state && !state.ok ? state.error : null;
 
   return (
-    <section aria-label={`${courseCode} tips`} className="flex flex-col gap-4">
+    <section aria-label={`${courseName} tips`} className="flex flex-col gap-4">
       <form
         action={formAction}
         className="border-outline-variant/40 rounded-xl border bg-white p-4 shadow-sm"
@@ -66,7 +67,7 @@ export function CourseTipsFeed({ offeringId, courseCode, tips }: CourseTipsFeedP
         <input type="hidden" name="offeringId" value={offeringId} />
 
         <label htmlFor="tip-body" className="sr-only">
-          Write a tip for {courseCode}
+          Write a tip for {courseName}
         </label>
 
         <div className="bg-field border-outline-variant/30 focus-within:border-brand focus-within:ring-brand/20 flex items-end gap-2 rounded-2xl border px-4 py-2 transition-all focus-within:bg-white focus-within:ring-2">
@@ -77,7 +78,7 @@ export function CourseTipsFeed({ offeringId, courseCode, tips }: CourseTipsFeedP
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             maxLength={1000}
-            placeholder={`What should someone taking ${courseCode} know?`}
+            placeholder={`What should someone taking ${courseName} know?`}
             className="text-on-surface placeholder:text-outline max-h-40 w-full resize-none bg-transparent py-1 text-[15px] outline-none"
           />
 
@@ -105,7 +106,7 @@ export function CourseTipsFeed({ offeringId, courseCode, tips }: CourseTipsFeedP
 
       {tips.length === 0 ? (
         <p className="text-on-surface-variant border-outline-variant/40 rounded-xl border bg-white p-5 text-body-md text-pretty shadow-sm">
-          No tips for {courseCode} yet. Write the first one — what you wish you had known
+          No tips for {courseName} yet. Write the first one — what you wish you had known
           in week one is usually the most useful thing here.
         </p>
       ) : (

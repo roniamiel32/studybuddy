@@ -9,9 +9,10 @@
  *              the positive-connections read below cannot pick one up even though it
  *              does not filter on sentiment itself. The filter is there anyway, as
  *              a second layer — but the database is the one that decides.
- * Version:     0.18.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Course names replace course codes throughout
  *     0.18.0 - 2026-08-10 - Initial implementation (Phase 6)
  */
 
@@ -128,7 +129,7 @@ export async function getStudentProfile(
     sharedCourses,
     sharedGroups,
     compatibilityScore: compatibility?.score ?? null,
-    compatibilityCourseCode: compatibility?.courseCode ?? null,
+    compatibilityCourseName: compatibility?.courseName ?? null,
     positiveConnections,
     canRate: ratingState?.canRate ?? false,
     myRating: ratingState?.myRating ?? null,
@@ -172,21 +173,22 @@ async function getSharedCourses(
     /* Fetch all of the user's own courses */
     const { data } = await supabase
       .from('enrollments')
-      .select('course_offering_id, course_offerings!inner(courses!inner(code, name))')
+      .select('course_offering_id, course_offerings!inner(courses!inner(name))')
       .eq('profile_id', profileId);
 
+    /* Sorted by name, because the name is what the list shows. It used to sort
+       by code, which put an invisible ordering on a visible list. */
     return (data ?? [])
       .map((row) => ({
         offeringId: row.course_offering_id,
-        code: row.course_offerings.courses.code,
         name: row.course_offerings.courses.name,
       }))
-      .sort((a, b) => a.code.localeCompare(b.code));
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   const { data } = await supabase
     .from('enrollments')
-    .select('profile_id, course_offering_id, course_offerings!inner(courses!inner(code, name))')
+    .select('profile_id, course_offering_id, course_offerings!inner(courses!inner(name))')
     .in('profile_id', [viewerId, profileId]);
 
   const mine = new Set(
@@ -197,10 +199,9 @@ async function getSharedCourses(
     .filter((row) => row.profile_id === profileId && mine.has(row.course_offering_id))
     .map((row) => ({
       offeringId: row.course_offering_id,
-      code: row.course_offerings.courses.code,
       name: row.course_offerings.courses.name,
     }))
-    .sort((a, b) => a.code.localeCompare(b.code));
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -293,7 +294,7 @@ async function getPositiveConnections(
   const { data } = await supabase
     .from('study_ratings')
     .select(
-      'rater_id, created_at, sentiment, rater:profiles!study_ratings_rater_id_fkey(full_name, avatar_url), course_offerings(courses(code))',
+      'rater_id, created_at, sentiment, rater:profiles!study_ratings_rater_id_fkey(full_name, avatar_url), course_offerings(courses(name))',
     )
     .eq('ratee_id', profileId)
     .eq('sentiment', 'positive')
@@ -304,8 +305,8 @@ async function getPositiveConnections(
     raterName:
       (row.rater as { full_name: string | null } | null)?.full_name ?? 'A classmate',
     raterAvatarUrl: (row.rater as { avatar_url: string | null } | null)?.avatar_url ?? null,
-    courseCode:
-      (row.course_offerings as { courses: { code: string } | null } | null)?.courses?.code ??
+    courseName:
+      (row.course_offerings as { courses: { name: string } | null } | null)?.courses?.name ??
       null,
     ratedAt: row.created_at,
   }));
@@ -326,7 +327,7 @@ async function getPositiveConnections(
 async function getCompatibility(
   supabase: Awaited<ReturnType<typeof createClient>>,
   profileId: string,
-): Promise<{ score: number; courseCode: string } | null> {
+): Promise<{ score: number; courseName: string } | null> {
   const { data } = await supabase.rpc('rpc_find_candidates', { p_limit: 200 });
 
   const rows = (data ?? []).filter((row) => row.candidate_id === profileId);
@@ -344,7 +345,7 @@ async function getCompatibility(
     Number(row.rule_score) > Number(top.rule_score) ? row : top,
   );
 
-  return { score: Number(best.rule_score), courseCode: best.course_code };
+  return { score: Number(best.rule_score), courseName: best.course_name };
 }
 
 /**

@@ -121,7 +121,7 @@ export default async function StudentStudyInfoPage({
                   </p>
                   <p className="text-on-surface-variant text-label-sm font-normal">
                     Best across your shared courses, from{' '}
-                    {profile.compatibilityCourseCode}.
+                    {profile.compatibilityCourseName}.
                   </p>
                 </div>
               ) : (
@@ -145,9 +145,6 @@ export default async function StudentStudyInfoPage({
                         <BookOpen className="text-brand size-4 shrink-0" aria-hidden="true" />
                         <span className="min-w-0 flex-1">
                           <span className="text-label-md block truncate">{course.name}</span>
-                          <span className="text-outline block text-label-sm font-normal">
-                            {course.code}
-                          </span>
                         </span>
                       </Link>
                     </div>
@@ -210,9 +207,6 @@ export default async function StudentStudyInfoPage({
                         <BookOpen className="text-brand size-4 shrink-0" aria-hidden="true" />
                         <span className="min-w-0 flex-1">
                           <span className="text-label-md block truncate">{course.name}</span>
-                          <span className="text-outline block text-label-sm font-normal">
-                            {course.code}
-                          </span>
                         </span>
                       </Link>
                     </div>

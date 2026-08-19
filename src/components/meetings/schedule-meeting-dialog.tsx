@@ -30,9 +30,10 @@
  *              what makes the toggle safe to press mid-pick — switching view is
  *              a change of lens, never a reset — and it is why selection state
  *              lives here rather than inside either view.
- * Version:     0.30.0
+ * Version:     0.47.0
  *
  * Modifications:
+ *     0.47.0 - 2026-08-19 - The course code is gone; the title names the partner
  *     0.30.0 - 2026-08-14 - Grid view, multi-selection, day pagination (Phase 9H)
  *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
  */
@@ -73,8 +74,15 @@ export interface ScheduleMeetingDialogProps {
   onClose: () => void;
   conversationId?: string;
   groupId?: string;
+  /**
+   * Who the session is with — the other student's name, or the group's.
+   *
+   * Two jobs: it is read out in the dialog's own copy, and it is what the
+   * default title is built from. There is no course code beside it any more —
+   * the picker used to take one and put it in the title, where it repeated the
+   * chat header and said nothing about who was going.
+   */
   withLabel: string;
-  courseCode: string | null;
 }
 
 /** How many days the list reveals at a time. */
@@ -124,7 +132,6 @@ export function ScheduleMeetingDialog({
   conversationId,
   groupId,
   withLabel,
-  courseCode,
 }: ScheduleMeetingDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [state, formAction, saving] = useActionState(createMeeting, null);
@@ -341,7 +348,7 @@ export function ScheduleMeetingDialog({
               <Input
                 id="meeting-title"
                 name="title"
-                defaultValue={defaultMeetingTitle(courseCode)}
+                defaultValue={defaultMeetingTitle(withLabel)}
                 maxLength={120}
                 required
               />

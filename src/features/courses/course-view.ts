@@ -14,11 +14,52 @@
  *
  *              Kept out of queries.ts because that module is `server-only`; the
  *              override modal is a client component and needs these types.
- * Version:     0.14.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - courseInitials, for the badges that used to show a
+ *                           catalogue number
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
  */
+
+/**
+ * A short glyph for a course, for the places a code used to sit.
+ *
+ * THE CODE WAS DOING TWO JOBS and only one of them survives. It identified the
+ * course, which the name does better, and it filled a small square on a block of
+ * colour where a full name will not fit — the course page's badge and the card's
+ * banner. Initials keep that second job without putting a catalogue number back
+ * on the screen, and they are stable: the same course always draws the same mark.
+ *
+ * Short words are skipped so "Introduction to the Theory of Computation" reads
+ * as ITC rather than ITTOC, and a single-word name falls back to its first two
+ * letters so it is never a lone character.
+ *
+ * @param name - The course's name.
+ * @returns Two or three uppercase letters.
+ */
+export function courseInitials(name: string): string {
+  const skip = new Set(['to', 'of', 'the', 'and', 'in', 'for', 'a', 'an']);
+
+  const words = name
+    .split(/[\s\-–—:/]+/)
+    .map((word) => word.replace(/[^\p{L}\p{N}]/gu, ''))
+    .filter((word) => word.length > 0 && !skip.has(word.toLowerCase()));
+
+  if (words.length === 0) {
+    return name.slice(0, 2).toUpperCase() || '—';
+  }
+
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+
+  return words
+    .slice(0, 3)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase();
+}
 
 /** The four preferences a student may answer differently per course. */
 export interface CoursePreferenceValues {

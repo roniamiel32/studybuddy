@@ -8,9 +8,10 @@
  *              part of before this code sees one. The `.eq()` filters below are
  *              therefore a second layer rather than the only one — the same
  *              belt-and-braces the rest of the app uses.
- * Version:     0.12.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - courseCode dropped from the view model
  *     0.12.0 - 2026-08-10 - Initial implementation (Phase 3)
  */
 
@@ -78,7 +79,6 @@ function toConversationView(row: ConversationRow, viewerId: string): Conversatio
     partnerName: partner?.full_name ?? 'Classmate',
     partnerAvatarUrl: partner?.avatar_url ?? null,
     partnerDegreeName: partner?.degrees?.name ?? null,
-    courseCode: course?.code ?? null,
     courseName: course?.name ?? null,
     lastMessageAt: row.last_message_at,
     lastMessageBody: null,

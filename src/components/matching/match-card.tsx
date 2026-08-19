@@ -7,9 +7,10 @@
  *              profile route yet. Rather than ship a control that goes nowhere,
  *              it expands the card in place to show why this person was matched
  *              — which is the question a student actually has at that moment.
- * Version:     0.18.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Courses are named, not coded
  *     0.18.0 - 2026-08-10 - The name links to the student's profile (Phase 6)
  *     0.12.0 - 2026-08-10 - Send message button (Phase 3)
  *     0.10.0 - 2026-08-09 - Study track no longer shown
@@ -88,7 +89,7 @@ export function MatchCard({ match }: MatchCardProps) {
 
       <ul className="mb-4 flex flex-wrap justify-center gap-1.5">
         <li>
-          <Chip tone="brand">{match.bestCourseCode}</Chip>
+          <Chip tone="brand">{match.bestCourseName}</Chip>
         </li>
         {chips.map((chip) => (
           <li key={chip.label}>
@@ -130,9 +131,9 @@ export function MatchCard({ match }: MatchCardProps) {
             {availability ?? 'No overlapping free hours yet'}
           </p>
           <p className="text-on-surface-variant text-label-sm font-normal">
-            Shares {match.sharedCourseCodes.length}{' '}
-            {match.sharedCourseCodes.length === 1 ? 'course' : 'courses'} with you:{' '}
-            {match.sharedCourseCodes.join(', ')}
+            Shares {match.sharedCourseNames.length}{' '}
+            {match.sharedCourseNames.length === 1 ? 'course' : 'courses'} with you:{' '}
+            {match.sharedCourseNames.join(', ')}
           </p>
           <p className="text-outline text-label-sm font-normal">{describeScore(match.score)}</p>
         </div>

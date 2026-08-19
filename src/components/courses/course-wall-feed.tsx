@@ -14,9 +14,10 @@
  *              reach this page at all — getMyCourse 404s first — so the composer
  *              is unconditional and the enrolment check stays where it belongs,
  *              in RLS.
- * Version:     0.25.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Named by course name, not course code
  *     0.25.0 - 2026-08-13 - Initial implementation (Phase 9C)
  */
 
@@ -31,7 +32,7 @@ import type { WallPostView } from '@/features/wall/wall-view';
 
 export interface CourseWallFeedProps {
   offeringId: string;
-  courseCode: string;
+  courseName: string;
   posts: WallPostView[];
 }
 
@@ -41,7 +42,7 @@ export interface CourseWallFeedProps {
  * @param props - The course, and what is on its wall.
  * @returns The feed element.
  */
-export function CourseWallFeed({ offeringId, courseCode, posts }: CourseWallFeedProps) {
+export function CourseWallFeed({ offeringId, courseName, posts }: CourseWallFeedProps) {
   const [state, formAction, posting] = useActionState(createCoursePost, null);
   const [draft, setDraft] = useState('');
 
@@ -55,7 +56,7 @@ export function CourseWallFeed({ offeringId, courseCode, posts }: CourseWallFeed
   const error = state && !state.ok ? state.error : null;
 
   return (
-    <section aria-label={`${courseCode} wall`} className="flex flex-col gap-4">
+    <section aria-label={`${courseName} wall`} className="flex flex-col gap-4">
       <form
         action={formAction}
         className="border-outline-variant/40 rounded-xl border bg-white p-4 shadow-sm"
@@ -63,7 +64,7 @@ export function CourseWallFeed({ offeringId, courseCode, posts }: CourseWallFeed
         <input type="hidden" name="offeringId" value={offeringId} />
 
         <label htmlFor="course-wall-body" className="sr-only">
-          Write something for {courseCode}
+          Write something for {courseName}
         </label>
 
         <div className="bg-field border-outline-variant/30 focus-within:border-brand focus-within:ring-brand/20 flex items-end gap-2 rounded-2xl border px-4 py-2 transition-all focus-within:bg-white focus-within:ring-2">
@@ -74,7 +75,7 @@ export function CourseWallFeed({ offeringId, courseCode, posts }: CourseWallFeed
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             maxLength={1000}
-            placeholder={`Ask the class about ${courseCode}...`}
+            placeholder={`Ask the class about ${courseName}...`}
             className="text-on-surface placeholder:text-outline max-h-40 w-full resize-none bg-transparent py-1 text-[15px] outline-none"
           />
 
@@ -102,7 +103,7 @@ export function CourseWallFeed({ offeringId, courseCode, posts }: CourseWallFeed
 
       {posts.length === 0 ? (
         <p className="text-on-surface-variant border-outline-variant/40 rounded-xl border bg-white p-5 text-body-md text-pretty shadow-sm">
-          Nothing here yet. Ask a question about {courseCode} and whoever is taking it
+          Nothing here yet. Ask a question about {courseName} and whoever is taking it
           will see it.
         </p>
       ) : (

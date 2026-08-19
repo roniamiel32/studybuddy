@@ -161,7 +161,6 @@ export default async function GroupPage({
       meetings={meetings}
       groupName={group.name}
       description={group.description} 
-      courseCode={course?.code ?? null}
     />
   );
 
@@ -182,7 +181,7 @@ export default async function GroupPage({
               href={`/courses/${group.courseOfferingId}`}
               className="hover:text-brand text-label-sm transition-colors"
             >
-              {course?.code ?? 'Course'}
+              {course?.name ?? 'Course'}
             </Link>
           </li>
           <li aria-hidden="true">

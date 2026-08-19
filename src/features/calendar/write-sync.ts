@@ -14,15 +14,19 @@
  *              `calendar_event_links` is what makes removal possible. Without a
  *              stored event id, un-RSVPing would mean searching somebody's
  *              calendar for something that looks like ours and hoping.
- * Version:     0.46.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - The event title is built per recipient, so each
+ *                           student's calendar names the other one
+ *     0.47.0 - 2026-08-19 - The event carries the meeting's own title, unprefixed
  *     0.46.0 - 2026-08-18 - Initial implementation (two-way calendar sync)
  */
 
 import 'server-only';
 
 import { loadUsableConnection } from '@/features/calendar/connection';
+import { defaultMeetingTitle, isDefaultMeetingTitle } from '@/features/meetings/meeting-view';
 import { createEvent, deleteEvent } from '@/lib/google/calendar';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -33,6 +37,8 @@ interface MeetingForCalendar {
   location: string | null;
   startsAt: string;
   endsAt: string;
+  /** Set for a group session, null for a one-to-one. */
+  groupId: string | null;
 }
 
 /**
@@ -47,7 +53,7 @@ interface MeetingForCalendar {
 async function readMeeting(meetingId: string): Promise<MeetingForCalendar | null> {
   const { data } = await createAdminClient()
     .from('meetings')
-    .select('id, title, location, starts_at, ends_at')
+    .select('id, title, location, starts_at, ends_at, group_id')
     .eq('id', meetingId)
     .maybeSingle();
 
@@ -58,8 +64,60 @@ async function readMeeting(meetingId: string): Promise<MeetingForCalendar | null
         location: data.location,
         startsAt: data.starts_at,
         endsAt: data.ends_at,
+        groupId: data.group_id,
       }
     : null;
+}
+
+/**
+ * The title one student's calendar should show for a session.
+ *
+ * THE STORED TITLE NAMES ONE SIDE OF THE PAIR, AND THAT IS THE PROBLEM THIS
+ * SOLVES. "Study session with Paula Partner" is the right sentence in Eden's
+ * calendar and precisely the wrong one in Paula's, where it reads as a session
+ * she booked with herself. There is one row and two readers, so the row cannot
+ * be right for both — the title is therefore rewritten as it goes out, per
+ * recipient, and the database keeps the organiser's version untouched.
+ *
+ * TWO CASES ARE LEFT ALONE, both deliberately:
+ *
+ *   A TITLE A STUDENT TYPED. "Past papers" is something the organiser chose to
+ *   record; replacing it with a name would throw that away. Only the titles this
+ *   app generated are eligible, which is what isDefaultMeetingTitle decides.
+ *
+ *   A GROUP SESSION. Its default is already the group's name, which reads
+ *   correctly for every member — and rewriting it into a list of the other four
+ *   people would be worse for all of them.
+ *
+ * @param meeting   - The session, as stored.
+ * @param profileId - Whose calendar this event is going into.
+ * @returns The title to send to Google.
+ */
+async function titleForRecipient(
+  meeting: MeetingForCalendar,
+  profileId: string,
+): Promise<string> {
+  if (meeting.groupId || !isDefaultMeetingTitle(meeting.title)) {
+    return meeting.title;
+  }
+
+  /* Admin client: this runs on behalf of the OTHER attendee as often as the
+     caller, and one student's session must not be invisible to the other's sync. */
+  const { data } = await createAdminClient()
+    .from('meeting_attendees')
+    .select('profile_id, profiles ( full_name )')
+    .eq('meeting_id', meeting.id)
+    .neq('profile_id', profileId);
+
+  const other = (data ?? [])[0] as
+    | { profile_id: string; profiles: { full_name: string | null } | null }
+    | undefined;
+
+  const name = other?.profiles?.full_name ?? null;
+
+  /* No readable partner — a deleted account, most likely. The stored title is
+     still a true sentence about the session, so it goes across unchanged. */
+  return name ? defaultMeetingTitle(name) : meeting.title;
 }
 
 /**
@@ -102,8 +160,15 @@ export async function pushMeetingToCalendar(
       return;
     }
 
+    /*
+     * NO "StudyBuddy: " PREFIX. It pushed the part that identifies the session —
+     * "Study session with Dana Levi" — past the width a calendar grid gives a
+     * two-hour block, so a week of them read as a column of identical entries.
+     * The description below still says where it came from, which is the job the
+     * prefix was actually doing.
+     */
     const created = await createEvent(connection.accessToken, {
-      title: `StudyBuddy: ${meeting.title}`,
+      title: await titleForRecipient(meeting, profileId),
       description: 'Booked through StudyBuddy.',
       location: meeting.location,
       startsAt: meeting.startsAt,

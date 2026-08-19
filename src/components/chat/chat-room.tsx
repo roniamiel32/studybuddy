@@ -18,9 +18,10 @@
  *              server sends a fresher list, which no amount of effects gets
  *              reliably right. Here a re-render simply wins, and a row present in
  *              both is taken from the socket, which is never older.
- * Version:     0.18.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - The header subtitle shows the course name
  *     0.18.0 - 2026-08-10 - The partner's name links to their profile (Phase 6)
  *     0.12.0 - 2026-08-10 - Initial implementation (Phase 3)
  */
@@ -244,7 +245,7 @@ export function ChatRoom({
    * belongs beside the messages that led to it.
    */
   const groups = groupByDay(buildChatFeed(messages, meetings), (entry) => entry.at);
-  const subtitle = [conversation.partnerDegreeName, conversation.courseCode]
+  const subtitle = [conversation.partnerDegreeName, conversation.courseName]
     .filter(Boolean)
     .join(' • ');
 
@@ -433,7 +434,6 @@ export function ChatRoom({
         onClose={() => setSchedulerOpen(false)}
         conversationId={conversation.id}
         withLabel={conversation.partnerName}
-        courseCode={conversation.courseCode}
       />
     </div>
   );

@@ -30,7 +30,6 @@ export interface GroupChatProps {
   meetings: MeetingView[];
   groupName: string;
   description?: string | null;
-  courseCode: string | null;
 }
 
 function toMessageView(
@@ -71,7 +70,6 @@ export function GroupChat({
   meetings,
   groupName,
   description,
-  courseCode,
 }: GroupChatProps) {
   const router = useRouter();
   const [schedulerOpen, setSchedulerOpen] = useState(false);
@@ -296,7 +294,6 @@ export function GroupChat({
         onClose={() => setSchedulerOpen(false)}
         groupId={groupId}
         withLabel={groupName}
-        courseCode={courseCode}
       />
     </section>
   );

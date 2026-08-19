@@ -85,14 +85,13 @@ export default async function CoursePage({
           <li aria-hidden="true">
             <ChevronRight className="size-4" />
           </li>
-          <li className="text-brand text-label-sm">{course.code}</li>
+          <li className="text-brand text-label-sm">{course.name}</li>
         </ol>
       </nav>
 
       <CourseHeader
         offeringId={course.offeringId}
         name={course.name}
-        code={course.code}
         faculty={course.faculty}
         classmateCount={course.classmateCount}
         globals={globals}
@@ -104,7 +103,7 @@ export default async function CoursePage({
         <div className="flex flex-col gap-6 lg:col-span-5">
           <CourseMembersWidget
             offeringId={course.offeringId}
-            courseCode={course.code}
+            courseName={course.name}
             initialMembers={memberPage.members}
             initialHasMore={memberPage.hasMore}
             classmateCount={course.classmateCount}
@@ -124,14 +123,14 @@ export default async function CoursePage({
                 </ul>
               ) : (
                 <p className="text-on-surface-variant bg-surface-container rounded-md p-4 text-body-md text-pretty">
-                  No study groups for {course.code} yet. Create the first one and classmates can
-                  ask to join.
+                  No study groups for {course.name} yet. Create the first one and classmates
+                  can ask to join.
                 </p>
               )}
             </div>
 
             <div className="mt-2">
-              <CreateGroupPanel offeringId={offeringId} courseCode={course.code} />
+              <CreateGroupPanel offeringId={offeringId} courseName={course.name} />
             </div>
           </section>
 
@@ -140,7 +139,7 @@ export default async function CoursePage({
               <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <span>
                 This course was not confirmed against your university&apos;s syllabus, so its
-                name and code may differ from the real ones.
+                name may differ from the real one.
               </span>
             </p>
           ) : null}
@@ -150,7 +149,7 @@ export default async function CoursePage({
         <div className="flex flex-col gap-6 lg:col-span-7">
           <CourseWallFeed
             offeringId={course.offeringId}
-            courseCode={course.code}
+            courseName={course.name}
             posts={posts}
           />
         </div>

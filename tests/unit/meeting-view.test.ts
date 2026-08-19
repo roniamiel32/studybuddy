@@ -14,9 +14,11 @@
  *
  *              Times are injected rather than taken from the clock, so none of
  *              this depends on when the suite runs.
- * Version:     0.29.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - buildSlotGrid now anchors on the week's Sunday and
+ *                           draws a fixed set of rows; assertions follow
  *     0.29.0 - 2026-08-14 - Initial tests (Phase 9G)
  */
 
@@ -187,6 +189,17 @@ describe('buildChatFeed', () => {
  */
 const GRID_ANCHOR = new Date(2026, 7, 16, 9, 0, 0, 0);
 
+/* The same week, seen from the Wednesday. The grid must snap back to the 16th. */
+const MIDWEEK_ANCHOR = new Date(2026, 7, 19, 9, 0, 0, 0);
+
+/*
+ * The grid's rows are FIXED — 08:00 to 20:00 in two-hour steps — rather than
+ * derived from whatever happens to be offered. A week whose row count changed
+ * with the answer moved every cell whenever somebody else booked something,
+ * which is what these assertions are pinning down.
+ */
+const GRID_TIMES = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00'];
+
 /**
  * A two-hour offered slot, at a local hour on a day relative to the anchor.
  *
@@ -220,17 +233,39 @@ describe('buildSlotGrid', () => {
     expect(grid.columns[3].slotsByTime).toEqual({});
   });
 
-  it('takes its rows from the times that are actually offered', () => {
+  it('starts the week on Sunday, whatever day it is asked on', () => {
+    /*
+     * THE PROPERTY THE GRID IS BUILT ON. Called on the Wednesday, it must draw
+     * the same seven columns as it does on the Sunday — a week that slid
+     * forward with the clock would put the same hour under a different heading
+     * every day, and two students comparing screens would not be looking at the
+     * same grid.
+     */
+    const fromSunday = buildSlotGrid([], 7, GRID_ANCHOR);
+    const fromWednesday = buildSlotGrid([], 7, MIDWEEK_ANCHOR);
+
+    expect(fromWednesday.columns.map((column) => column.date)).toEqual(
+      fromSunday.columns.map((column) => column.date),
+    );
+    expect(fromSunday.columns[0].date).toBe('2026-08-16');
+    expect(fromSunday.columns[6].date).toBe('2026-08-22');
+  });
+
+  it('draws the same seven rows whatever is offered', () => {
+    /*
+     * Rows are the shape of a day, not a summary of the answer. Deriving them
+     * from the offered slots made the grid change height between two loads of
+     * the same week, which moved every cell a student had just been looking at.
+     */
     const grid = buildSlotGrid([slotAt(0, 14), slotAt(1, 10), slotAt(2, 14)], 7, GRID_ANCHOR);
 
-    expect(grid.times).toEqual(['10:00', '14:00']);
+    expect(grid.times).toEqual(GRID_TIMES);
   });
 
   it('puts the same hour on different days in one row', () => {
     /* The property the whole grid rests on: a row is an hour, across the week. */
     const grid = buildSlotGrid([slotAt(0, 14), slotAt(2, 14)], 7, GRID_ANCHOR);
 
-    expect(grid.times).toEqual(['14:00']);
     expect(grid.columns[0].slotsByTime['14:00']).toBeDefined();
     expect(grid.columns[1].slotsByTime['14:00']).toBeUndefined();
     expect(grid.columns[2].slotsByTime['14:00']).toBeDefined();
@@ -245,11 +280,16 @@ describe('buildSlotGrid', () => {
     ).toHaveLength(1);
   });
 
-  it('has no rows at all when nothing is shared', () => {
+  it('keeps its shape when nothing is shared', () => {
+    /* An empty week is still a week: seven columns and seven rows, all blank.
+       That is what makes "no shared time" readable as an answer. */
     const grid = buildSlotGrid([], 7, GRID_ANCHOR);
 
-    expect(grid.times).toEqual([]);
+    expect(grid.times).toEqual(GRID_TIMES);
     expect(grid.columns).toHaveLength(7);
+    expect(grid.columns.every((column) => Object.keys(column.slotsByTime).length === 0)).toBe(
+      true,
+    );
   });
 });
 

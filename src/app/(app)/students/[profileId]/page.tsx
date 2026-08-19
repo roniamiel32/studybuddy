@@ -157,7 +157,7 @@ export default async function StudentProfilePage({
                         </span>
                         <span className="text-outline block text-label-sm font-normal">
                           Studied together
-                          {connection.courseCode ? ` · ${connection.courseCode}` : ''}
+                          {connection.courseName ? ` · ${connection.courseName}` : ''}
                         </span>
                       </span>
                       <Sparkles className="text-brand size-4 shrink-0" aria-hidden="true" />

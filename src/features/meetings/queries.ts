@@ -15,9 +15,12 @@
  *              A DISMISSED BANNER IS A DIFFERENT MATTER, and it is dropped here:
  *              putting one away is an explicit "I am finished with this", unlike
  *              a cancelled RSVP which is a statement about attendance only.
- * Version:     0.29.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Cancelled sessions filtered out of the history; the
+ *                           chat's ids carried so each row can link to it
+ *     0.47.0 - 2026-08-19 - getMyMeetingHistory, the private list on a profile
  *     0.29.0 - 2026-08-14 - Dismissals filtered out; the strip's time window
  *                           moved to the view so the feed card keeps history
  *                           (Phase 9G)
@@ -28,7 +31,7 @@ import 'server-only';
 
 import { createClient, requireUser } from '@/lib/supabase/server';
 
-import type { MeetingView } from './meeting-view';
+import type { MeetingHistoryEntry, MeetingPartnerView, MeetingView } from './meeting-view';
 
 interface MeetingRow {
   id: string;
@@ -159,4 +162,117 @@ export async function getMySchedule(days = 30) {
   });
 
   return data ?? [];
+}
+
+/* -------------------------------------------------------------------------- */
+/* Meeting history                                                            */
+/* -------------------------------------------------------------------------- */
+
+interface MeetingHistoryRow {
+  id: string;
+  title: string;
+  location: string | null;
+  starts_at: string;
+  ends_at: string;
+  status: 'scheduled' | 'cancelled';
+  created_by: string | null;
+  created_at: string;
+  conversation_id: string | null;
+  group_id: string | null;
+  meeting_attendees: {
+    profile_id: string;
+    rsvp: 'going' | 'cancelled';
+    profiles: { id: string; full_name: string | null; avatar_url: string | null } | null;
+  }[];
+}
+
+/*
+ * The attendee list with the names attached, in one round trip. PostgREST
+ * resolves the second hop through meeting_attendees.profile_id -> profiles.id,
+ * so the alternative would be reading the ids here and then a second query per
+ * page render to turn them into names.
+ */
+const MEETING_HISTORY_SELECT = `
+  id,
+  title,
+  location,
+  starts_at,
+  ends_at,
+  status,
+  created_by,
+  created_at,
+  conversation_id,
+  group_id,
+  meeting_attendees ( profile_id, rsvp, profiles ( id, full_name, avatar_url ) )
+`;
+
+/**
+ * Every session the caller was ever invited to, past and upcoming.
+ *
+ * NO SCOPE AND NO TIME WINDOW, unlike getChatMeetings — this answers "what have
+ * I scheduled through StudyBuddy", which is a question about all of it, forwards
+ * and backwards.
+ *
+ * CALLED-OFF SESSIONS ARE FILTERED OUT, and that is a different judgement from
+ * the one about RSVPs. A cancelled meeting is a plan that stopped existing for
+ * everybody; there is nothing to remember about it and nothing to go back to.
+ * A session the student stepped out of DOES stay: it still happened, the other
+ * people were there, and the row is their way back into the chat to change
+ * their mind. `status` is the column that distinguishes the two.
+ *
+ * NOTHING IS NARROWED BY A PROFILE ID HERE, and that is the privacy guarantee.
+ * The meetings policy already limits the table to rows the caller is on the
+ * invitation list for, so this is the caller's own history by construction — it
+ * cannot be pointed at somebody else's by passing a different id, because there
+ * is no id to pass.
+ *
+ * @returns Their sessions, soonest first.
+ */
+export async function getMyMeetingHistory(): Promise<MeetingHistoryEntry[]> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from('meetings')
+    .select(MEETING_HISTORY_SELECT)
+    .eq('status', 'scheduled')
+    .order('starts_at');
+
+  const rows = (data ?? []) as unknown as MeetingHistoryRow[];
+  const now = new Date();
+
+  return rows.map((row) => {
+    const mine = row.meeting_attendees.find((attendee) => attendee.profile_id === user.id);
+
+    const partners: MeetingPartnerView[] = row.meeting_attendees
+      .filter((attendee) => attendee.profile_id !== user.id)
+      .map((attendee) => ({
+        profileId: attendee.profile_id,
+        /*
+         * The embed comes back null when the profiles policy will not show that
+         * student to this one — someone they have since blocked, most likely.
+         * The session still happened, so the row stays and the name softens.
+         */
+        fullName: attendee.profiles?.full_name ?? 'Classmate',
+        avatarUrl: attendee.profiles?.avatar_url ?? null,
+        going: attendee.rsvp === 'going',
+      }));
+
+    return {
+      id: row.id,
+      title: row.title,
+      location: row.location,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+      scope: row.group_id ? 'group' : 'direct',
+      conversationId: row.conversation_id,
+      groupId: row.group_id,
+      partners,
+      going: mine?.rsvp === 'going',
+      isOrganiser: row.created_by === user.id,
+      cancelled: row.status === 'cancelled',
+      hasFinished: new Date(row.ends_at) <= now,
+      createdAt: row.created_at,
+    } satisfies MeetingHistoryEntry;
+  });
 }

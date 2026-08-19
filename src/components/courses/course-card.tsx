@@ -3,9 +3,10 @@
  * Authors:     Roni Amiel & Eden Bitran
  * Description: One course in the grid, in the shape Moodle uses: a coloured
  *              banner, the code and title, and the facts you scan for.
- * Version:     0.14.1
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - The banner shows initials, not a course number
  *     0.14.1 - 2026-08-10 - Added full dark mode text and surface adaptation
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
  */
@@ -14,7 +15,11 @@ import Link from 'next/link';
 import { ChevronRight, SlidersHorizontal, TriangleAlert, Users } from 'lucide-react';
 
 import { Chip } from '@/components/ui/chip';
-import { hasOverride, type EnrolledCourseView } from '@/features/courses/course-view';
+import {
+  courseInitials,
+  hasOverride,
+  type EnrolledCourseView,
+} from '@/features/courses/course-view';
 import { DropCourseButton } from '@/components/courses/drop-course-button';
 
 export interface CourseCardProps {
@@ -37,8 +42,10 @@ export function CourseCard({ course, canDrop }: CourseCardProps) {
           className="block h-20 bg-gradient-to-br from-[#635BFF] to-[#AF52DE]"
         >
           <span className="flex h-full items-end p-4">
+            {/* Initials, where the catalogue number used to be. The name is the
+                heading directly below, so repeating it here would say it twice. */}
             <span className="font-heading text-[15px] font-bold tracking-wider text-white/95 drop-shadow-sm">
-              {course.code}
+              {courseInitials(course.name)}
             </span>
           </span>
         </span>

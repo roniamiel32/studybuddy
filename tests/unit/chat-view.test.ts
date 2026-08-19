@@ -170,7 +170,6 @@ describe('totalUnread', () => {
     partnerName: 'Partner',
     partnerAvatarUrl: null,
     partnerDegreeName: null,
-    courseCode: null,
     courseName: null,
     lastMessageAt: '2026-08-10T07:42:00.000Z',
     lastMessageBody: null,

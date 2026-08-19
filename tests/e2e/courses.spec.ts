@@ -219,8 +219,8 @@ test.describe('courses and profile', () => {
 
     /* Both enrolled courses, each a card linking to its own page. */
     await expect(grid(page).getByRole('listitem')).toHaveCount(2);
-    await expect(page.getByText('CS-3040').first()).toBeVisible();
-    await expect(page.getByText('CS-2010').first()).toBeVisible();
+    await expect(page.getByText('Full-Stack Web Development').first()).toBeVisible();
+    await expect(page.getByText('Data Structures').first()).toBeVisible();
 
     /*
      * The classmate count is real, not decorative. Asserted as "some number of
@@ -267,7 +267,7 @@ test.describe('courses and profile', () => {
     await page.goto('/courses');
 
     /* Down to one course, so the control should be gone entirely. */
-    const card = grid(page).getByRole('listitem').filter({ hasText: 'CS-2010' });
+    const card = grid(page).getByRole('listitem').filter({ hasText: 'Data Structures' });
     await card.getByRole('button', { name: /^Drop / }).click();
     await card.getByRole('button', { name: /^Confirm dropping/ }).click();
 
@@ -285,7 +285,9 @@ test.describe('courses and profile', () => {
     await signIn(page);
     await page.goto(`/courses/${firstOffering}`);
 
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('CS-3040');
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
+      'Full-Stack Web Development',
+    );
 
     /*
      * "Study members", NOT "Find partners", AND NO SCORES — the course page
@@ -298,7 +300,7 @@ test.describe('courses and profile', () => {
      * is scoped to ONE course, and the copy under the heading says which.
      */
     await expect(page.getByRole('heading', { name: 'Study members' })).toBeVisible();
-    await expect(page.getByText('Classmates taking CS-3040 with you.')).toBeVisible();
+    await expect(page.getByText('Classmates taking Full-Stack Web Development with you.')).toBeVisible();
 
     /*
      * The list is paginated, so the fixture classmate is not on the first page
@@ -342,7 +344,9 @@ test.describe('courses and profile', () => {
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('heading', { name: /Preferences for CS-3040/ })).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: /Preferences for Full-Stack Web Development/ }),
+    ).toBeVisible();
 
     /* The four questions are present. The "Your default: …" hint each one used to
        carry was removed from the dialog, so this asserts the questions rather than
@@ -397,7 +401,7 @@ test.describe('courses and profile', () => {
 
     /* The grid flags which course carries one. */
     await page.goto('/courses');
-    const overridden = grid(page).getByRole('listitem').filter({ hasText: 'CS-3040' });
+    const overridden = grid(page).getByRole('listitem').filter({ hasText: 'Full-Stack Web Development' });
     await expect(overridden.getByText('Custom here')).toBeVisible();
   });
 

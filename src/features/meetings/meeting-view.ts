@@ -14,9 +14,13 @@
  *
  *              No 'server-only' here: the dialog is a client component and needs
  *              these formatters.
- * Version:     0.30.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - isDefaultMeetingTitle and meetingChatHref, for the
+ *                           per-recipient calendar title and the clickable rows
+ *     0.47.0 - 2026-08-19 - Meeting history view models; the default title names
+ *                           the partner instead of a course
  *     0.30.0 - 2026-08-14 - The picker's grid, and merging a multi-slot
  *                           selection into bookable runs (Phase 9H)
  *     0.29.0 - 2026-08-14 - createdAt, the banner window, and feed interleaving
@@ -462,9 +466,245 @@ export function mergeSelectedSlots(
  * The schema requires three characters, and a student who has just found a time
  * should not have to invent a name for it before they can book.
  *
- * @param courseCode - The course the chat is about, when there is one.
+ * NAMED AFTER WHO IT IS WITH, NOT AFTER A COURSE. The course code this used to
+ * carry repeated something the chat header already said, and it was missing
+ * entirely for every session booked from a chat with no course attached — which
+ * left half the calendars reading "Study session" and no way to tell one from
+ * the next. Who you are meeting is the fact that is always known, and it is the
+ * one anybody actually scans a calendar for.
+ *
+ * THE SAME STRING IS USED BY THE SERVER. `createMeeting` falls back to this when
+ * the field arrives empty, so the title in the database is the one the picker
+ * offered rather than a second, differently-worded default.
+ *
+ * @param partnerName - The other student, or the group, the session is with.
  * @returns A title they can accept or replace.
  */
-export function defaultMeetingTitle(courseCode: string | null): string {
-  return courseCode ? `${courseCode} study session` : 'Study session';
+export function defaultMeetingTitle(partnerName: string | null): string {
+  const name = partnerName?.trim();
+
+  return name ? `${DEFAULT_TITLE_PREFIX}${name}` : BARE_MEETING_TITLE;
+}
+
+/** The bare fallback, when there is no name to build a title around. */
+const BARE_MEETING_TITLE = 'Study session';
+
+/** What defaultMeetingTitle produces, so one can be recognised again later. */
+const DEFAULT_TITLE_PREFIX = 'Study session with ';
+
+/**
+ * Whether a stored title is one this app wrote rather than one a student did.
+ *
+ * THE CALENDAR SYNC IS THE ONLY CALLER, and it needs this because it rewrites
+ * the title per recipient — Paula's calendar should say Eden's name, not her
+ * own. Rewriting a title a student actually typed would be a different thing
+ * entirely: "Past papers" is information the organiser chose to record, and
+ * replacing it with a name loses it. So only the generated defaults are
+ * eligible, and anything else goes to Google exactly as stored.
+ *
+ * @param title - The title on the meeting row.
+ * @returns Whether it is a default this app generated.
+ */
+export function isDefaultMeetingTitle(title: string): boolean {
+  const trimmed = title.trim();
+
+  return trimmed === BARE_MEETING_TITLE || trimmed.startsWith(DEFAULT_TITLE_PREFIX);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Meeting history                                                            */
+/* -------------------------------------------------------------------------- */
+
+/** One other person who was on the invitation list. */
+export interface MeetingPartnerView {
+  profileId: string;
+  /** Their name, or 'Classmate' when their profile is not visible to the viewer. */
+  fullName: string;
+  avatarUrl: string | null;
+  /** Whether they were still coming. False once they stepped out. */
+  going: boolean;
+}
+
+/**
+ * One row of the private Meeting History on a student's own profile.
+ *
+ * DELIBERATELY WIDER THAN THE SCREEN NEEDS. The list renders the stamp and the
+ * partner, but the counting this is meant to feed later — sessions kept, hours
+ * studied, who you actually study with — needs the durations, the RSVPs and the
+ * cancellations too, and adding them now costs nothing: they are columns of a
+ * row already being read. `summariseMeetingHistory` below is the first reader.
+ */
+export interface MeetingHistoryEntry {
+  id: string;
+  title: string;
+  location: string | null;
+  startsAt: string;
+  endsAt: string;
+  /** Which chat it was booked from — a one-to-one, or a group. */
+  scope: 'direct' | 'group';
+  /** The conversation it was booked from, for a one-to-one. */
+  conversationId: string | null;
+  /** The group it was booked from, for a group session. */
+  groupId: string | null;
+  /** Everyone on the list except the viewer. Empty only for a stranded session. */
+  partners: MeetingPartnerView[];
+  /** Whether the viewer is still going. False once they cancel their own place. */
+  going: boolean;
+  /** Whether the viewer booked it. */
+  isOrganiser: boolean;
+  /**
+   * Whether the whole session was called off, which is not the same as leaving it.
+   *
+   * ALWAYS FALSE OUT OF getMyMeetingHistory, which filters cancellations out at
+   * the query. Kept on the model because it is a faithful reading of the row's
+   * status, and because summariseMeetingHistory must not count one if a future
+   * caller does pass them in.
+   */
+  cancelled: boolean;
+  /** Whether it has already finished. Computed on the server — see MeetingView. */
+  hasFinished: boolean;
+  createdAt: string;
+}
+
+/** The history split the way the page reads it. */
+export interface MeetingHistoryGroups {
+  /** Soonest first, because the next one is the one you came to check. */
+  upcoming: MeetingHistoryEntry[];
+  /** Most recent first, because history is read backwards. */
+  past: MeetingHistoryEntry[];
+}
+
+/**
+ * Splits the history into what is still ahead and what has already happened.
+ *
+ * Split HERE rather than in two queries: it is one read of one table, and the
+ * boundary is a clock reading that the page should not have to send to the
+ * database. `hasFinished` comes from the server for the same reason MeetingView
+ * carries it — a session that ends between render and hydration must not change
+ * sides underneath React.
+ *
+ * @param entries - The viewer's sessions, in ascending time order.
+ * @returns The two lists, each in its own reading order.
+ */
+export function splitMeetingHistory(entries: MeetingHistoryEntry[]): MeetingHistoryGroups {
+  const upcoming: MeetingHistoryEntry[] = [];
+  const past: MeetingHistoryEntry[] = [];
+
+  for (const entry of entries) {
+    (entry.hasFinished ? past : upcoming).push(entry);
+  }
+
+  return { upcoming, past: past.reverse() };
+}
+
+/** Headline numbers over a student's own history. */
+export interface MeetingHistorySummary {
+  total: number;
+  upcoming: number;
+  /** Finished, not cancelled, and the student had not stepped out — sessions they actually sat. */
+  attended: number;
+  /** Hours of attended sessions, to one decimal place. */
+  hoursStudied: number;
+  /** How many different people they have booked a session with. */
+  distinctPartners: number;
+}
+
+/**
+ * Counts a history.
+ *
+ * The statistics screen does not exist yet; this is where its numbers will come
+ * from when it does, and having it here means the definition of "attended" is
+ * written down once rather than re-invented by whoever builds that screen. It is
+ * a pure function over the entries, so it is equally usable from a page, a test,
+ * or a future dashboard card.
+ *
+ * @param entries - The viewer's sessions.
+ * @returns The counts.
+ */
+export function summariseMeetingHistory(
+  entries: MeetingHistoryEntry[],
+): MeetingHistorySummary {
+  const partners = new Set<string>();
+  let upcoming = 0;
+  let attended = 0;
+  let minutes = 0;
+
+  for (const entry of entries) {
+    for (const partner of entry.partners) {
+      partners.add(partner.profileId);
+    }
+
+    if (entry.cancelled) {
+      continue;
+    }
+
+    if (!entry.hasFinished) {
+      if (entry.going) {
+        upcoming += 1;
+      }
+
+      continue;
+    }
+
+    if (entry.going) {
+      attended += 1;
+      minutes += (new Date(entry.endsAt).getTime() - new Date(entry.startsAt).getTime()) / 60_000;
+    }
+  }
+
+  return {
+    total: entries.length,
+    upcoming,
+    attended,
+    hoursStudied: Math.round(minutes / 6) / 10,
+    distinctPartners: partners.size,
+  };
+}
+
+/**
+ * Where a session's chat lives.
+ *
+ * THE ROW IS A LINK BECAUSE THE CHAT IS WHERE EVERYTHING ELSE ABOUT A SESSION
+ * IS. Details, the other people's RSVPs, cancelling, and — the case this is
+ * really for — changing your mind after you stepped out, which has no control
+ * anywhere on the history page and does not need one now.
+ *
+ * @param entry - The session.
+ * @returns The chat's path, or null when the chat is gone.
+ */
+export function meetingChatHref(entry: MeetingHistoryEntry): string | null {
+  if (entry.groupId) {
+    return `/groups/${entry.groupId}`;
+  }
+
+  return entry.conversationId ? `/messages/${entry.conversationId}` : null;
+}
+
+/**
+ * The partners of one session as a single readable phrase.
+ *
+ * "Dana Levi", "Dana Levi and Omer Katz", "Dana Levi, Omer Katz and 2 others" —
+ * a group session should not push a row three lines tall.
+ *
+ * @param partners - Everyone but the viewer.
+ * @returns The phrase, or 'No one else' for a session nobody else is left on.
+ */
+export function formatMeetingPartners(partners: MeetingPartnerView[]): string {
+  const names = partners.map((partner) => partner.fullName);
+
+  if (names.length === 0) {
+    return 'No one else';
+  }
+
+  if (names.length === 1) {
+    return names[0];
+  }
+
+  if (names.length === 2) {
+    return `${names[0]} and ${names[1]}`;
+  }
+
+  const others = names.length - 2;
+
+  return `${names[0]}, ${names[1]} and ${others} ${others === 1 ? 'other' : 'others'}`;
 }
