@@ -28,7 +28,7 @@ import {
   REMEMBER_COOKIE_MAX_AGE,
 } from '@/lib/supabase/session-persistence';
 
-import { emailDomain, institutionNameFromDomain, slugFromDomain } from './academic-email';
+import { emailDomain, institutionNameFromDomain, KNOWN_INSTITUTIONS, slugFromDomain } from './academic-email';
 import {
   changePasswordSchema,
   findAccountSchema,
@@ -84,20 +84,11 @@ interface Institution {
   name: string;
 }
 
-/**
- * Finds the institution for an address, creating it if the domain is new.
- *
- * Uses the admin client because the caller is not yet signed in and cannot read
- * `university_domains` under RLS. It returns only the institution's identity —
- * never anything about other students.
- *
- * @param email - The validated, normalised address.
- * @returns The institution, or null when the domain is registered but marked as
- *          staff-only.
- */
 async function resolveInstitution(email: string): Promise<Institution | null> {
   const domain = emailDomain(email);
   const admin = createAdminClient();
+
+  const predefinedName = KNOWN_INSTITUTIONS[domain];
 
   const { data: known } = await admin
     .from('university_domains')
@@ -106,23 +97,17 @@ async function resolveInstitution(email: string): Promise<Institution | null> {
     .maybeSingle();
 
   if (known) {
-    /*
-     * An explicit is_student_domain = false outranks the general "any academic
-     * address" rule. Some institutions publish a staff domain alongside the
-     * student one, and a deliberate exclusion should not be undone by a
-     * broader default.
-     */
     if (!known.is_student_domain) {
       return null;
     }
 
     return {
       universityId: known.university_id,
-      name: known.universities?.name ?? institutionNameFromDomain(domain),
+      name: known.universities?.name ?? predefinedName ?? institutionNameFromDomain(domain),
     };
   }
 
-  const name = institutionNameFromDomain(domain);
+  const name = predefinedName ?? institutionNameFromDomain(domain);
 
   const { data: university } = await admin
     .from('universities')
@@ -146,12 +131,6 @@ async function resolveInstitution(email: string): Promise<Institution | null> {
     })),
   );
 
-  /*
-   * Re-read rather than trusting the row just written. If two students from the
-   * same new domain sign up at the same moment, both reach this point and only
-   * one insert wins; reading back means both end up in the same institution
-   * instead of two parallel ones.
-   */
   const { data: settled } = await admin
     .from('university_domains')
     .select('university_id, universities(name)')
