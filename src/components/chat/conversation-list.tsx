@@ -92,9 +92,6 @@ export function ConversationList({ conversations }: ConversationListProps) {
                 </p>
 
                 <div className="mt-1.5 flex items-center gap-2">
-                  {conversation.courseName ? (
-                    <Chip tone="brand">{conversation.courseName}</Chip>
-                  ) : null}
                   {unread ? (
                     <Chip tone="sunset">
                       {conversation.unreadCount} new

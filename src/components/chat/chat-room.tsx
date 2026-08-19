@@ -245,7 +245,7 @@ export function ChatRoom({
    * belongs beside the messages that led to it.
    */
   const groups = groupByDay(buildChatFeed(messages, meetings), (entry) => entry.at);
-  const subtitle = [conversation.partnerDegreeName, conversation.courseName]
+  const subtitle = [conversation.partnerDegreeName]
     .filter(Boolean)
     .join(' • ');
 

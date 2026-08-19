@@ -80,7 +80,7 @@ export function personThread(conversation: ConversationView): PersonThreadView {
     href: `/messages/${conversation.id}`,
     title: conversation.partnerName,
     avatarUrl: conversation.partnerAvatarUrl,
-    subtitle: conversation.courseName,
+    subtitle: "",
     lastMessageAt: conversation.lastMessageAt,
     lastMessageBody: conversation.lastMessageBody,
     lastMessageFromMe: conversation.lastMessageFromMe,

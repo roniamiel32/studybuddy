@@ -45,7 +45,6 @@ export function CourseCard({ course, canDrop }: CourseCardProps) {
             {/* Initials, where the catalogue number used to be. The name is the
                 heading directly below, so repeating it here would say it twice. */}
             <span className="font-heading text-[15px] font-bold tracking-wider text-white/95 drop-shadow-sm">
-              {courseInitials(course.name)}
             </span>
           </span>
         </span>
