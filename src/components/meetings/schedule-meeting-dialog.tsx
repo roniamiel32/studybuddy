@@ -636,7 +636,7 @@ function SlotListView({
             onClick={onShowMore}
             className="text-brand hover:text-brand-bright focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none"
           >
-            Load more ({hiddenDays} more {hiddenDays === 1 ? 'day' : 'days'})
+            Load more 
           </button>
         ) : null}
 
