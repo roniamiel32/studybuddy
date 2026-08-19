@@ -421,6 +421,16 @@ export function mergeSelectedSlots(
   const runs: SelectedRun[] = [];
 
   for (const slot of chosen) {
+    const startDate = new Date(slot.startsAt);
+    const baseHour = Math.floor(startDate.getHours() / 2) * 2;
+    
+    const blockEndDate = new Date(startDate);
+    blockEndDate.setHours(baseHour + 2, 0, 0, 0);
+    const blockEndIso = blockEndDate.toISOString();
+
+    const effectiveEndsAt = slot.endsAt < blockEndIso ? slot.endsAt : blockEndIso;
+    // ---------------------------------------------------------
+
     const open = runs.at(-1);
     const continues =
       open !== undefined &&
@@ -430,7 +440,7 @@ export function mergeSelectedSlots(
       localDayKey(open.startsAt) === localDayKey(slot.startsAt);
 
     if (continues) {
-      open.endsAt = slot.endsAt;
+      open.endsAt = effectiveEndsAt; 
       open.slotCount += 1;
       continue;
     }
@@ -438,7 +448,7 @@ export function mergeSelectedSlots(
     runs.push({
       id: slot.startsAt,
       startsAt: slot.startsAt,
-      endsAt: slot.endsAt,
+      endsAt: effectiveEndsAt, 
       slotCount: 1,
     });
   }
