@@ -160,7 +160,7 @@ export default async function GroupPage({
       memberNames={memberNames}
       meetings={meetings}
       groupName={group.name}
-      description={group.description} // מעבירים את התיאור לצ'אט!
+      description={group.description} 
       courseCode={course?.code ?? null}
     />
   );

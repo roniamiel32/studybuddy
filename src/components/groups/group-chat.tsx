@@ -29,7 +29,7 @@ export interface GroupChatProps {
   memberNames: Record<string, string>;
   meetings: MeetingView[];
   groupName: string;
-  description?: string | null; // הוספנו את התיאור לכאן!
+  description?: string | null;
   courseCode: string | null;
 }
 
@@ -82,13 +82,10 @@ export function GroupChat({
   const [draft, setDraft] = useState('');
   const [clearedFor, setClearedFor] = useState<typeof state>(null);
 
-  const canvasRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   const error = state && !state.ok ? state.error : null;
   const messages = useMemo(() => mergeMessages(initialMessages, live), [initialMessages, live]);
-  /* Messages and booked sessions in one run, ordered by when each happened. No
-     day separators here — the group chat has never had them. */
   const feed = useMemo(() => buildChatFeed(messages, meetings), [messages, meetings]);
 
   useEffect(() => {
@@ -120,31 +117,6 @@ export function GroupChat({
     };
   }, [channelId, groupId, memberNames]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-
-    if (canvas) {
-      canvas.scrollTop = canvas.scrollHeight;
-    }
-  }, [feed.length]);
-
-  /* ---- Mark as read ------------------------------------------------------ */
-
-  /*
-   * Opening the group is the read receipt, and this is what clears the badge.
-   *
-   * IT RUNS FROM THE CLIENT, NOT FROM THE SERVER PAGE. A mutation during a
-   * server render is a side effect on a render Next is free to repeat, cache or
-   * run while prefetching a link the student never followed — and
-   * revalidatePath, which the action calls to refresh the badge in the layout,
-   * throws when called during render. The direct-chat room marks read the same
-   * way, in an effect, for the same reasons.
-   *
-   * KEYED ON THE NEWEST MESSAGE rather than firing once per mount. Sitting in an
-   * open chat while people talk should not leave the badge counting messages
-   * that are on screen — and because the stamp is one timestamp rather than a
-   * row per message, re-stamping costs the same whether one arrived or twenty.
-   */
   const newestMessageAt = messages.at(-1)?.createdAt ?? null;
 
   useEffect(() => {
@@ -165,7 +137,6 @@ export function GroupChat({
   return (
     <section aria-labelledby="group-chat-heading" className="clay-card flex flex-col overflow-hidden p-0">
       
-      {/* כאן אנחנו מציגים את התיאור במקום המילה "Group chat" */}
       <h2
         id="group-chat-heading"
         className="border-outline-variant/30 font-heading border-b px-5 py-4 text-headline-md"
@@ -176,76 +147,75 @@ export function GroupChat({
       <MeetingStrip meetings={meetings} />
 
       <div
-        ref={canvasRef}
-        className="bg-surface-container-low/40 flex max-h-[600px] min-h-[400px] flex-1 flex-col gap-3 overflow-y-auto p-4"
+        className="bg-surface-container-low/40 flex max-h-[600px] min-h-[400px] flex-1 flex-col-reverse overflow-y-auto p-4"
       >
         {feed.length === 0 ? (
-          <p className="text-on-surface-variant py-6 text-center text-body-md">
+          <p className="text-on-surface-variant m-auto py-6 text-center text-body-md">
             No messages yet. Say hello to the group.
           </p>
-        ) : null}
+        ) : (
+          <ul className="flex flex-col-reverse gap-3">
+            {[...feed].reverse().map((entry) => {
+              if (entry.kind === 'meeting') {
+                return (
+                  <li key={entry.id}>
+                    <MeetingChatCard meeting={entry.meeting} />
+                  </li>
+                );
+              }
 
-        <ul className="flex flex-col gap-3">
-          {feed.map((entry) => {
-            if (entry.kind === 'meeting') {
+              const message = entry.message;
+
+              if (message.isSystem) {
+                return (
+                  <li key={message.id} className="flex justify-center">
+                    <span className="bg-brand-fixed/60 text-on-brand-fixed rounded-full px-3 py-1 text-label-sm">
+                      {message.body}
+                    </span>
+                  </li>
+                );
+              }
+
+              const fromMe = message.senderId === viewerId;
+
               return (
-                <li key={entry.id}>
-                  <MeetingChatCard meeting={entry.meeting} />
-                </li>
-              );
-            }
+                <li
+                  key={message.id}
+                  className={cn('flex max-w-[85%] flex-col gap-0.5', fromMe && 'self-end')}
+                >
+                  {!fromMe ? (
+                    <ProfileLink
+                      profileId={message.senderId}
+                      className="text-outline pl-1 text-label-sm font-normal"
+                    >
+                      {message.senderName ?? 'Classmate'}
+                    </ProfileLink>
+                  ) : null}
 
-            const message = entry.message;
+                  <div
+                    className={cn(
+                      'rounded-2xl p-3',
+                      fromMe
+                        ? 'bg-brand shadow-clay-soft rounded-br-sm text-white'
+                        : 'border-outline-variant/20 rounded-bl-sm border bg-white shadow-sm',
+                    )}
+                  >
+                    <p className="text-[15px] whitespace-pre-wrap">{message.body}</p>
+                  </div>
 
-            if (message.isSystem) {
-              return (
-                <li key={message.id} className="flex justify-center">
-                  <span className="bg-brand-fixed/60 text-on-brand-fixed rounded-full px-3 py-1 text-label-sm">
-                    {message.body}
+                  <span suppressHydrationWarning
+                    className={cn(
+                      'text-outline text-[10px]',
+                      fromMe ? 'self-end pr-1' : 'pl-1',
+                    )}
+                  >
+                    {formatMessageTime(message.createdAt)}
                   </span>
                 </li>
               );
-            }
-
-            const fromMe = message.senderId === viewerId;
-
-            return (
-              <li
-                key={message.id}
-                className={cn('flex max-w-[85%] flex-col gap-0.5', fromMe && 'self-end')}
-              >
-                {!fromMe ? (
-                  <ProfileLink
-                    profileId={message.senderId}
-                    className="text-outline pl-1 text-label-sm font-normal"
-                  >
-                    {message.senderName ?? 'Classmate'}
-                  </ProfileLink>
-                ) : null}
-
-                <div
-                  className={cn(
-                    'rounded-2xl p-3',
-                    fromMe
-                      ? 'bg-brand shadow-clay-soft rounded-br-sm text-white'
-                      : 'border-outline-variant/20 rounded-bl-sm border bg-white shadow-sm',
-                  )}
-                >
-                  <p className="text-[15px] whitespace-pre-wrap">{message.body}</p>
-                </div>
-
-                <span suppressHydrationWarning
-                  className={cn(
-                    'text-outline text-[10px]',
-                    fromMe ? 'self-end pr-1' : 'pl-1',
-                  )}
-                >
-                  {formatMessageTime(message.createdAt)}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+            })}
+          </ul>
+        )}
       </div>
 
       <form
