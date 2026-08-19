@@ -284,10 +284,6 @@ export async function setMeetingRsvp(input: {
       .eq('profile_id', user.id);
 
     if (error) {
-      /*
-       * The freeze. Worth saying plainly, because the student's mental model —
-       * "I can always cancel" — is right up until the session starts.
-       */
       if (error.message.includes('already started')) {
         return fail(
           ERROR_CODES.FORBIDDEN,
@@ -305,16 +301,33 @@ export async function setMeetingRsvp(input: {
       return fail(ERROR_CODES.UNEXPECTED, 'We could not update that. Try again.');
     }
 
-    /*
-     * Mirrored into Google after the RSVP has actually been accepted, so the
-     * calendar never shows a session the database refused to record. Never
-     * throws: attendance is the product, and a stale Google token must not be
-     * able to fail it.
-     */
-    if (parsed.going) {
-      await pushMeetingToCalendar(user.id, parsed.meetingId);
-    } else {
-      await removeMeetingFromCalendar(user.id, parsed.meetingId);
+    let meetingWasAutoCancelled = false;
+
+    if (!parsed.going) {
+      const { count } = await supabase
+        .from('meeting_attendees')
+        .select('*', { count: 'exact', head: true })
+        .eq('meeting_id', parsed.meetingId)
+        .eq('rsvp', 'going'); 
+
+      if (count !== null && count <= 1) {
+        await supabase.rpc('rpc_cancel_meeting', {
+          p_meeting_id: parsed.meetingId,
+        });
+        
+        await removeMeetingFromAllCalendars(parsed.meetingId);
+        
+        meetingWasAutoCancelled = true;
+      }
+    }
+    // -----------------------------
+
+    if (!meetingWasAutoCancelled) {
+      if (parsed.going) {
+        await pushMeetingToCalendar(user.id, parsed.meetingId);
+      } else {
+        await removeMeetingFromCalendar(user.id, parsed.meetingId);
+      }
     }
 
     revalidateMeetingSurfaces();
