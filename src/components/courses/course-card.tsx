@@ -16,29 +16,6 @@ import { ChevronRight, SlidersHorizontal, TriangleAlert, Users } from 'lucide-re
 import { Chip } from '@/components/ui/chip';
 import { hasOverride, type EnrolledCourseView } from '@/features/courses/course-view';
 import { DropCourseButton } from '@/components/courses/drop-course-button';
-import { cn } from '@/lib/utils';
-
-/**
- * Palette for the card banners, drawn from the existing theme tokens.
- */
-const BANNERS = [
-  'from-[#635BFF] to-[#AF52DE]',
-  'from-[#AF52DE] to-[#635BFF]',
-  'from-[#AF52DE] to-[#FF8A50]',
-  'from-[#FF8A50] to-[#AF52DE]',
-  'from-[#635BFF] to-[#FF8A50]',
-  'from-[#FF8A50] to-[#635BFF]',
-] as const;
-
-export function bannerFor(code: string): string {
-  let hash = 0;
-
-  for (const character of code) {
-    hash = (hash + character.charCodeAt(0)) % 997;
-  }
-
-  return BANNERS[hash % BANNERS.length];
-}
 
 export interface CourseCardProps {
   course: EnrolledCourseView;
@@ -57,7 +34,7 @@ export function CourseCard({ course, canDrop }: CourseCardProps) {
       >
         <span
           aria-hidden="true"
-          className={cn('block h-20 bg-gradient-to-br', bannerFor(course.code))}
+          className="block h-20 bg-gradient-to-br from-[#635BFF] to-[#AF52DE]"
         >
           <span className="flex h-full items-end p-4">
             <span className="font-heading text-[15px] font-bold tracking-wider text-white/95 drop-shadow-sm">
