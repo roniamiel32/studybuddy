@@ -14,9 +14,11 @@
  *
  *              No 'server-only' here: the dialog is a client component and needs
  *              these formatters.
- * Version:     0.48.0
+ * Version:     0.49.0
  *
  * Modifications:
+ *     0.49.0 - 2026-08-19 - buildSlotGrid takes a baseDate, so the picker can
+ *                           page between weeks
  *     0.48.0 - 2026-08-19 - isDefaultMeetingTitle and meetingChatHref, for the
  *                           per-recipient calendar title and the clickable rows
  *     0.47.0 - 2026-08-19 - Meeting history view models; the default title names
@@ -310,33 +312,45 @@ export interface SlotGrid {
 /**
  * Arranges the offered slots into the week grid the picker draws.
  *
- * THE ROWS COME FROM THE DATA, NOT FROM config/onboarding's TIME_SLOTS. It is
- * tempting to scaffold the grid on the same 08–22 rows the availability screen
- * uses, and it would be wrong: those rows are campus wall-clock, and this module
- * renders in the reader's own zone by long-standing decision. For a student in
- * London a 14:00 Jerusalem block is a 12:00 block, and pinning it to a row
- * labelled 14–16 would put the session an hour of their life away from where the
- * grid says it is. Deriving the rows from the slots keeps one clock on screen.
+ * NOTHING ABOUT THE GRID'S SHAPE COMES FROM THE DATA, and that is the whole
+ * point of it. Both axes are fixed before a single slot is read:
  *
- * THE COLUMNS DO NOT COME FROM THE DATA. Every day in the window gets one, even
- * a day with nothing free — an empty column is the answer to "can we meet on
- * Wednesday", and a grid that silently omitted Wednesday would leave that
- * question open.
+ *   THE COLUMNS ARE ONE CALENDAR WEEK, Sunday to Saturday, whichever week
+ *   `baseDate` falls in. Every day gets a column even with nothing free, because
+ *   an empty column is the answer to "can we meet on Wednesday" — a grid that
+ *   silently omitted Wednesday would leave that question open.
  *
- * @param slots - Slots as the RPC returned them.
- * @param days  - How many days the grid spans.
- * @param now   - Reference time, injectable so the tests are not clock-dependent.
+ *   THE ROWS ARE THE SAME SEVEN TWO-HOUR BLOCKS EVERY TIME, 08:00 to 20:00.
+ *   Deriving them from what was offered made the grid change height between two
+ *   loads of the same week, so a cell a student was about to click moved because
+ *   somebody else had booked an unrelated evening.
+ *
+ * BASE DATE IS WHICH WEEK, NOT WHAT TIME IT IS. This used to be `now`, and it
+ * was only ever read to find the current week. The picker pages through weeks
+ * with `<` and `>` by passing today plus seven days per step, so the argument's
+ * job is now to name a week rather than an instant — hence the name. Passing any
+ * moment inside a week gives that week; the default is this one. Tests pass a
+ * fixed date so nothing here depends on when the suite runs.
+ *
+ * SLOTS OUTSIDE THE DRAWN WEEK ARE DROPPED, not folded into the nearest column.
+ * The fetch window is a rolling seven days from now and does not line up with
+ * week boundaries, so on most days some of what came back belongs to the next
+ * page — where paging will show it — and the list view shows all of it regardless.
+ *
+ * @param slots    - Slots as the RPC returned them.
+ * @param days     - How many columns to draw, from that week's Sunday.
+ * @param baseDate - Any moment in the week to draw. Defaults to this week.
  * @returns The columns and rows to render.
  */
 export function buildSlotGrid(
   slots: MeetingSlotView[],
   days: number = 7,
-  now: Date = new Date(),
+  baseDate: Date = new Date(),
 ): SlotGrid {
   const columns: SlotGridColumn[] = [];
 
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay());
+  const startOfWeek = new Date(baseDate);
+  startOfWeek.setDate(baseDate.getDate() - baseDate.getDay());
 
   for (let offset = 0; offset < days; offset += 1) {
     const day = new Date(

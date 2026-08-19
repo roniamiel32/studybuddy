@@ -19,9 +19,11 @@
  *              findMeetingSlots is mocked. It is a 'use server' module that
  *              opens a Supabase client from cookies, and what is under test here
  *              is what the component does with an answer, not how it gets one.
- * Version:     0.48.0
+ * Version:     0.49.0
  *
  * Modifications:
+ *     0.49.0 - 2026-08-19 - The list's "Load more" no longer counts the days it
+ *                           is holding back
  *     0.48.0 - 2026-08-19 - Fixtures anchored on the week's Sunday, matching the
  *                           grid; the title assertion names the partner
  *     0.30.0 - 2026-08-14 - Initial tests (Phase 9H)
@@ -289,8 +291,10 @@ describe('the list view', () => {
 
     await user.click(screen.getByRole('button', { name: 'List' }));
 
-    /* Four days have slots; three are shown, so one is held back. */
-    const loadMore = screen.getByRole('button', { name: /Load more \(1 more day\)/ });
+    /* Four days have slots; three are shown, so one is held back. The button
+       used to count what was left — "Load more (1 more day)" — and now just
+       says "Load more", so the count is no longer what is asserted. */
+    const loadMore = screen.getByRole('button', { name: /Load more/ });
     expect(screen.queryByRole('button', { name: 'Load less' })).not.toBeInTheDocument();
 
     await user.click(loadMore);

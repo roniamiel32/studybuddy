@@ -9,12 +9,26 @@
  *              expectation here, so each test reads the rows back through the
  *              admin client rather than trusting the screen.
  *
- *              The synced-slot test guards decision D7. The save deletes before
- *              it inserts, and a delete that forgot `source` would quietly eat a
- *              calendar the student had connected — with no error anywhere.
- * Version:     0.19.0
+ *              THE SYNCED-SLOT TEST CHANGED SIDES, and it is worth knowing why.
+ *              It used to assert that a calendar row SURVIVED a hand-edit of the
+ *              week — written when the only risk in sight was a delete that
+ *              forgot `source` and quietly ate a connected calendar. The two-way
+ *              sync made that assertion wrong. Manual rows and synced rows must
+ *              never coexist: the matching engine unions a profile's slots and
+ *              measures overlap in minutes, so a manual "Monday 10–12" beside a
+ *              synced "Monday 09:00–11:30" double-counts the shared 90 minutes
+ *              and inflates every score that student appears in. Saving the grid
+ *              by hand is therefore an explicit claim on the week, and
+ *              standDownCalendarSync hands it over: the synced rows go, the sync
+ *              switches off, and the student is told it paused rather than left
+ *              to notice.
+ *
+ *              So the test now asserts the stand-down, in all three of its parts.
+ * Version:     0.49.0
  *
  * Modifications:
+ *     0.49.0 - 2026-08-19 - Saving by hand pauses the sync; the spec had it the
+ *                           other way round, from before the sync existed
  *     0.19.0 - 2026-08-11 - Initial implementation
  */
 
@@ -83,6 +97,7 @@ test.describe('editing free time from the Profile tab', () => {
 
   test.afterAll(async () => {
     if (SERVICE_KEY && profileId) {
+      await admin.from('calendar_connections').delete().eq('profile_id', profileId);
       await admin.auth.admin.deleteUser(profileId);
     }
   });
@@ -163,8 +178,38 @@ test.describe('editing free time from the Profile tab', () => {
     expect(await savedManualSlots()).toEqual(['1|10:00|12:00', '2|18:00|20:00']);
   });
 
-  test('Cancel discards the edits, and a calendar slot survives a save', async ({ page }) => {
-    /* A slot the student did not author, which this form must never touch. */
+  test('Cancel discards the edits, and a save stands the calendar sync down', async ({
+    page,
+  }) => {
+    /*
+     * A connected student with a synced week: a connection row, the sync on, and
+     * one slot the student did not author. All three are what the stand-down has
+     * to act on, and seeding only the slot would let two thirds of it regress
+     * unnoticed.
+     */
+    const { error: connectionError } = await admin.from('calendar_connections').upsert(
+      {
+        profile_id: profileId,
+        provider: 'google',
+        access_token: 'availability-e2e-access',
+        refresh_token: 'availability-e2e-refresh',
+        expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+        scope: 'https://www.googleapis.com/auth/calendar.readonly',
+        calendar_timezone: 'Asia/Jerusalem',
+        google_email: 'week-student@example.com',
+      },
+      { onConflict: 'profile_id' },
+    );
+
+    expect(connectionError).toBeNull();
+
+    await admin
+      .from('profile_private')
+      .upsert(
+        { profile_id: profileId, google_calendar_sync_enabled: true },
+        { onConflict: 'profile_id' },
+      );
+
     const { error } = await admin.from('availability_slots').insert({
       profile_id: profileId,
       day_of_week: 3,
@@ -197,13 +242,36 @@ test.describe('editing free time from the Profile tab', () => {
 
     expect(await savedManualSlots()).toEqual(['0|08:00|10:00', '1|10:00|12:00']);
 
-    /* The calendar row is still there. */
+    /*
+     * THE STAND-DOWN, IN ITS THREE PARTS. Any one of them alone would leave the
+     * student worse off than before: the rows without the switch means the next
+     * sync silently puts them back; the switch without the message means a week
+     * that stopped updating with no explanation anywhere.
+     */
     const { count } = await admin
       .from('availability_slots')
       .select('*', { count: 'exact', head: true })
       .eq('profile_id', profileId)
       .eq('source', 'google_calendar');
 
-    expect(count).toBe(1);
+    expect(count).toBe(0);
+
+    const { data: privateRow } = await admin
+      .from('profile_private')
+      .select('google_calendar_sync_enabled')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    expect(privateRow?.google_calendar_sync_enabled).toBe(false);
+
+    const { data: connection } = await admin
+      .from('calendar_connections')
+      .select('last_sync_error')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    /* The student is told, and told what to do about it. */
+    expect(connection?.last_sync_error).toContain('Paused');
+    expect(connection?.last_sync_error).toContain('Resync');
   });
 });

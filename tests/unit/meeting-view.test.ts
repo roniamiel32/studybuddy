@@ -14,9 +14,10 @@
  *
  *              Times are injected rather than taken from the clock, so none of
  *              this depends on when the suite runs.
- * Version:     0.48.0
+ * Version:     0.49.0
  *
  * Modifications:
+ *     0.49.0 - 2026-08-19 - Paging: buildSlotGrid takes a baseDate naming a week
  *     0.48.0 - 2026-08-19 - buildSlotGrid now anchors on the week's Sunday and
  *                           draws a fixed set of rows; assertions follow
  *     0.29.0 - 2026-08-14 - Initial tests (Phase 9G)
@@ -192,6 +193,9 @@ const GRID_ANCHOR = new Date(2026, 7, 16, 9, 0, 0, 0);
 /* The same week, seen from the Wednesday. The grid must snap back to the 16th. */
 const MIDWEEK_ANCHOR = new Date(2026, 7, 19, 9, 0, 0, 0);
 
+/* One page forward — what the picker passes when "Next week >" is pressed. */
+const NEXT_WEEK_ANCHOR = new Date(2026, 7, 23, 9, 0, 0, 0);
+
 /*
  * The grid's rows are FIXED — 08:00 to 20:00 in two-hour steps — rather than
  * derived from whatever happens to be offered. A week whose row count changed
@@ -249,6 +253,43 @@ describe('buildSlotGrid', () => {
     );
     expect(fromSunday.columns[0].date).toBe('2026-08-16');
     expect(fromSunday.columns[6].date).toBe('2026-08-22');
+  });
+
+  it('draws the following week when the base date is a week on', () => {
+    /*
+     * WHAT THE `>` BUTTON DOES. The picker pages by handing this today plus
+     * seven days, so the argument names a week rather than an instant — and the
+     * page it names must be the next seven columns, still Sunday to Saturday.
+     */
+    const next = buildSlotGrid([], 7, NEXT_WEEK_ANCHOR);
+
+    expect(next.columns[0].date).toBe('2026-08-23');
+    expect(next.columns[6].date).toBe('2026-08-29');
+    /* Same rows on every page: the ladder is the shape of a day, not of a week. */
+    expect(next.times).toEqual(GRID_TIMES);
+  });
+
+  it('leaves this week’s slots off next week’s page, and the other way round', () => {
+    /*
+     * The two pages must not both claim the same slot. The fetch window is a
+     * rolling seven days and does not line up with week boundaries, so on most
+     * days part of the answer belongs to each page — which is the whole reason
+     * paging was added rather than widening one grid.
+     */
+    const thisWeek = slotAt(1, 14);
+    const nextWeek = slotAt(8, 14);
+
+    const first = buildSlotGrid([thisWeek, nextWeek], 7, GRID_ANCHOR);
+    const second = buildSlotGrid([thisWeek, nextWeek], 7, NEXT_WEEK_ANCHOR);
+
+    const filled = (grid: ReturnType<typeof buildSlotGrid>) =>
+      grid.columns.filter((column) => Object.keys(column.slotsByTime).length > 0);
+
+    expect(filled(first)).toHaveLength(1);
+    expect(filled(first)[0].date).toBe('2026-08-17');
+
+    expect(filled(second)).toHaveLength(1);
+    expect(filled(second)[0].date).toBe('2026-08-24');
   });
 
   it('draws the same seven rows whatever is offered', () => {
