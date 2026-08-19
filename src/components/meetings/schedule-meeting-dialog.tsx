@@ -100,12 +100,10 @@ function toTimeValue(iso: string): string {
  * @returns The new instant, as ISO.
  */
 function withTime(iso: string, value: string): string {
-  // הגנה מפני קלט ריק (למשל בעת מחיקת השעה בשדה)
   if (!value) return iso;
 
   const [hours, minutes] = value.split(':').map(Number);
   
-  // הגנה מפני קלט לא חוקי שיוצר NaN
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return iso;
 
   const date = new Date(iso);
@@ -483,9 +481,7 @@ function SlotGridView({
               </th>
 
               {grid.columns.map((column) => {
-                // המערך של הסלוטים המותאמים לשעה וליום הזה
                 const slotsArray = column.slotsByTime[time];
-                // לוקחים את הסלוט הראשון מהמערך לצורך התצוגה במשבצת
                 const slot = slotsArray?.[0];
 
                 if (!slot) {

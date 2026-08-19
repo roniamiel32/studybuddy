@@ -331,16 +331,22 @@ export function buildSlotGrid(
 ): SlotGrid {
   const columns: SlotGridColumn[] = [];
 
-  for (let offset = 0; offset < days; offset += 1) {
-    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
 
+  for (let offset = 0; offset < days; offset += 1) {
+    const day = new Date(
+      startOfWeek.getFullYear(),
+      startOfWeek.getMonth(),
+      startOfWeek.getDate() + offset
+    );
     columns.push({
       date: `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(
         day.getDate(),
       ).padStart(2, '0')}`,
       weekday: day.toLocaleDateString(undefined, { weekday: 'short' }),
       dayLabel: day.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
-      slotsByTime: {}, // מתחיל ריק
+      slotsByTime: {},
     });
   }
 
@@ -357,7 +363,6 @@ export function buildSlotGrid(
     const matchingRowTime = `${String(baseHour).padStart(2, '0')}:00`;
 
     if (times.includes(matchingRowTime)) {
-      // יצירת המערך אם הוא לא קיים, ואז הוספת הסלוט
       if (!column.slotsByTime[matchingRowTime]) {
         column.slotsByTime[matchingRowTime] = [];
       }
