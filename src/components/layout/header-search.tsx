@@ -20,9 +20,11 @@
  *              arrive after the answer to "danie" and overwrite it with staler
  *              results. The sequence number is what makes the last request win
  *              rather than the last reply.
- * Version:     0.26.0
+ * Version:     0.26.2
  *
  * Modifications:
+ *     0.26.2 - Fixed CSS width interpolation for perfectly smooth collapsing
+ *     0.26.1 - State reset fixed for immediate clear on close
  *     0.26.0 - 2026-08-13 - Initial implementation (Phase 9D)
  */
 
@@ -37,14 +39,8 @@ import { searchEverything } from '@/features/search/actions';
 import { KIND_LABELS, type SearchResult } from '@/features/search/search-view';
 import { cn } from '@/lib/utils';
 
-/** How long to wait after the last keystroke before asking the server. */
 const DEBOUNCE_MS = 180;
 
-/**
- * Renders the header search.
- *
- * @returns The search element.
- */
 export function HeaderSearch() {
   const router = useRouter();
   const listboxId = useId();
@@ -53,13 +49,6 @@ export function HeaderSearch() {
   const [query, setQuery] = useState('');
   const [highlighted, setHighlighted] = useState(0);
 
-  /*
-   * The answer is stored WITH THE QUERY IT ANSWERS, and "loading" is derived
-   * from the two rather than stored beside them. A separate boolean would have
-   * to be set synchronously inside the effect below — a cascading render, and
-   * one more thing to keep in step with the results it describes. Here, stale
-   * simply means the answer on hand is not for the text on screen.
-   */
   const [answer, setAnswer] = useState<{ query: string; results: SearchResult[] } | null>(null);
 
   const trimmed = query.trim();
@@ -68,8 +57,6 @@ export function HeaderSearch() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  /* Monotonic, so a slow reply for an earlier query cannot overwrite a fast one
-     for a later query. */
   const sequenceRef = useRef(0);
 
   useEffect(() => {
@@ -80,8 +67,6 @@ export function HeaderSearch() {
     inputRef.current?.focus();
   }, [open]);
 
-  /* Closing on an outside press, because an open field over the header with no
-     way out but the X is a trap on a phone. */
   useEffect(() => {
     if (!open) {
       return;
@@ -90,6 +75,8 @@ export function HeaderSearch() {
     const onPointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
+        setQuery('');
+        setAnswer(null);
       }
     };
 
@@ -108,8 +95,6 @@ export function HeaderSearch() {
     const timer = setTimeout(async () => {
       const result = await searchEverything(trimmed);
 
-      /* A later keystroke has already been sent — its answer is the one that
-         should land. */
       if (sequence !== sequenceRef.current) {
         return;
       }
@@ -121,18 +106,9 @@ export function HeaderSearch() {
     return () => clearTimeout(timer);
   }, [trimmed]);
 
-  /**
-   * Navigates to a result and puts the box away.
-   *
-   * @param result - The chosen result.
-   * @returns Nothing.
-   */
   const choose = (result: SearchResult) => {
     setOpen(false);
     setQuery('');
-    /* Clearing the query is enough to empty the panel: `results` is derived from
-       whether the stored answer matches the text on screen, and '' matches no
-       stored query. */
     setAnswer(null);
     router.push(result.href);
   };
@@ -145,13 +121,21 @@ export function HeaderSearch() {
         className={cn(
           'flex items-center overflow-hidden rounded-full transition-all duration-300 ease-out',
           open
-            ? 'border-outline-variant/60 focus-within:border-brand focus-within:ring-brand/25 w-[min(18rem,55vw)] border bg-white focus-within:ring-4'
-            : 'w-auto',
+            ? 'border-outline-variant/60 focus-within:border-brand focus-within:ring-brand/25 border bg-white focus-within:ring-4'
+            : 'border border-transparent'
         )}
       >
         <button
           type="button"
-          onClick={() => (open ? setOpen(false) : setOpen(true))}
+          onClick={() => {
+            if (open) {
+              setOpen(false);
+              setQuery('');
+              setAnswer(null);
+            } else {
+              setOpen(true);
+            }
+          }}
           aria-label={open ? 'Close search' : 'Search'}
           aria-expanded={open}
           className={cn(
@@ -178,6 +162,8 @@ export function HeaderSearch() {
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
               setOpen(false);
+              setQuery('');
+              setAnswer(null);
               return;
             }
 
@@ -203,10 +189,8 @@ export function HeaderSearch() {
           placeholder="Courses, people, groups..."
           className={cn(
             'text-on-surface placeholder:text-outline min-w-0 bg-transparent text-label-md outline-none transition-all duration-300 ease-out',
-            open ? 'w-full py-2 pr-2' : 'w-0 p-0',
+            open ? 'w-[12rem] sm:w-[15rem] py-2 pr-2' : 'w-0 p-0',
           )}
-          /* Kept out of the tab order while collapsed: a zero-width field is
-             still focusable, and tabbing into an invisible box is baffling. */
           tabIndex={open ? 0 : -1}
         />
 
@@ -215,6 +199,7 @@ export function HeaderSearch() {
             type="button"
             onClick={() => {
               setQuery('');
+              setAnswer(null);
               inputRef.current?.focus();
             }}
             aria-label="Clear search"
@@ -286,12 +271,6 @@ export function HeaderSearch() {
   );
 }
 
-/**
- * The badge beside a result, which says what kind of thing it is.
- *
- * @param result - The result.
- * @returns The icon element.
- */
 function ResultIcon({ result }: { result: SearchResult }) {
   if (result.kind === 'student') {
     return (
