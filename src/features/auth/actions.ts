@@ -5,9 +5,11 @@
  *              accepted; the domain decides which institution the student
  *              belongs to, and an institution is created on first sight if it
  *              is not already known.
- * Version:     0.10.0
+ * Version:     0.50.0
  *
  * Modifications:
+ *     0.50.0 - 2026-08-19 - resolveInstitution says WHY it failed; a database
+ *                           error is no longer reported as a staff address
  *     0.10.0 - 2026-08-09 - Provisioning creates degrees, not tracks
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  *     0.6.1 - 2026-08-05 - Accept any .ac.il / .edu address, provisioning the
@@ -84,46 +86,128 @@ interface Institution {
   name: string;
 }
 
-async function resolveInstitution(email: string): Promise<Institution | null> {
+/**
+ * Why an address could not be turned into an institution.
+ *
+ * ONLY ONE OF THESE IS THE STUDENT'S PROBLEM. `staff_domain` is a fact about
+ * their address and deserves the sentence the form has always shown. The other
+ * two are faults on our side — the domain table could not be read, or a new
+ * institution could not be created — and telling somebody to "use your student
+ * address" when the real answer is a misconfigured service key sends them to
+ * look in the one place the answer is not.
+ */
+type InstitutionFailure =
+  | { reason: 'staff_domain'; domain: string }
+  | { reason: 'lookup_failed'; domain: string; detail: string }
+  | { reason: 'provision_failed'; domain: string; detail: string };
+
+type InstitutionResult =
+  | { ok: true; institution: Institution }
+  | { ok: false; failure: InstitutionFailure };
+
+/**
+ * Finds the institution an address belongs to, creating it on first sight.
+ *
+ * EVERY FAILURE USED TO LOOK THE SAME, and that is what this rewrite is really
+ * about. The function returned `Institution | null`, and `null` was reached from
+ * four places: a staff-only domain, a domain table that could not be read, a
+ * university row that could not be inserted, and — because each PostgREST call
+ * destructured `data` and dropped `error` on the floor — any database fault at
+ * all, including a service-role key pointed at the wrong project, a missing
+ * grant, or an RLS policy. All four surfaced to the student as "that address
+ * cannot be used to register; if it is a staff address, use your student one",
+ * a sentence that names a cause nothing had actually tested.
+ *
+ * THE ERRORS ARE THE DIAGNOSIS. `is_student_domain` is now only ever blamed when
+ * the row was genuinely read and genuinely says false; anything else is reported
+ * as a fault with the reason PostgREST gave, logged with the domain that was
+ * looked for. A row that exists in the dashboard but not in this query is then
+ * one log line away from being understood, rather than a week of staring at a
+ * boolean that was correct all along.
+ *
+ * @param email - The address being registered.
+ * @returns The institution, or the reason there is not one.
+ */
+async function resolveInstitution(email: string): Promise<InstitutionResult> {
   const domain = emailDomain(email);
   const admin = createAdminClient();
 
   const predefinedName = KNOWN_INSTITUTIONS[domain];
 
-  const { data: known } = await admin
+  const { data: known, error: lookupError } = await admin
     .from('university_domains')
     .select('university_id, is_student_domain, universities(name)')
     .eq('domain', domain)
     .maybeSingle();
 
+  /*
+   * A read failure is NOT "no such domain". Falling through to provisioning on
+   * an error is how a transient fault used to end in a duplicate-slug insert and
+   * a message about staff addresses.
+   */
+  if (lookupError) {
+    return {
+      ok: false,
+      failure: { reason: 'lookup_failed', domain, detail: lookupError.message },
+    };
+  }
+
   if (known) {
     if (!known.is_student_domain) {
-      return null;
+      return { ok: false, failure: { reason: 'staff_domain', domain } };
     }
 
     return {
-      universityId: known.university_id,
-      name: known.universities?.name ?? predefinedName ?? institutionNameFromDomain(domain),
+      ok: true,
+      institution: {
+        universityId: known.university_id,
+        name: known.universities?.name ?? predefinedName ?? institutionNameFromDomain(domain),
+      },
     };
   }
 
   const name = predefinedName ?? institutionNameFromDomain(domain);
 
-  const { data: university } = await admin
+  const { data: university, error: universityError } = await admin
     .from('universities')
     .insert({ name, slug: slugFromDomain(domain) })
     .select('id')
     .single();
 
-  if (!university) {
-    return null;
+  if (universityError || !university) {
+    /*
+     * The likeliest cause is the unique constraint on `slug`: a university row
+     * already exists for this institution while its domain row is missing, which
+     * is a half-provisioned tenant rather than anything the student did.
+     */
+    return {
+      ok: false,
+      failure: {
+        reason: 'provision_failed',
+        domain,
+        detail: universityError?.message ?? 'the university row was not returned',
+      },
+    };
   }
 
-  await admin
+  const { error: domainError } = await admin
     .from('university_domains')
     .insert({ domain, university_id: university.id, is_student_domain: true });
 
-  await admin.from('degrees').insert(
+  /*
+   * Fatal, and it was previously ignored. handle_new_user resolves the tenant
+   * from this same table the instant the auth user is created, so a missing
+   * domain row means signUp would go on to fail inside the trigger with a
+   * message the student cannot act on.
+   */
+  if (domainError) {
+    return {
+      ok: false,
+      failure: { reason: 'provision_failed', domain, detail: domainError.message },
+    };
+  }
+
+  const { error: degreesError } = await admin.from('degrees').insert(
     DEFAULT_DEGREES.map((degree) => ({
       university_id: university.id,
       name: degree.name,
@@ -131,15 +215,27 @@ async function resolveInstitution(email: string): Promise<Institution | null> {
     })),
   );
 
+  /* Not fatal: the student can register and onboarding will have no degrees to
+     offer, which is a worse first run but not a blocked one. Worth knowing about. */
+  if (degreesError) {
+    console.error(
+      `[auth.resolveInstitution] provisioned ${domain} without default degrees:`,
+      degreesError.message,
+    );
+  }
+
   const { data: settled } = await admin
     .from('university_domains')
     .select('university_id, universities(name)')
     .eq('domain', domain)
     .maybeSingle();
 
-  return settled
-    ? { universityId: settled.university_id, name: settled.universities?.name ?? name }
-    : { universityId: university.id, name };
+  return {
+    ok: true,
+    institution: settled
+      ? { universityId: settled.university_id, name: settled.universities?.name ?? name }
+      : { universityId: university.id, name },
+  };
 }
 
 /**
@@ -165,12 +261,33 @@ export async function signUp(
       password: formData.get('password'),
     });
 
-    const institution = await resolveInstitution(parsed.email);
+    const resolved = await resolveInstitution(parsed.email);
 
-    if (!institution) {
+    if (!resolved.ok) {
+      const { failure } = resolved;
+
+      if (failure.reason === 'staff_domain') {
+        return fail(
+          ERROR_CODES.FORBIDDEN,
+          'That address cannot be used to register. If it is a staff address, use your student one.',
+          'email',
+        );
+      }
+
+      /*
+       * Logged with the domain that was looked for, because the interesting case
+       * is exactly the one where that domain is sitting in the table looking
+       * correct. The student is told it is our fault, not theirs — they cannot
+       * fix a service key by changing their address.
+       */
+      console.error(
+        `[auth.signUp] could not resolve "${failure.domain}" (${failure.reason}):`,
+        failure.detail,
+      );
+
       return fail(
-        ERROR_CODES.FORBIDDEN,
-        'That address cannot be used to register. If it is a staff address, use your student one.',
+        ERROR_CODES.UNEXPECTED,
+        'We could not set your institution up just now. This is our end, not your address — please try again in a moment.',
         'email',
       );
     }
