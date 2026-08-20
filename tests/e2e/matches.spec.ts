@@ -207,7 +207,12 @@ test.describe('matches dashboard', () => {
      * label inside it would sit behind the avatar and be unclickable.
      */
     await header.locator('summary').click();
-    await expect(header.getByRole('link', { name: 'Profile' })).toBeVisible();
+    /*
+     * `exact`, because the stadium's own link is labelled "Your profile, <name>"
+     * since it started leading to the profile directly — a substring match now
+     * finds two links and fails on strict mode rather than on the assertion.
+     */
+    await expect(header.getByRole('link', { name: 'Profile', exact: true })).toBeVisible();
     await expect(header.getByRole('button', { name: 'Sign out' })).toBeVisible();
   });
 });

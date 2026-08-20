@@ -18,9 +18,10 @@
  *              Groups became a destination here and needed a page: `/groups` lists
  *              the groups you are in. Groups are still created and discovered on a
  *              course page, because a group belongs to a course.
- * Version:     0.16.0
+ * Version:     0.51.0
  *
  * Modifications:
+ *     0.51.0 - 2026-08-20 - The mobile Profile tab points at a real route again
  *     0.16.0 - 2026-08-10 - Redesign: Courses/Groups/Messages, Match as the CTA,
  *                           Profile moved into the user menu
  *     0.15.0 - 2026-08-10 - Join-request badge on Courses (Phase 5)
@@ -224,7 +225,9 @@ export function MobileNav({
   const mobileDestinations = [
     { href: MATCH_HREF, label: 'Match', icon: Sparkles },
     ...DESTINATIONS,
-    { href: '/students/${viewerId}', label: 'Profile', icon: UserRound },
+    /* Backticks. In single quotes this was the literal path
+       "/students/${viewerId}", which is not a route and 404s. */
+    { href: `/students/${viewerId}`, label: 'Profile', icon: UserRound },
   ] as const;
 
   return (

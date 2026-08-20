@@ -15,9 +15,10 @@
  *              REQUESTS SIT ABOVE THE FEED because they are the only thing here
  *              that is blocking somebody else — a classmate cannot get into a
  *              group until an admin answers.
- * Version:     0.20.0
+ * Version:     0.51.0
  *
  * Modifications:
+ *     0.51.0 - 2026-08-20 - The reader's name is passed down so the feed says "you"
  *     0.26.0 - 2026-08-13 - Join requests moved here from Groups (Phase 9D)
  *     0.20.0 - 2026-08-11 - Initial implementation (Phase 8A)
  */
@@ -28,6 +29,7 @@ import { InvitationInbox } from '@/components/groups/invitation-inbox';
 import { NotificationList } from '@/components/notifications/notification-list';
 import { PendingRequestsSection } from '@/components/notifications/pending-requests-section';
 import { getMyNotifications } from '@/features/notifications/queries';
+import { getOnboardingProfile } from '@/features/onboarding/queries';
 import {
   getMyGroups,
   getMyInvitations,
@@ -44,11 +46,14 @@ export const metadata: Metadata = { title: 'Notifications' };
 export default async function NotificationsPage() {
   /* Materialises today's derived notifications before reading — see the note in
      features/notifications/queries.ts. */
-  const [notifications, pending, groups, invitations] = await Promise.all([
+  /* The profile is read for one field — the reader's name, so the feed can say
+     "you" instead of repeating it back at them. */
+  const [notifications, pending, groups, invitations, profile] = await Promise.all([
     getMyNotifications(),
     getMyPendingRequests(),
     getMyGroups(),
     getMyInvitations(),
+    getOnboardingProfile(),
   ]);
 
   return (
@@ -75,6 +80,7 @@ export default async function NotificationsPage() {
         notifications={notifications} 
         pendingRequests={pending} 
         adminGroups={groups} 
+        viewerName={profile.fullName}
       />
     </>
   );

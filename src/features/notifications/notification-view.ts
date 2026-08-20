@@ -9,9 +9,11 @@
  *              "Maya asked to join Thursday revision" is presentation, and
  *              storing the sentence would mean a copy change could not reach the
  *              notifications already sent.
- * Version:     0.20.0
+ * Version:     0.51.0
  *
  * Modifications:
+ *     0.51.0 - 2026-08-20 - A notification says "you" rather than the reader's
+ *                           own name; sortNotifications
  *     0.24.0 - 2026-08-13 - A suggestion addresses one of the pair, not the
  *                           mutual connection who bridged them
  *     0.22.0 - 2026-08-12 - Social and rating types (Phase 8D)
@@ -95,6 +97,70 @@ export interface NotificationCopy {
 }
 
 /**
+ * Rewrites the reader's own name as "you".
+ *
+ * WHY A STRING PASS RATHER THAN PER-TYPE COPY. The reader's name reaches these
+ * sentences from two directions: as the actor, and — since sessions were renamed
+ * "Study session with <partner>" — inside a meeting title that the database
+ * stores as one string. The second cannot be fixed by rewording a template,
+ * because the name is data rather than a slot. One pass over the finished
+ * sentence catches both, and catches whatever the next source turns out to be.
+ *
+ * WHOLE WORDS ONLY. A substring replace would turn a classmate called "Roni
+ * Amiel-Cohen" into "you-Cohen" for a reader named Roni Amiel. The boundaries
+ * are checked against the characters either side rather than with \b, which does
+ * not understand accented letters — and these are student names.
+ *
+ * The possessive is handled first, or "Roni Amiel's birthday" becomes "you's".
+ *
+ * @param message    - The finished sentence.
+ * @param viewerName - The reader's full name, or null when it is not known.
+ * @returns The sentence, addressed to the reader.
+ */
+export function addressReader(message: string, viewerName: string | null): string {
+  const name = viewerName?.trim();
+
+  if (!name) {
+    return message;
+  }
+
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  /* Letters, digits, apostrophes and hyphens all continue a name, so a match
+     that touches one is part of a longer name and is left alone. */
+  const boundary = String.raw`(?<![\p{L}\p{N}'\-])`;
+  const after = String.raw`(?![\p{L}\p{N}\-])`;
+
+  const personalised = message
+    .replace(new RegExp(`${boundary}${escaped}['\u2019]s${after}`, 'gu'), 'your')
+    .replace(new RegExp(`${boundary}${escaped}${after}`, 'gu'), 'you');
+
+  /* "you scheduled a session" at the head of a sentence wants a capital. */
+  return personalised.replace(/^you\b/, 'You').replace(/^your\b/, 'Your');
+}
+
+/**
+ * Orders a feed newest first.
+ *
+ * THE QUERY ALREADY ORDERS BY created_at DESC, so this is belt and braces rather
+ * than the only ordering — but the feed is assembled from rows written by three
+ * different triggers plus rpc_sync_notifications, and the component should not
+ * depend on every one of them having agreed. The id tie-break is what keeps two
+ * rows written in the same millisecond in the same order on the server and on
+ * the client; without it React is free to hydrate a different sequence than it
+ * rendered, which is a mismatch that reproduces on somebody else's machine only.
+ *
+ * @param notifications - The feed, in any order.
+ * @returns A new array, newest first.
+ */
+export function sortNotifications<T extends { createdAt: string; id: string }>(
+  notifications: readonly T[],
+): T[] {
+  return [...notifications].sort(
+    (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
+  );
+}
+
+/**
  * Turns a notification into the sentence and link it renders as.
  *
  * RETURNS NULL FOR A TYPE IT DOES NOT KNOW, and that is the interesting part.
@@ -105,9 +171,15 @@ export interface NotificationCopy {
  * student who cannot see the page is stuck.
  *
  * @param notification - The notification.
+ * @param viewerName    - The reader's own name, so the sentence can say "you".
+ *                        Optional, so a caller that has no profile to hand still
+ *                        gets a correct sentence rather than a compile error.
  * @returns Its copy and destination, or null if the type is unknown here.
  */
-export function notificationCopy(notification: NotificationView): NotificationCopy | null {
+export function notificationCopy(
+  notification: NotificationView,
+  viewerName: string | null = null,
+): NotificationCopy | null {
   const who = notification.actorName ?? 'A classmate';
   const group = notification.groupName ?? 'your group';
   const meeting = notification.meetingTitle ?? 'a session';
@@ -127,6 +199,35 @@ export function notificationCopy(notification: NotificationView): NotificationCo
     : notification.meetingConversationId
       ? `/messages/${notification.meetingConversationId}`
       : (groupHref ?? '/dashboard');
+
+  const copy = buildCopy(notification, { who, group, meeting, wall, actor, groupHref, meetingHref });
+
+  return copy ? { ...copy, message: addressReader(copy.message, viewerName) } : null;
+}
+
+/**
+ * The per-type sentence, before the reader's name is folded into it.
+ *
+ * Split out so addressReader runs in exactly one place rather than at each of
+ * seventeen return statements.
+ *
+ * @param notification - The notification.
+ * @param parts        - The pre-computed names and destinations.
+ * @returns Its copy, or null if the type is unknown here.
+ */
+function buildCopy(
+  notification: NotificationView,
+  parts: {
+    who: string;
+    group: string;
+    meeting: string;
+    wall: string | null;
+    actor: string | null;
+    groupHref: string | null;
+    meetingHref: string;
+  },
+): NotificationCopy | null {
+  const { who, group, meeting, wall, actor, groupHref, meetingHref } = parts;
 
   switch (notification.type) {
     // ---- Groups ------------------------------------------------------------

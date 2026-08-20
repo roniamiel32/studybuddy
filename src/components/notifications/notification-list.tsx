@@ -2,7 +2,11 @@
  * File:        src/components/notifications/notification-list.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The notification feed.
- * Version:     0.21.2
+ * Version:     0.51.0
+ *
+ * Modifications:
+ *     0.51.0 - 2026-08-20 - Explicit newest-first ordering; the reader's own name
+ *                           renders as "you"
  */
 
 'use client';
@@ -37,6 +41,7 @@ import {
 } from '@/features/notifications/actions';
 import {
   notificationCopy,
+  sortNotifications,
   timeAgo,
   type NotificationType,
   type NotificationView,
@@ -53,6 +58,8 @@ export interface NotificationListProps {
   notifications: NotificationView[];
   pendingRequests?: GroupRequestView[];
   adminGroups?: StudyGroupView[];
+  /** The reader's own name, so a sentence about them says "you". */
+  viewerName?: string | null;
 }
 
 const PAGE_SIZE = 7;
@@ -79,7 +86,12 @@ const ICONS: Partial<Record<NotificationType, typeof Bell>> = {
 /**
  * Renders the feed.
  */
-export function NotificationList({ notifications, pendingRequests = [], adminGroups = [] }: NotificationListProps) {
+export function NotificationList({
+  notifications,
+  pendingRequests = [],
+  adminGroups = [],
+  viewerName = null,
+}: NotificationListProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [shown, setShown] = useState(PAGE_SIZE);
@@ -108,15 +120,17 @@ export function NotificationList({ notifications, pendingRequests = [], adminGro
    */
   const renderable = useMemo(
     () =>
-      notifications.flatMap((notification) => {
+      /* Newest first, sorted here rather than trusted from upstream — see
+         sortNotifications for why the tie-break matters. */
+      sortNotifications(notifications).flatMap((notification) => {
         if (dismissed.has(notification.id)) {
           return [];
         }
 
-        const copy = notificationCopy(notification);
+        const copy = notificationCopy(notification, viewerName);
         return copy ? [{ notification, copy }] : [];
       }),
-    [notifications, dismissed],
+    [notifications, dismissed, viewerName],
   );
 
   const visible = renderable.slice(0, shown);

@@ -9,15 +9,18 @@
  *              feed will be handed rows this build has never heard of. Skipping
  *              one row is an inconvenience; throwing is a page a student cannot
  *              open.
- * Version:     0.22.0
+ * Version:     0.51.0
  *
  * Modifications:
+ *     0.51.0 - 2026-08-20 - addressReader and sortNotifications
  *     0.22.0 - 2026-08-12 - Initial implementation (Phase 8D)
  */
 
 import { describe, expect, it } from 'vitest';
 import {
+  addressReader,
   notificationCopy,
+  sortNotifications,
   type NotificationType,
   type NotificationView,
 } from '@/features/notifications/notification-view';
@@ -132,5 +135,95 @@ describe('notificationCopy', () => {
     expect(copy!.message).toMatch(/A classmate/);
     /* No wall to point at, so no link — the row still renders, just inert. */
     expect(copy!.href).toBeNull();
+  });
+});
+
+describe('addressReader', () => {
+  it('names the reader as "you" inside a session title', () => {
+    /* The case this exists for: sessions are titled "Study session with
+       <partner>", so the reader's own name arrives as data, not as a slot. */
+    const copy = notificationCopy(
+      view('meeting_scheduled', {
+        actorName: 'Daniel Levy',
+        meetingTitle: 'Study session with Roni Amiel',
+      }),
+      'Roni Amiel',
+    );
+
+    expect(copy?.message).toBe('Daniel Levy scheduled Study session with you.');
+  });
+
+  it('capitalises when the reader starts the sentence', () => {
+    expect(addressReader('Roni Amiel scheduled a session.', 'Roni Amiel')).toBe(
+      'You scheduled a session.',
+    );
+  });
+
+  it('turns the possessive into "your"', () => {
+    expect(addressReader("It is Roni Amiel's birthday today.", 'Roni Amiel')).toBe(
+      'It is your birthday today.',
+    );
+  });
+
+  it('leaves a longer name that merely starts with the reader alone', () => {
+    /* A substring replace would produce "you-Cohen" here, which is the bug this
+       guards: two students at one university can easily share a first surname. */
+    expect(addressReader('Roni Amiel-Cohen liked your post.', 'Roni Amiel')).toBe(
+      'Roni Amiel-Cohen liked your post.',
+    );
+  });
+
+  it('leaves everyone else untouched', () => {
+    expect(addressReader('Maya Shalev liked your post.', 'Roni Amiel')).toBe(
+      'Maya Shalev liked your post.',
+    );
+  });
+
+  it('does nothing when the reader has no name yet', () => {
+    /* Mid-onboarding a profile has no full_name. The sentence must still read. */
+    expect(addressReader('Maya Shalev liked your post.', null)).toBe(
+      'Maya Shalev liked your post.',
+    );
+    expect(addressReader('Maya Shalev liked your post.', '   ')).toBe(
+      'Maya Shalev liked your post.',
+    );
+  });
+
+  it('replaces every mention, not just the first', () => {
+    expect(addressReader('Roni Amiel and Roni Amiel met.', 'Roni Amiel')).toBe(
+      'You and you met.',
+    );
+  });
+});
+
+describe('sortNotifications', () => {
+  const at = (id: string, createdAt: string) => ({ id, createdAt });
+
+  it('puts the newest first', () => {
+    const sorted = sortNotifications([
+      at('old', '2026-08-18T09:00:00Z'),
+      at('newest', '2026-08-20T09:00:00Z'),
+      at('middle', '2026-08-19T09:00:00Z'),
+    ]);
+
+    expect(sorted.map((row) => row.id)).toEqual(['newest', 'middle', 'old']);
+  });
+
+  it('breaks a tie on id, so the order is the same twice', () => {
+    /* Two rows written in the same millisecond must not hydrate in a different
+       sequence than they rendered in. */
+    const same = '2026-08-20T09:00:00Z';
+    const first = sortNotifications([at('a', same), at('b', same), at('c', same)]);
+    const second = sortNotifications([at('c', same), at('a', same), at('b', same)]);
+
+    expect(first.map((row) => row.id)).toEqual(second.map((row) => row.id));
+  });
+
+  it('does not mutate the list it was given', () => {
+    const rows = [at('a', '2026-08-18T09:00:00Z'), at('b', '2026-08-20T09:00:00Z')];
+
+    sortNotifications(rows);
+
+    expect(rows.map((row) => row.id)).toEqual(['a', 'b']);
   });
 });
