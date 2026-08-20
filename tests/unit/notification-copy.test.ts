@@ -12,6 +12,8 @@
  * Version:     0.51.0
  *
  * Modifications:
+ *     0.52.0 - 2026-08-20 - The wording review: active voice, and a session
+ *                           named as a phrase rather than a raw title
  *     0.51.0 - 2026-08-20 - addressReader and sortNotifications
  *     0.22.0 - 2026-08-12 - Initial implementation (Phase 8D)
  */
@@ -19,6 +21,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addressReader,
+  meetingPhrase,
   notificationCopy,
   sortNotifications,
   type NotificationType,
@@ -150,7 +153,7 @@ describe('addressReader', () => {
       'Roni Amiel',
     );
 
-    expect(copy?.message).toBe('Daniel Levy scheduled Study session with you.');
+    expect(copy?.message).toBe('Daniel Levy scheduled a study session with you.');
   });
 
   it('capitalises when the reader starts the sentence', () => {
@@ -225,5 +228,123 @@ describe('sortNotifications', () => {
     sortNotifications(rows);
 
     expect(rows.map((row) => row.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('meetingPhrase', () => {
+  it('turns a generated title into a noun phrase', () => {
+    expect(meetingPhrase('Study session with Dana Levi', 'the')).toBe(
+      'the study session with Dana Levi',
+    );
+    expect(meetingPhrase('Study session with Dana Levi', 'a')).toBe(
+      'a study session with Dana Levi',
+    );
+  });
+
+  it('quotes a title a student typed, and leaves its words alone', () => {
+    /* Not lowercased and not article-ed: it is a name, not a description. */
+    expect(meetingPhrase('Past papers', 'the')).toBe('\u201cPast papers\u201d');
+  });
+
+  it('describes a session that has no title', () => {
+    expect(meetingPhrase(null, 'the')).toBe('the study session');
+    expect(meetingPhrase('   ', 'a')).toBe('a study session');
+  });
+});
+
+describe('the wording review', () => {
+  const reader = 'Roni Amiel';
+
+  it('names who called a session off, in the active voice', () => {
+    /* The sentence this review started from: it used to read "Study session
+       with you was called off" — passive, and silent about who did it. */
+    const copy = notificationCopy(
+      view('meeting_cancelled', {
+        actorName: 'Daniel Levy',
+        meetingTitle: 'Study session with Roni Amiel',
+      }),
+      reader,
+    );
+
+    expect(copy?.message).toBe('Daniel Levy called off the study session with you.');
+  });
+
+  it('falls back to a subjectless sentence when the canceller is gone', () => {
+    /* cancelled_by is `on delete set null`, so a deleted organiser leaves a real
+       notification with nobody to name. It still has to be a sentence. */
+    const copy = notificationCopy(
+      view('meeting_cancelled', { actorName: null, meetingTitle: 'Past papers' }),
+      reader,
+    );
+
+    expect(copy?.message).toBe('\u201cPast papers\u201d was called off.');
+  });
+
+  it('does not name the same partner twice on a rating prompt', () => {
+    /* "You finished a study session with Dana Levi with Dana Levi." was the
+       literal output once sessions were titled after their partner. */
+    const copy = notificationCopy(
+      view('rate_partner', {
+        actorName: 'Dana Levi',
+        meetingTitle: 'Study session with Dana Levi',
+      }),
+      reader,
+    );
+
+    expect(copy?.message).toBe('You studied with Dana Levi.');
+  });
+
+  it('keeps a typed title on a rating prompt, where it still says something', () => {
+    const copy = notificationCopy(
+      view('rate_partner', { actorName: 'Dana Levi', meetingTitle: 'Past papers' }),
+      reader,
+    );
+
+    expect(copy?.message).toBe('You finished \u201cPast papers\u201d with Dana Levi.');
+  });
+
+  it('names the admin who promoted you', () => {
+    const copy = notificationCopy(
+      view('group_promotion', { actorName: 'Dana Levi', groupName: 'Sunday revision' }),
+      reader,
+    );
+
+    expect(copy?.message).toBe('Dana Levi made you an admin of Sunday revision.');
+  });
+
+  it('stays subjectless when the promotion was your own doing', () => {
+    /* notify_group_promotion nulls actor_id for a self-promotion, precisely so
+       the sentence does not become "You made you an admin". */
+    const copy = notificationCopy(
+      view('group_promotion', { actorName: null, groupName: 'Sunday revision' }),
+      reader,
+    );
+
+    expect(copy?.message).toBe('You are now an admin of Sunday revision.');
+  });
+
+  it('leaves every message a finished sentence, whoever is reading', () => {
+    /*
+     * The blanket guard for the review: nothing may end up empty, double-spaced,
+     * un-terminated, or opening in lower case — the four ways a template built
+     * from optional parts goes wrong.
+     */
+    for (const type of ALL) {
+      for (const actorName of ['Daniel Levy', null]) {
+        for (const meetingTitle of ['Study session with Roni Amiel', 'Past papers', null]) {
+          const copy = notificationCopy(view(type, { actorName, meetingTitle }), reader);
+
+          expect(copy, `${type} should render`).not.toBeNull();
+
+          const message = copy!.message;
+
+          expect(message, `${type} should not be empty`).not.toBe('');
+          expect(message, `${type} should not double-space`).not.toMatch(/ {2}/);
+          expect(message, `${type} should end in punctuation`).toMatch(/[.!?]$/);
+          expect(message[0], `${type} should start upper case`).toBe(message[0].toUpperCase());
+          expect(message, `${type} should not say "you\'s"`).not.toMatch(/you\u2019?s\b/i);
+        }
+      }
+    }
   });
 });

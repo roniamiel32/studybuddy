@@ -15,9 +15,11 @@
  *              and small: a birthday shows up in the badge once the student opens
  *              the feed, or on their next navigation after something real
  *              happened.
- * Version:     0.20.0
+ * Version:     0.52.0
  *
  * Modifications:
+ *     0.52.0 - 2026-08-20 - A notification about your own action never reaches
+ *                           your own feed
  *     0.22.1 - 2026-08-12 - Take the comment back out of the select string, and
  *                           report the error instead of rendering an empty feed
  *     0.20.0 - 2026-08-11 - Initial implementation (Phase 8A)
@@ -135,6 +137,22 @@ export async function getMyNotifications(limit = 20): Promise<NotificationView[]
        a derived notification the student has already put away — see
        dismissNotification. They are simply never read back. */
     .is('dismissed_at', null)
+    /*
+     * NOTHING YOU DID YOURSELF. Every trigger that writes a notification already
+     * excludes the actor from its own recipients — notify_meeting_scheduled
+     * skips created_by, notify_meeting_cancelled skips cancelled_by, and the
+     * wall and comment triggers return early when the author is the owner. This
+     * is the backstop rather than the rule, and it earns its place three ways:
+     * it covers rows written before those guards existed, it covers whichever
+     * producer is added next without remembering to repeat the check, and it is
+     * one predicate on an indexed read rather than a rule restated in nine
+     * PL/pgSQL functions.
+     *
+     * The null branch is load-bearing. `actor_id <> $me` is NULL for a null
+     * actor, and a NULL predicate filters the row out — so without it the
+     * derived types that carry no actor would silently vanish from the feed.
+     */
+    .or(`actor_id.is.null,actor_id.neq.${user.id}`)
     .order('created_at', { ascending: false })
     .limit(limit);
 

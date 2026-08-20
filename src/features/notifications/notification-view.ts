@@ -9,9 +9,11 @@
  *              "Maya asked to join Thursday revision" is presentation, and
  *              storing the sentence would mean a copy change could not reach the
  *              notifications already sent.
- * Version:     0.51.0
+ * Version:     0.52.0
  *
  * Modifications:
+ *     0.52.0 - 2026-08-20 - Active voice throughout; a session is named as a
+ *                           phrase rather than dropped in as a raw title
  *     0.51.0 - 2026-08-20 - A notification says "you" rather than the reader's
  *                           own name; sortNotifications
  *     0.24.0 - 2026-08-13 - A suggestion addresses one of the pair, not the
@@ -94,6 +96,68 @@ export interface NotificationCopy {
   /** The call to action, when there is something to do rather than just know. */
   cta: string | null;
   href: string | null;
+}
+
+import { isDefaultMeetingTitle } from '@/features/meetings/meeting-view';
+
+/**
+ * Names a session in a way that survives being put inside a sentence.
+ *
+ * A TITLE IS NOT A NOUN PHRASE, which is what broke the old copy. Sessions are
+ * titled "Study session with Dana Levi" by default, and dropping that into
+ * `${meeting} was called off` produced "Study session with you was called off"
+ * — passive, mid-sentence capital, and silent about who did it.
+ *
+ * The two kinds of title need opposite treatment, and isDefaultMeetingTitle is
+ * what tells them apart:
+ *
+ *   A GENERATED TITLE IS ALREADY A DESCRIPTION, so it is lowercased and given an
+ *   article: "the study session with you". It reads as English because that is
+ *   what it was.
+ *
+ *   A TITLE A STUDENT TYPED IS A NAME, so it is quoted and left exactly as
+ *   written: "Past papers" stays capitalised, keeps its own words, and cannot be
+ *   mistaken for our prose. Quoting is also what stops a title like "cancelled"
+ *   turning the sentence into nonsense.
+ *
+ * @param title      - The meeting's stored title.
+ * @param determiner - Which article a generated title should take. "a" for a
+ *                     session being announced, "the" for one already known about.
+ * @returns The phrase, ready to sit inside a sentence.
+ */
+export function meetingPhrase(title: string | null, determiner: 'a' | 'the'): string {
+  const trimmed = title?.trim();
+
+  if (!trimmed) {
+    return `${determiner} study session`;
+  }
+
+  if (isDefaultMeetingTitle(trimmed)) {
+    return `${determiner} ${trimmed.charAt(0).toLowerCase()}${trimmed.slice(1)}`;
+  }
+
+
+  return `\u201c${trimmed}\u201d`;
+}
+
+/**
+ * Whether a session's title is one this app wrote rather than one a student did.
+ *
+ * An absent title counts as generated: there is nothing of the student's to
+ * preserve, so the sentence is free to describe the session in its own words.
+ *
+ * @param title - The meeting's stored title.
+ * @returns Whether the copy may rewrite it.
+ */
+function isGeneratedTitle(title: string | null): boolean {
+  const trimmed = title?.trim();
+
+  return !trimmed || isDefaultMeetingTitle(trimmed);
+}
+
+/** Sentence case, for the rare line that has to start with a session. */
+function capitalise(sentence: string): string {
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1);
 }
 
 /**
@@ -182,7 +246,9 @@ export function notificationCopy(
 ): NotificationCopy | null {
   const who = notification.actorName ?? 'A classmate';
   const group = notification.groupName ?? 'your group';
-  const meeting = notification.meetingTitle ?? 'a session';
+  /* Whether there is a real person to name. `who` always reads as a person, so
+     the copy needs this to know when to fall back to a subjectless sentence. */
+  const named = Boolean(notification.actorName);
 
   const wall = notification.wallOwnerId ? `/students/${notification.wallOwnerId}` : null;
   const actor = notification.actorId ? `/students/${notification.actorId}` : null;
@@ -200,7 +266,15 @@ export function notificationCopy(
       ? `/messages/${notification.meetingConversationId}`
       : (groupHref ?? '/dashboard');
 
-  const copy = buildCopy(notification, { who, group, meeting, wall, actor, groupHref, meetingHref });
+  const copy = buildCopy(notification, {
+    who,
+    named,
+    group,
+    wall,
+    actor,
+    groupHref,
+    meetingHref,
+  });
 
   return copy ? { ...copy, message: addressReader(copy.message, viewerName) } : null;
 }
@@ -219,15 +293,16 @@ function buildCopy(
   notification: NotificationView,
   parts: {
     who: string;
+    named: boolean;
     group: string;
-    meeting: string;
     wall: string | null;
     actor: string | null;
     groupHref: string | null;
     meetingHref: string;
   },
 ): NotificationCopy | null {
-  const { who, group, meeting, wall, actor, groupHref, meetingHref } = parts;
+  const { who, named, group, wall, actor, groupHref, meetingHref } = parts;
+  const title = notification.meetingTitle;
 
   switch (notification.type) {
     // ---- Groups ------------------------------------------------------------
@@ -240,14 +315,20 @@ function buildCopy(
 
     case 'group_joined':
       return {
-        message: `Your request to join ${group} was approved!`,
+        message: named
+          ? `${who} approved your request to join ${group}.`
+          : `Your request to join ${group} was approved.`,
         cta: 'Go to group chat',
         href: groupHref,
       };
 
     case 'group_promotion':
+      /* actor_id is nulled when a student promoted themselves, which is the one
+         case where naming the actor would read as "You made you an admin". */
       return {
-        message: `You are now an admin of ${group}.`,
+        message: named
+          ? `${who} made you an admin of ${group}.`
+          : `You are now an admin of ${group}.`,
         cta: 'Open the group',
         href: groupHref,
       };
@@ -268,22 +349,45 @@ function buildCopy(
       };
 
     case 'meeting_scheduled':
+      /* "a", not "the": this is the announcement, so the session is new to the
+         reader at the moment they read it. */
       return {
-        message: `${who} scheduled ${meeting}.`,
+        message: `${who} scheduled ${meetingPhrase(title, 'a')}.`,
         cta: 'See when',
         href: meetingHref,
       };
 
     case 'meeting_cancelled':
+      /*
+       * THE SENTENCE THIS REVIEW STARTED FROM. It read "<title> was called off",
+       * which was passive, opened mid-sentence with a capitalised title, and hid
+       * the one fact the reader actually wants: who called it off. The trigger
+       * has recorded that as actor_id since the type existed — the copy simply
+       * never asked for it.
+       *
+       * The subjectless form survives for a cancelled_by that has gone null,
+       * which happens when the organiser deletes their account.
+       */
       return {
-        message: `${meeting} was called off.`,
+        message: named
+          ? `${who} called off ${meetingPhrase(title, 'the')}.`
+          : capitalise(`${meetingPhrase(title, 'the')} was called off.`),
         cta: null,
         href: meetingHref,
       };
 
     case 'rate_partner':
+      /*
+       * NAMED ONCE, NOT TWICE. A generated title already says who the session
+       * was with, so "You finished a study session with Dana Levi with Dana
+       * Levi" was the literal output here once sessions started being titled
+       * after their partner. A title somebody typed carries information the
+       * sentence does not, so that one is kept and the name sits beside it.
+       */
       return {
-        message: `You finished ${meeting} with ${who}.`,
+        message: isGeneratedTitle(title)
+          ? `You studied with ${who}.`
+          : `You finished ${meetingPhrase(title, 'the')} with ${who}.`,
         cta: 'Say how it went',
         href: actor,
       };
