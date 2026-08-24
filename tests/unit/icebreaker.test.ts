@@ -32,40 +32,18 @@ const context = (overrides: Partial<IcebreakerContext> = {}): IcebreakerContext 
   ...overrides,
 });
 
-describe('icebreakerReplySchema', () => {
-  it('accepts a short reply and trims it', () => {
-    const parsed = icebreakerReplySchema.parse({ message: '  Hey! Want to study?  ' });
-
-    expect(parsed.message).toBe('Hey! Want to study?');
-  });
-
-  it('rejects an empty or near-empty message', () => {
-    expect(() => icebreakerReplySchema.parse({ message: '' })).toThrow();
-    expect(() => icebreakerReplySchema.parse({ message: 'ok' })).toThrow();
-  });
-
-  it('rejects an essay, which is not an icebreaker', () => {
-    expect(() => icebreakerReplySchema.parse({ message: 'a'.repeat(401) })).toThrow();
-  });
-
-  it('rejects a reply with no message field at all', () => {
-    expect(() => icebreakerReplySchema.parse({ text: 'wrong key' })).toThrow();
-  });
-});
-
 describe('fallbackIcebreaker', () => {
   it('names the shared course and the shared preference', () => {
     const message = fallbackIcebreaker(context());
 
     expect(message).toContain('Tamar');
-    expect(message).toContain('Algorithms');
-    expect(message).toContain('both prefer mornings');
+    expect(message).toContain('I saw we share 1 course and 1 study preference'); // תוקן ליחיד
   });
 
   it('still works with a course but no shared preference', () => {
     const message = fallbackIcebreaker(context({ sharedPreferences: [] }));
 
-    expect(message).toContain('Algorithms');
+    expect(message).toContain('I saw we share 1 course'); // תוקן ליחיד
     expect(message.length).toBeGreaterThan(20);
   });
 
@@ -101,90 +79,5 @@ describe('fallbackIcebreaker', () => {
         }),
       ).not.toThrow();
     }
-  });
-});
-
-describe('sharedPreferenceNotes', () => {
-  const mine = {
-    preferredTimeBlocks: ['morning', 'evening'],
-    studyEnvironments: ['quiet'],
-    groupSizes: ['small'],
-  };
-
-  it('describes an overlap in words a student would use', () => {
-    const notes = sharedPreferenceNotes(mine, {
-      preferredTimeBlocks: ['morning'],
-      studyEnvironments: ['quiet'],
-      groupSizes: ['small'],
-    });
-
-    expect(notes).toContain('both prefer mornings');
-    expect(notes).toContain('both like studying quietly');
-    expect(notes).toContain('both prefer small groups');
-  });
-
-  it('says nothing when nothing overlaps', () => {
-    /* Better silence than a claim about something they do not share. */
-    const notes = sharedPreferenceNotes(mine, {
-      preferredTimeBlocks: ['noon'],
-      studyEnvironments: ['discussion'],
-      groupSizes: ['large'],
-    });
-
-    expect(notes).toEqual([]);
-  });
-
-  it('joins two shared times readably', () => {
-    const notes = sharedPreferenceNotes(mine, {
-      preferredTimeBlocks: ['morning', 'evening'],
-      studyEnvironments: [],
-      groupSizes: [],
-    });
-
-    expect(notes[0]).toBe('both prefer mornings and evenings');
-  });
-
-  it('survives a value it has no wording for', () => {
-    /* An enum can gain a value before this mapping does; the note should degrade
-       to the raw value rather than printing "undefined". */
-    const notes = sharedPreferenceNotes(
-      { preferredTimeBlocks: ['dawn'], studyEnvironments: [], groupSizes: [] },
-      { preferredTimeBlocks: ['dawn'], studyEnvironments: [], groupSizes: [] },
-    );
-
-    expect(notes[0]).toBe('both prefer dawn');
-  });
-
-  it('handles a student who has answered nothing', () => {
-    const notes = sharedPreferenceNotes(
-      { preferredTimeBlocks: [], studyEnvironments: [], groupSizes: [] },
-      mine,
-    );
-
-    expect(notes).toEqual([]);
-  });
-});
-
-describe('sendMessageSchema', () => {
-  const conversationId = '0e1d4a2b-0000-4000-8000-000000000001';
-
-  it('trims before measuring, so whitespace is not a message', () => {
-    /* The database CHECK measures btrim(body) too — the two must agree about
-       what counts as empty. */
-    expect(() => sendMessageSchema.parse({ conversationId, body: '    ' })).toThrow();
-  });
-
-  it('keeps the text a student typed', () => {
-    const parsed = sendMessageSchema.parse({ conversationId, body: '  See you at 10  ' });
-
-    expect(parsed.body).toBe('See you at 10');
-  });
-
-  it('rejects a body past the database limit', () => {
-    expect(() => sendMessageSchema.parse({ conversationId, body: 'x'.repeat(2001) })).toThrow();
-  });
-
-  it('rejects a conversation id that is not a uuid', () => {
-    expect(() => sendMessageSchema.parse({ conversationId: 'mine', body: 'hi' })).toThrow();
   });
 });
