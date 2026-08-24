@@ -29,12 +29,10 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
       <header className="mx-auto flex w-full max-w-2xl items-center justify-between px-5 py-5">
         
         {/* הלוגו הנקי בלבד במקום ה-Wordmark */}
-        <Image
+        <img
           src="/logo.png"
           alt="StudyBuddy"
-          width={40}
-          height={40}
-          className="object-contain"
+          className="w-10 h-10 object-contain shrink-0"
         />
 
         {/*

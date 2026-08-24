@@ -22,6 +22,8 @@ import { Logo } from '@/components/ui/logo';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+import { Mail } from 'lucide-react';
+
 /** The four claims, each tied to something the system actually does. */
 const FEATURES = [
   {
@@ -96,12 +98,21 @@ export default function LandingPage() {
             </div>
 
             <p className="text-on-surface-variant mt-5 text-body-md">
-             Already have an account?{' '}
+              Already have an account?{' '}
               <Link
                 href="/login"
                 className="text-brand rounded-sm font-semibold underline underline-offset-4 focus-visible:ring-4 focus-visible:ring-brand/35 focus-visible:outline-none"
               >
                 Sign in
+              </Link>
+            </p>
+            <p className="text-on-surface-variant mt-2 text-body-md">
+              <Link
+                href="mailto:studybuddy.sby@gmail.com?subject=פנייה לתמיכה טכנית - StudyBuddy"
+                className="text-brand rounded-sm font-semibold focus-visible:ring-4 focus-visible:ring-brand/35 focus-visible:outline-none font-heading text-sm flex flex-row items-center gap-1.5 w-max"
+              >
+                <Mail className="w-4 h-4 shrink-0" />
+                <span className="whitespace-nowrap"><b>Contact Us</b></span>
               </Link>
             </p>
           </div>

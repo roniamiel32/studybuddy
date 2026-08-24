@@ -3,13 +3,11 @@ import Image from 'next/image';
 export function Logo() {
   return (
     <div className="flex items-center gap-2">
-      <Image 
+      {/* החלפנו ל-img רגיל והוספנו w-8 h-8 במקום המספרים */}
+      <img 
         src="/logo.png"
         alt="StudyBuddy Logo" 
-        width={32} 
-        height={32} 
-        style={{ width: 'auto', height: 'auto' }}
-        className="object-contain"
+        className="w-8 h-8 object-contain shrink-0"
       />
       <span className="font-heading text-xl font-bold tracking-tight">
         <span className="text-[#AF52DE]">Study</span>

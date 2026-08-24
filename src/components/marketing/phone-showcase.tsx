@@ -57,12 +57,10 @@ export function PhoneShowcase() {
         <div className="from-surface rounded-[1.75rem] bg-gradient-to-b to-[#f2f0ff] p-4">
           <p className="text-label-sm text-outline mb-2 text-center">Welcome to</p>
           <div className="mb-4 flex justify-center">
-            <Image
+            <img
               src="/logo.png"
               alt="StudyBuddy Icon"
-              width={36}
-              height={36}
-              className="object-contain"
+              className="w-9 h-9 object-contain shrink-0"
             />
           </div>
 

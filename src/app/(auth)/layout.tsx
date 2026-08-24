@@ -28,12 +28,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         href="/"
         className="focus-visible:ring-brand/35 mb-8 rounded-md focus-visible:ring-4 focus-visible:outline-none"
       >
-        <Image
+        <img
           src="/logo.png"
           alt="StudyBuddy"
-          width={48}
-          height={48}
-          className="object-contain"
+          className="w-12 h-12 object-contain shrink-0"
         />
       </Link>
 
