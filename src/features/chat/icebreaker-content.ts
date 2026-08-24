@@ -64,19 +64,37 @@ export interface IcebreakerContext {
  * @param context - The two students and what they have in common.
  * @returns A short opening message.
  */
+// export function fallbackIcebreaker(context: IcebreakerContext): string {
+//   const course = context.sharedCourses[0];
+//   const preference = context.sharedPreferences[0];
+
+//   if (course && preference) {
+//     return `Hi ${context.recipientFirstName}! I saw we are both taking ${course} — and that we ${preference}. Want to study together sometime?`;
+//   }
+
+//   if (course) {
+//     return `Hi ${context.recipientFirstName}! I saw we are both taking ${course}. Want to study together sometime?`;
+//   }
+
+//   return `Hi ${context.recipientFirstName}! We came up as study users — want to find a time to work together?`;
+// }
+
 export function fallbackIcebreaker(context: IcebreakerContext): string {
-  const course = context.sharedCourses[0];
-  const preference = context.sharedPreferences[0];
+  const coursesCount = context.sharedCourses.length;
+  const prefsCount = context.sharedPreferences.length;
 
-  if (course && preference) {
-    return `Hi ${context.recipientFirstName}! I saw we are both taking ${course} — and that we ${preference}. Want to study together sometime?`;
+  const courseWord = coursesCount === 1 ? 'course' : 'courses';
+  const prefWord = prefsCount === 1 ? 'study preference' : 'study preferences';
+
+  if (coursesCount && prefsCount) {
+    return `Hi ${context.recipientFirstName}! I saw we share ${coursesCount} ${courseWord} and ${prefsCount} ${prefWord}. Want to study together sometime?`;
   }
 
-  if (course) {
-    return `Hi ${context.recipientFirstName}! I saw we are both taking ${course}. Want to study together sometime?`;
+  if (coursesCount) {
+    return `Hi ${context.recipientFirstName}! I saw we share ${coursesCount} ${courseWord}. Want to study together sometime?`;
   }
 
-  return `Hi ${context.recipientFirstName}! We came up as study matches — want to find a time to work together?`;
+  return `Hi ${context.recipientFirstName}! We came up as study users — want to find a time to work together?`;
 }
 
 /**

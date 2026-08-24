@@ -120,9 +120,7 @@ export default async function StudentStudyInfoPage({
                     {Math.round(profile.compatibilityScore)}%
                   </p>
                   <p className="text-on-surface-variant text-label-sm font-normal">
-                    Best across your shared courses, from{' '}
-                    {profile.compatibilityCourseName}.
-                  </p>
+                    Best across your shared courses                  </p>
                 </div>
               ) : (
                 <p className="text-on-surface-variant mt-3 text-body-md text-pretty">
