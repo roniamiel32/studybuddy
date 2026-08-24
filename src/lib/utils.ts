@@ -68,9 +68,9 @@ export function cn(...inputs: ClassValue[]) {
 };
 
 export type TimeSlot = {
-  start: string;
-  end: string;
-  // את יכולה להוסיף פה עוד שדות אם המערך שלך מכיל דברים נוספים
+  startTime: string;
+  endTime: string;
+  [key: string]: unknown; // Safer alternative to any
 };
 
 /**
@@ -78,21 +78,21 @@ export type TimeSlot = {
  * Example: ["08:00"-"10:00", "10:00"-"12:00"] -> ["08:00"-"12:00"]
  */
 export function mergeConsecutiveSlots(slots: any[]) {
-  if (!slots || slots.length <= 1) return slots;
+  if (!slots || slots.length === 0) return [];
 
-  // מיון לפי startsAt
-  const sortedSlots = [...slots].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-  const merged = [{ ...sortedSlots[0] }];
+  // Sort slots by start time to ensure correct sequential merging
+  const sorted = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const merged: TimeSlot[] = [sorted[0]];
 
-  for (let i = 1; i < sortedSlots.length; i++) {
-    const currentSlot = sortedSlots[i];
-    const lastMergedSlot = merged[merged.length - 1];
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    const previous = merged[merged.length - 1];
 
-    // בדיקת רצף בעזרת endsAt ו-startsAt
-    if (currentSlot.startsAt <= lastMergedSlot.endsAt) {
-      lastMergedSlot.endsAt = currentSlot.endsAt > lastMergedSlot.endsAt ? currentSlot.endsAt : lastMergedSlot.endsAt;
+    // If current slot starts when or before the previous one ends, merge them
+    if (current.startTime <= previous.endTime) {
+      previous.endTime = current.endTime > previous.endTime ? current.endTime : previous.endTime;
     } else {
-      merged.push({ ...currentSlot });
+      merged.push(current);
     }
   }
 
