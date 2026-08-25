@@ -8,7 +8,7 @@ project for the Full-Stack course at Reichman University.
 
 **Authors:** Roni Amiel & Eden Bitran
 
----
+----
 
 ## Status
 
