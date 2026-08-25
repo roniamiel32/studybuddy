@@ -15,7 +15,7 @@
  */
 
 import Link from 'next/link';
-import { ArrowRight, CalendarSync, HeartHandshake, Sparkles, Target, Users } from 'lucide-react';
+import { ArrowRight, CalendarSync, HeartHandshake, Sparkles, Target, Users, Mail} from 'lucide-react';
 
 import { PhoneShowcase } from '@/components/marketing/phone-showcase';
 import { Logo } from '@/components/ui/logo';
@@ -104,6 +104,15 @@ export default function LandingPage() {
                 Sign in
               </Link>
             </p>
+            <p className="text-on-surface-variant mt-2 text-body-md">
+  <Link
+    href="mailto:studybuddy.sby@gmail.com?subject=פנייה לתמיכה טכנית - StudyBuddy"
+    className="text-brand rounded-sm font-semibold focus-visible:ring-4 focus-visible:ring-brand/35 focus-visible:outline-none font-heading text-sm flex flex-row items-center gap-1.5 w-max"
+  >
+    <Mail className="w-4 h-4 shrink-0" />
+    <span className="whitespace-nowrap">Contact Us</span>
+  </Link>
+</p>
           </div>
 
           <PhoneShowcase />

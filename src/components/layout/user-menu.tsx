@@ -31,7 +31,7 @@
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, LogOut, Moon, Sun, UserRound } from 'lucide-react';
+import { ChevronDown, LogOut, Moon, Sun, UserRound, Mail} from 'lucide-react';
 
 import { ProfileBadge } from '@/components/layout/profile-badge';
 
@@ -118,6 +118,22 @@ export function UserMenu({ viewerId, fullName, avatarUrl, signOut }: UserMenuPro
           <UserRound className="size-4" aria-hidden="true" />
           Profile
         </Link>
+         <Link
+            href={`/students/${viewerId}`}
+            className="text-on-surface-variant hover:bg-surface-container-high focus-visible:ring-brand/35 flex items-center gap-2.5 px-4 py-3 text-label-md transition-colors focus-visible:ring-4 focus-visible:outline-none focus-visible:-outline-offset-2"
+          >
+            <UserRound className="size-4" aria-hidden="true" />
+            Profile
+          </Link>
+          
+          <a
+            href="mailto:studybuddy.sby@gmail.com?subject=פנייה לתמיכה טכנית - StudyBuddy"
+            className="text-on-surface-variant hover:bg-surface-container-high focus-visible:ring-brand/35 flex items-center gap-2.5 px-4 py-3 text-label-md transition-colors focus-visible:ring-4 focus-visible:outline-none focus-visible:-outline-offset-2"
+          >
+            <Mail className="size-4" aria-hidden="true" />
+            Contact Us
+          </a>
+
           <form action={signOut} className="border-outline-variant/40 border-t">
             <button
               type="submit"
