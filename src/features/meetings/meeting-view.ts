@@ -712,10 +712,9 @@ export function mergeSelectedSlots(
  * @param partnerName - The other student, or the group, the session is with.
  * @returns A title they can accept or replace.
  */
-export function defaultMeetingTitle(partnerName: string | null): string {
-  const name = partnerName?.trim();
+export function defaultMeetingTitle(): string {
 
-  return name ? `${DEFAULT_TITLE_PREFIX}${name}` : BARE_MEETING_TITLE;
+  return   BARE_MEETING_TITLE;
 }
 
 /** The bare fallback, when there is no name to build a title around. */
