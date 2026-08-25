@@ -15,11 +15,7 @@ import Link from 'next/link';
 import { ChevronRight, SlidersHorizontal, TriangleAlert, Users } from 'lucide-react';
 
 import { Chip } from '@/components/ui/chip';
-import {
-  courseInitials,
-  hasOverride,
-  type EnrolledCourseView,
-} from '@/features/courses/course-view';
+import { hasOverride, type EnrolledCourseView } from '@/features/courses/course-view';
 import { DropCourseButton } from '@/components/courses/drop-course-button';
 
 export interface CourseCardProps {
@@ -42,8 +38,8 @@ export function CourseCard({ course, canDrop }: CourseCardProps) {
           className="block h-20 bg-gradient-to-br from-[#635BFF] to-[#AF52DE]"
         >
           <span className="flex h-full items-end p-4">
-            {/* Initials, where the catalogue number used to be. The name is the
-                heading directly below, so repeating it here would say it twice. */}
+            {/* Deliberately empty: the banner is a block of colour to navigate
+                by, and the course's name is the heading directly below it. */}
             <span className="font-heading text-[15px] font-bold tracking-wider text-white/95 drop-shadow-sm">
             </span>
           </span>

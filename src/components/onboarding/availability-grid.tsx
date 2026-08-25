@@ -11,9 +11,10 @@
  *              It deliberately knows nothing about how it is submitted: step 4
  *              finishes onboarding, the Profile tab saves and closes a dialog,
  *              and neither of those belongs to a grid of buttons.
- * Version:     0.19.0
+ * Version:     0.53.0
  *
  * Modifications:
+ *     0.53.0 - 2026-08-25 - table-fixed, so every weekday column is equal
  *     0.19.0 - 2026-08-11 - Extracted from availability-form (Phase 4)
  */
 
@@ -67,7 +68,16 @@ export function AvailabilityGrid({
           columns cannot fit a phone legibly, and shrinking them makes the
           targets too small to tap accurately. */}
       <div className="-mx-1 overflow-x-auto px-1 pb-2">
-        <table className="w-full min-w-[34rem] border-separate border-spacing-1">
+        {/*
+          * table-fixed is what makes the seven day columns equal.
+          *
+          * Without it the browser uses automatic table layout, which sizes every
+          * column to its own content — and the day headings are not the same
+          * width, so Wednesday came out wider than Friday and the grid read as
+          * skewed. Fixed layout gives the row-label column its declared w-16 and
+          * splits the remainder evenly between the days, whatever is in them.
+          */}
+        <table className="w-full min-w-[34rem] table-fixed border-separate border-spacing-1">
           <thead>
             <tr>
               <th className="w-16" />

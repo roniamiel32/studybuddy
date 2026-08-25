@@ -66,35 +66,3 @@ const twMerge = extendTailwindMerge({
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 };
-
-export type TimeSlot = {
-  start: string;
-  end: string;
-  // את יכולה להוסיף פה עוד שדות אם המערך שלך מכיל דברים נוספים
-};
-
-/**
- * Merges consecutive time slots into unified blocks.
- * Example: ["08:00"-"10:00", "10:00"-"12:00"] -> ["08:00"-"12:00"]
- */
-export function mergeConsecutiveSlots(slots: any[]) {
-  if (!slots || slots.length <= 1) return slots;
-
-  // מיון לפי startsAt
-  const sortedSlots = [...slots].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-  const merged = [{ ...sortedSlots[0] }];
-
-  for (let i = 1; i < sortedSlots.length; i++) {
-    const currentSlot = sortedSlots[i];
-    const lastMergedSlot = merged[merged.length - 1];
-
-    // בדיקת רצף בעזרת endsAt ו-startsAt
-    if (currentSlot.startsAt <= lastMergedSlot.endsAt) {
-      lastMergedSlot.endsAt = currentSlot.endsAt > lastMergedSlot.endsAt ? currentSlot.endsAt : lastMergedSlot.endsAt;
-    } else {
-      merged.push({ ...currentSlot });
-    }
-  }
-
-  return merged;
-}

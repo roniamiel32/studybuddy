@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { cancelMeeting, dismissMeeting, setMeetingRsvp } from '@/features/meetings/actions';
+import { useHasFinished } from '@/lib/use-has-finished';
 import {
   formatMeetingWhen,
   isBannerMeeting,
@@ -92,6 +93,13 @@ function MeetingCard({
   meeting: MeetingView;
   expandOptions?: { isExpanded: boolean; toggle: () => void; count: number };
 }) {
+  /*
+   * NOT `meeting.hasFinished` DIRECTLY. That is the server's answer from the
+   * render that produced this card, and it never changes again — a chat left
+   * open while the session ends went on offering RSVP buttons for a session that
+   * was over. This is the same value, plus a timer to the moment it changes.
+   */
+  const hasFinished = useHasFinished(meeting.endsAt, meeting.hasFinished);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   /*
@@ -165,7 +173,7 @@ function MeetingCard({
           </button>
         ) : null}
 
-        {meeting.hasFinished ? (
+        {hasFinished ? (
           <button
             type="button"
             disabled={pending}
@@ -181,7 +189,7 @@ function MeetingCard({
       <div
         className={cn(
           'flex flex-wrap items-start justify-between gap-x-4 gap-y-2',
-          (meeting.hasFinished || expandOptions) && 'pr-12' // Make room for top right icons
+          (hasFinished || expandOptions) && 'pr-12' // Make room for top right icons
         )}
       >
         <div className="min-w-0">
@@ -198,7 +206,7 @@ function MeetingCard({
             className="text-on-surface-variant mt-1 text-label-sm font-normal"
           >
             {formatMeetingWhen(meeting.startsAt, meeting.endsAt)}
-            {meeting.hasFinished ? ' — finished' : null}
+            {hasFinished ? ' — finished' : null}
           </p>
 
           <p className="text-outline mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-label-sm font-normal">
@@ -226,7 +234,7 @@ function MeetingCard({
           ) : null}
         </div>
 
-        {meeting.hasFinished ? null : (
+        {hasFinished ? null : (
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <button
               type="button"
