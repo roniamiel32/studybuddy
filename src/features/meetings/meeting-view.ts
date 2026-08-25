@@ -691,6 +691,11 @@ export function mergeSelectedSlots(
 
   return runs;
 }
+/** The bare fallback, when there is no name to build a title around. */
+export const BARE_MEETING_TITLE = 'Study session';
+
+/** What defaultMeetingTitle produces, so one can be recognised again later. */
+const DEFAULT_TITLE_PREFIX = 'Study session with ';
 
 /**
  * A default title for a session, so the field is never empty on open.
@@ -698,40 +703,24 @@ export function mergeSelectedSlots(
  * The schema requires three characters, and a student who has just found a time
  * should not have to invent a name for it before they can book.
  *
- * NAMED AFTER WHO IT IS WITH, NOT AFTER A COURSE. The course code this used to
- * carry repeated something the chat header already said, and it was missing
- * entirely for every session booked from a chat with no course attached — which
- * left half the calendars reading "Study session" and no way to tell one from
- * the next. Who you are meeting is the fact that is always known, and it is the
- * one anybody actually scans a calendar for.
- *
  * THE SAME STRING IS USED BY THE SERVER. `createMeeting` falls back to this when
  * the field arrives empty, so the title in the database is the one the picker
  * offered rather than a second, differently-worded default.
  *
- * @param partnerName - The other student, or the group, the session is with.
  * @returns A title they can accept or replace.
  */
-export function defaultMeetingTitle(): string {
-
-  return   BARE_MEETING_TITLE;
+export function defaultMeetingTitle(partnerName?: string): string {
+  return BARE_MEETING_TITLE;
 }
-
-/** The bare fallback, when there is no name to build a title around. */
-const BARE_MEETING_TITLE = 'Study session';
-
-/** What defaultMeetingTitle produces, so one can be recognised again later. */
-const DEFAULT_TITLE_PREFIX = 'Study session with ';
 
 /**
  * Whether a stored title is one this app wrote rather than one a student did.
  *
  * THE CALENDAR SYNC IS THE ONLY CALLER, and it needs this because it rewrites
- * the title per recipient — Paula's calendar should say Eden's name, not her
- * own. Rewriting a title a student actually typed would be a different thing
- * entirely: "Past papers" is information the organiser chose to record, and
- * replacing it with a name loses it. So only the generated defaults are
- * eligible, and anything else goes to Google exactly as stored.
+ * the title per recipient. Rewriting a title a student actually typed would be a 
+ * different thing entirely: "Past papers" is information the organiser chose to record, 
+ * and replacing it loses it. So only the generated defaults are eligible, 
+ * and anything else goes to Google exactly as stored.
  *
  * @param title - The title on the meeting row.
  * @returns Whether it is a default this app generated.
@@ -741,7 +730,6 @@ export function isDefaultMeetingTitle(title: string): boolean {
 
   return trimmed === BARE_MEETING_TITLE || trimmed.startsWith(DEFAULT_TITLE_PREFIX);
 }
-
 /* -------------------------------------------------------------------------- */
 /* Meeting history                                                            */
 /* -------------------------------------------------------------------------- */

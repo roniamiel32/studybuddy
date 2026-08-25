@@ -402,7 +402,7 @@ export function ScheduleMeetingDialog({
               <Input
                 id="meeting-title"
                 name="title"
-                defaultValue={defaultMeetingTitle()}
+                defaultValue={defaultMeetingTitle(withLabel)}
                 maxLength={120}
                 required
               />
