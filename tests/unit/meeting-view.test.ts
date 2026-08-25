@@ -29,9 +29,12 @@ import {
   MEETING_MAX_HOURS,
   buildChatFeed,
   buildSlotGrid,
+  formatDuration,
   formatMeetingWhen,
+  formatSlotRange,
   isBannerMeeting,
   mergeSelectedSlots,
+  mergeSlotsIntoBlocks,
   type MeetingSlotView,
   type MeetingView,
 } from '@/features/meetings/meeting-view';
@@ -443,5 +446,117 @@ describe('formatMeetingWhen', () => {
 
     expect(when).toMatch(/\d{2}:\d{2} – \d{2}:\d{2}/);
     expect(when).not.toMatch(/[AP]M/i);
+  });
+});
+
+describe('mergeSelectedSlots, on slots that do not sit on the grid', () => {
+  /*
+   * THE FIXTURES ABOVE ALL START ON EVEN HOURS, which is why this bug survived
+   * every test in this file. A calendar-derived slot starts wherever the
+   * student's calendar says — 13:30 is ordinary — and merging used to clamp each
+   * end to the two-hour ROW the slot is drawn in, so 13:30–15:30 came back as
+   * 13:30–14:00 and contiguous slots stopped being contiguous.
+   */
+  const offset = (hour: number, minute: number): MeetingSlotView => {
+    const start = new Date(2026, 7, 16, hour, minute);
+
+    return {
+      startsAt: start.toISOString(),
+      endsAt: new Date(start.getTime() + 7_200_000).toISOString(),
+      participantCount: 2,
+    };
+  };
+
+  it('keeps a slot its own full length', () => {
+    const slot = offset(13, 30);
+    const [run] = mergeSelectedSlots([slot], [slot.startsAt]);
+
+    expect(formatSlotRange(run.startsAt, run.endsAt)).toBe('13:30 – 15:30');
+  });
+
+  it('merges an afternoon of them into one session', () => {
+    const slots = [offset(13, 30), offset(15, 30), offset(17, 30), offset(19, 30)];
+    const runs = mergeSelectedSlots(
+      slots,
+      slots.map((slot) => slot.startsAt),
+    );
+
+    expect(runs).toHaveLength(1);
+    expect(formatSlotRange(runs[0].startsAt, runs[0].endsAt)).toBe('13:30 – 21:30');
+    expect(runs[0].slotCount).toBe(4);
+  });
+
+  it('still splits where the slots are not touching', () => {
+    const slots = [offset(13, 30), offset(17, 30)];
+    const runs = mergeSelectedSlots(
+      slots,
+      slots.map((slot) => slot.startsAt),
+    );
+
+    expect(runs).toHaveLength(2);
+  });
+});
+
+describe('mergeSlotsIntoBlocks', () => {
+  it('joins back-to-back slots and keeps every one it covered', () => {
+    /*
+     * The covered starts are the whole point of the type. The list draws the
+     * merged range and selects per slot, so a block that forgot which slots it
+     * was made of could only ever select one of them.
+     */
+    const blocks = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(0, 16), slotAt(0, 18)]);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].slotStarts).toHaveLength(3);
+    expect(formatSlotRange(blocks[0].startsAt, blocks[0].endsAt)).toBe('14:00 – 20:00');
+  });
+
+  it('splits where a slot is missing, rather than spanning the gap', () => {
+    /* 14–16 and 18–20 with nothing at 16: the hour between is somebody else's
+       booking, and a block spanning it would offer a time that is not free. */
+    const blocks = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(0, 18)]);
+
+    expect(blocks).toHaveLength(2);
+    expect(blocks.map((block) => block.slotStarts.length)).toEqual([1, 1]);
+  });
+
+  it('keeps different days apart', () => {
+    const blocks = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(1, 14)]);
+
+    expect(blocks).toHaveLength(2);
+  });
+
+  it('sorts before merging, so input order does not matter', () => {
+    const forwards = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(0, 16)]);
+    const backwards = mergeSlotsIntoBlocks([slotAt(0, 16), slotAt(0, 14)]);
+
+    expect(backwards).toEqual(forwards);
+  });
+
+  it('has nothing to merge in an empty week', () => {
+    expect(mergeSlotsIntoBlocks([])).toEqual([]);
+  });
+});
+
+describe('formatDuration', () => {
+  const at = (hour: number, minute = 0) =>
+    new Date(2026, 7, 16, hour, minute).toISOString();
+
+  it('reads whole hours as hours', () => {
+    expect(formatDuration(at(14), at(16))).toBe('2h');
+  });
+
+  it('reads a part-hour as hours and minutes', () => {
+    expect(formatDuration(at(13, 30), at(15))).toBe('1h 30m');
+  });
+
+  it('reads under an hour as minutes', () => {
+    expect(formatDuration(at(13, 30), at(14))).toBe('30m');
+  });
+
+  it('never reads as negative', () => {
+    /* A trim that inverted the pair used to be written through unchanged; the
+       panel should say 0m rather than something impossible. */
+    expect(formatDuration(at(16), at(14))).toBe('0m');
   });
 });

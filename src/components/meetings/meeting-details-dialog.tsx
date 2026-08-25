@@ -30,6 +30,7 @@ import { AlertCircle, CalendarClock, Check, Loader2, MapPin, Users, X } from 'lu
 
 import { setMeetingRsvp } from '@/features/meetings/actions';
 import { formatMeetingWhen, type MeetingView } from '@/features/meetings/meeting-view';
+import { useHasFinished } from '@/lib/use-has-finished';
 import { cn } from '@/lib/utils';
 
 export interface MeetingDetailsDialogProps {
@@ -47,6 +48,9 @@ export interface MeetingDetailsDialogProps {
  * @returns The dialog element.
  */
 export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsDialogProps) {
+  /* See the note in meeting-strip: the server's answer is right once, and this
+     keeps it right as the clock passes the session's end. */
+  const hasFinished = useHasFinished(meeting.endsAt, meeting.hasFinished);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -143,7 +147,7 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
               <dd suppressHydrationWarning className="text-label-md">
                 {formatMeetingWhen(meeting.startsAt, meeting.endsAt)}
               </dd>
-              {meeting.hasFinished ? (
+              {hasFinished ? (
                 <p className="text-outline mt-0.5 text-label-sm font-normal">
                   This session has finished.
                 </p>
@@ -190,7 +194,7 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
           * Offering buttons that the database will refuse would be a worse
           * explanation than this sentence.
           */}
-        {meeting.hasFinished ? (
+        {hasFinished ? (
           <p className="border-outline-variant/60 text-outline rounded-md border border-dashed p-3 text-label-sm font-normal text-pretty">
             {meeting.going
               ? 'You were down as going. Attendance is fixed once a session has started, so this can no longer change.'

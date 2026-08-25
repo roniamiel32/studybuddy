@@ -1,46 +1,88 @@
 # StudyBuddy
 
-Version **0.18.0** — student profiles, with study connections you can only earn by being rated well.
+Matchmaking that connects university students who share a course, have overlapping
+free time, and study in compatible ways — then gets them to actually meet.
 
-AI-assisted matchmaking that connects university students who share a course,
-have overlapping free time, and study in compatible ways. Built as the final
-project for the Full-Stack course at Reichman University.
+Built as the final project for the Internet Technologies course at Reichman
+University.
 
 **Authors:** Roni Amiel & Eden Bitran
 
-----
+---
 
-## Status
+## What it does
 
-| Phase | Area | State |
-|---|---|---|
-| 0 | Technical design | ✅ [docs/technical-design.md](docs/technical-design.md) |
-| 0.5 | Project scaffold | ✅ Next.js, Tailwind, shadcn/ui, Supabase clients, test stack |
-| 1a | Database schema | ✅ 14 tables, seeds, helper functions, 20 integration tests |
-| 1.5 | Design system | ✅ "Kinetic Learning" tokens, claymorphic primitives, landing page |
-| 1b | Row Level Security | ✅ 33 policies, 2 immutability triggers, 35 adversarial tests |
-| 1c | Auth & onboarding | ✅ Email+password, route guards, 4-step onboarding, avatars, dashboard |
-| 2 | Rule-based matching | ✅ Scoring RPC, matches dashboard, demo seed |
-| 2.5 | Smart Course API | ✅ Per-degree catalog: from the database, a model, or a stock curriculum — never empty |
-| 3 | Chat & Smart Icebreaker | ✅ Conversations, realtime messages, unread badge, generated openers |
-| — | Messages tab | ✅ Renamed from "Requests", freeing that name for the D2 request flow |
-| 4 | Profile & Courses tabs | ✅ Settings, course grid, per-course page, preference overrides |
-| 5 | Study groups | ✅ Groups per course, join requests, admin review, group chat |
-| 6 | Profiles & ratings | ✅ Profile pages, shared context, positive connections, private negative feedback |
-| 3b | AI match re-rank | ⬜ Not started |
-| 4a | WhatsApp handoff | ⬜ Not started |
-| 4c | Calendar sync (D7) | ⬜ Not started — stretch goal |
+A student who wants to revise with somebody currently asks in a 200-person course
+WhatsApp group and hopes the right person answers. Discovery is loudest-voice-first,
+compatibility is invisible until it has cost you an evening, and "sounds good, maybe
+Tuesday" is not a commitment anybody is held to.
+
+StudyBuddy replaces all three: a ranked list of real classmates, an explanation of
+why each one was ranked there, and scheduling built into the conversation so a
+session becomes a calendar entry both people can see.
+
+## Features
+
+**Identity and access**
+- Sign-up restricted to academic domains (`.ac.il`, `.edu`); the domain resolves the
+  institution, and an unknown one is provisioned on first sight
+- Six-digit email confirmation code, password reset by link, account deletion
+- Multi-tenant by institution, enforced by Row Level Security
+
+**Onboarding** — four steps: basics and degree, courses, study preferences, weekly
+availability grid
+
+**Matching** — ranked candidates per course from a SQL scoring function, using shared
+enrolment, overlapping free minutes, preference agreement, cohort and city proximity,
+and reputation. Cards explain the score rather than just showing it.
+
+**Courses** — a course grid, a page per course with classmates, groups and a wall,
+course tips with ratings, and per-course preference overrides that inherit from your
+global answers
+
+**Messaging** — one-to-one conversations and group chats, delivered live over Supabase
+Realtime, with AI-written icebreakers
+
+**Study groups** — course-scoped, with capacity, admin roles, join requests,
+invitations, and a fit score so an admin can see how well an applicant matches
+
+**Scheduling** — a picker that intersects everyone's free time, subtracts what is
+already booked, and books one or several sessions in a single transaction. Sessions
+sync to Google Calendar, and calendar busy time flows back into availability.
+
+**Reputation** — after a session has finished, attendees can rate each other. Positive
+ratings appear publicly as study connections; negative ratings are private to their
+author and quietly remove the pair from each other's candidates.
+
+**Social and notifications** — profile walls with posts, comments, likes and shares; a
+notification feed; status messages; and a private Meeting History on your own profile.
 
 ## Stack
 
-- **Frontend:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4,
-  shadcn/ui
-- **Backend:** Supabase — PostgreSQL, Auth, Row Level Security
-- **AI:** Anthropic Messages API — course-catalog generation and conversation
-  openers; match re-ranking to follow
-- **Realtime:** Supabase Realtime (postgres_changes) for chat and the unread badge
-- **Testing:** Vitest + Testing Library (unit/integration), Playwright (e2e)
-- **Deployment:** Vercel
+- **Frontend:** Next.js 16 (App Router), React 19, TypeScript (strict), Tailwind CSS 4,
+  Base UI primitives, lucide-react
+- **Backend:** Supabase — PostgreSQL 17, Auth, Storage, Realtime, Row Level Security
+- **Validation:** Zod at every write boundary
+- **AI (optional):** Anthropic Messages API — course-catalogue generation and
+  conversation openers
+- **Email:** Supabase Auth with custom SMTP (Brevo)
+- **Testing:** Vitest + Testing Library, Playwright
+- **Hosting:** Vercel
+
+## By the numbers
+
+| | |
+|---|---|
+| Database tables | 42, all with RLS enabled |
+| RLS policies | 117 |
+| Indexes | 117 |
+| Database functions | 16 `rpc_*`, 30 `app_*` helpers, 64 triggers |
+| Migrations | 60, forward-only |
+| Page routes | 22 |
+| Server Actions | 76 across 15 modules |
+| Route handlers | 4 |
+| Unit + integration tests | 658 across 34 files |
+| End-to-end tests | 67, run on desktop Chrome and mobile Safari |
 
 ## Getting started
 
@@ -51,50 +93,57 @@ npm install
 cp .env.example .env.local
 ```
 
-Start the local database and copy the printed API URL and keys into
-`.env.local`:
+Start the local database, then copy the printed API URL and keys into `.env.local`:
 
 ```bash
 npm run db:start
 ```
 
-Then run the app:
+Run the app:
 
 ```bash
 npm run dev
 ```
 
-The landing page is at http://localhost:3000. Sign up with **any university
-address ending in `.ac.il` or `.edu`** — the domain decides which institution
-you belong to. Use `@post.runi.ac.il` to land in the seeded Reichman catalog;
-an unseeded domain creates its own institution with a default track list and an
-empty course catalog.
+The landing page is at http://localhost:3000. Sign up with any address ending
+`.ac.il` or `.edu` — the domain decides which institution you join. Use
+`@post.runi.ac.il` to land in the seeded Reichman catalogue; an unseeded domain
+provisions its own institution with a default degree list and an empty catalogue.
 
-Then create some classmates, or the matching screens will be empty:
+Create some classmates, or the matching screens will be empty:
 
 ```bash
 npm run seed:students
 ```
 
-They all share the password `demo-student-1234`, so you can sign in as any of
-them — `demo1@post.runi.ac.il` has the most overlap with the others.
+They share the password `demo-student-1234`; `demo1@post.runi.ac.il` has the most
+overlap with the others.
 
-The landing page renders without Supabase configured, but everything behind
-sign-in needs the local stack, and the integration tests skip with a warning if
-it is not running.
+The landing page renders without Supabase configured. Everything behind sign-in needs
+the local stack, and the integration tests skip with a warning if it is not running.
 
-> **Before deploying:** local Supabase has email confirmations switched off, so
-> signup returns a session immediately. Turn them on for any real deployment —
-> otherwise anyone can register using someone else's university address.
+## Deploying
 
-### A note on the seeded courses
+Four things are easy to get wrong, and each has cost us a debugging session:
 
-`supabase/seed/02_course_catalog.sql` uses **placeholder course codes**. The
-course names are real; the codes are invented. Replace them with the
-registrar's before submission — nothing joins on the code except the seed
-itself, so that one file is the only change needed.
+1. **All three Supabase variables must match the same project.** `NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`. Recreating a
+   Supabase project changes the ref *and* every key. Set them for **both** the
+   Production and Preview environments in Vercel, then redeploy — changing a variable
+   does not rebuild on its own.
+2. **`supabase db push` moves migrations, not seed data.** After pushing to a fresh
+   project, run `supabase/seed/*.sql` against it or onboarding will have no degrees
+   and no courses to offer.
+3. **Custom SMTP is required.** Supabase's built-in email sender is development-only
+   and heavily rate-limited, and Supabase will not let you edit the auth email
+   templates until custom SMTP is configured. The confirmation template must contain
+   `{{ .Token }}` (the six-digit code), not `{{ .ConfirmationURL }}` — see
+   `supabase/templates/confirmation.html`.
+4. **Set Site URL and the redirect allow-list** in Supabase Auth to your deployed
+   origin, including `/auth/callback`. Without it, password-reset links silently drop
+   their redirect and land the student on the landing page with an unspent code.
 
-### Scripts
+## Scripts
 
 | Command | What it does |
 |---|---|
@@ -104,58 +153,106 @@ itself, so that one file is the only change needed.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Unit and integration tests (Vitest) |
 | `npm run test:watch` | Vitest in watch mode |
-| `npm run test:e2e` | Playwright end-to-end tests (starts the dev server itself) |
+| `npm run test:e2e` | Playwright end-to-end tests |
 | `npm run verify` | lint + typecheck + test + build, in that order |
 | `npm run db:start` / `db:stop` | Local Supabase stack |
 | `npm run db:reset` | Drop, re-run all migrations, re-seed |
+| `npm run db:diff` | Diff the local schema against the migrations |
 | `npm run gen:types` | Regenerate `src/types/database.types.ts` from the live schema |
 | `npm run seed:students` | Create a demo cohort so the matching screens have people to rank |
 
-Run `npm run verify` before every commit — it is the definition of "done" for
-this project.
+Run `npm run verify` before every commit — it is the definition of "done" here.
+
+### Running the e2e suite
+
+Playwright starts a dev server by default, but the dev server compiles each route on
+first request, so a cold cache looks exactly like a broken redirect. Running against a
+production build removes that entire class of false failure:
+
+```bash
+npm run build
+npm start -- --port 3200
+PLAYWRIGHT_BASE_URL=http://localhost:3200 npx playwright test
+```
+
+Note that `npm start` loads the build once at boot — rebuild *before* starting it, or
+the server keeps serving the previous build.
 
 ## How it works
 
-1. A student signs up with their university email; the mail domain determines
-   which institution's data they can see.
-2. Onboarding collects a learning-preference questionnaire, a weekly
-   availability grid, and the courses they're taking this term.
-3. Each course has its own dashboard listing candidate study partners, ranked
-   by a deterministic SQL score and then re-ranked by AI.
-4. Sending a request attaches an AI-written, personalised opener.
-5. Once accepted, a WhatsApp deep link opens a real conversation with that
-   opener already typed.
+1. A student signs up with their university email; the mail domain decides which
+   institution's data they can see, and a database trigger pins their profile to it
+   the instant the account is created.
+2. Onboarding collects their degree, courses, study preferences and weekly
+   availability.
+3. `rpc_find_candidates` scores every classmate sharing a current-term course and
+   returns a ranked list, cached with a TTL.
+4. Opening a conversation drafts an icebreaker so the first message is not the hardest
+   one.
+5. The calendar icon in the composer opens a picker showing only hours both students
+   are free, with existing bookings removed. Booking writes the meeting, its attendees
+   and both calendar events.
+6. Once the session has finished, each attendee can say how it went — which is what
+   feeds reputation back into step 3.
 
 ## Project layout
 
 ```
-docs/         Design documents — read technical-design.md first
-src/app/      Next.js App Router routes
-src/features/ Domain behaviour: server actions, queries, validation schemas
-src/components/  Rendering only — never talks to Supabase directly
-src/lib/      Domain-free infrastructure (env, Supabase clients, errors)
-supabase/     Migrations, seeds, local CLI config
-tests/        unit + integration (Vitest), e2e (Playwright)
+docs/            Documentation — start with architecture.md
+src/app/         Next.js App Router routes only
+src/features/    Domain logic, one folder per domain:
+                   actions.ts   'use server'  — writes
+                   queries.ts   'server-only' — reads
+                   schema.ts    Zod validation
+                   *-view.ts    Pure view models (no I/O — the unit-tested half)
+src/components/  Rendering, grouped by domain
+src/lib/         Infrastructure — env, Supabase clients, errors, Google client
+supabase/        Migrations, seed data, auth email templates, CLI config
+tests/           unit + integration (Vitest), e2e (Playwright)
 ```
 
-Files under `src/components/ui/` are shadcn/ui source, added with
-`npx shadcn@latest add <name>`. They are third-party-authored and so are the
-one place that does not carry our file-header convention.
+The `features/*-view.ts` split is what makes the test suite possible: every rule that
+can be a pure function is one, so it can be tested without a database, a browser, or a
+clock.
+
+Most files carry a header block naming their authors, what the file is for, and why it
+is the way it is. A few small primitives under `src/components/ui/` were scaffolded
+from shadcn/ui and do not.
 
 ## Documentation
 
-- [Software Design Document (PRD)](docs/prd.md) — product scope, core
-  features, business value, phased workflow
-- [Technical Design Document](docs/technical-design.md) — schema, folder
-  structure, backend surface, component tree, phased plan, risks, and the
-  design system (§8)
-- [Design source](docs/design/stitch/) — the Google Stitch export the visual
-  design is transcribed from. `kinetic_learning/DESIGN.md` is the token
-  reference
-- [Commit convention](.claude/commit-convention.md)
-- [Changelog](CHANGELOG.md)
+Written for submission, from the implemented codebase:
+
+- [Product Requirements](docs/product-requirements.md) — problem, users, goals,
+  capabilities, user flows
+- [Architecture & Technical Design](docs/architecture.md) — stack, schema, routes,
+  data flow, permissions, external services
+- [Testing](docs/testing.md) — what is tested at which level, and why
+- [Scaling](docs/scaling.md) — heavy queries, indexes, pagination, current limits
+- [Security](docs/security.md) — auth, RLS, validation, secrets, open risks
+
+Kept for history, and **superseded** by the above:
+
+- [Original SDD/PRD](docs/prd.md) — the pre-implementation design. Note that two of
+  its decisions were reversed during the build: in-app chat replaced the planned
+  WhatsApp handoff, and study tracks were dropped in favour of degrees.
+- [Technical Design Document](docs/technical-design.md) — the engineering log through
+  Phase 6, including the design system (§8) and every decision with its reasoning
+- [Design source](docs/design/stitch/) — the Google Stitch export the visual design is
+  transcribed from
+
+Also: [commit convention](.claude/commit-convention.md) and the [changelog](CHANGELOG.md).
+
+## Known issues
+
+- **Mobile Safari:** the fixed bottom navigation bar intercepts taps on the password
+  dialog's Save button in Settings, because the dialog renders below the bar rather
+  than in the browser's top layer. One end-to-end test fails on this, deliberately
+  left visible.
+- **Typo'd academic domains provision real institutions.** Mistyping your domain
+  silently creates a new one-person university with no classmates. The fix is an MX
+  lookup before provisioning.
 
 ## Versioning
 
-Semantic versioning (`X.Y.Z`), tracked in `package.json`. `1.0.0` marks the
-submitted project.
+Semantic versioning, tracked in `package.json` and in each file's header block.

@@ -59,15 +59,15 @@ import {
   SCHEDULER_WINDOW_DAYS,
   buildSlotGrid,
   defaultMeetingTitle,
+  formatDuration,
   formatSlotRange,
   groupSlotsByDay,
   mergeSelectedSlots,
+  mergeSlotsIntoBlocks,
   type MeetingSlotView,
   type SelectedRun,
 } from '@/features/meetings/meeting-view';
 import { cn } from '@/lib/utils';
-
-import { mergeConsecutiveSlots } from '@/lib/utils';
 
 export interface ScheduleMeetingDialogProps {
   open: boolean;
@@ -230,6 +230,25 @@ export function ScheduleMeetingDialog({
     setEdits({});
   };
 
+  /**
+   * Selects or clears every slot inside one list block at once.
+   *
+   * THE LIST DRAWS A BLOCK AND BOOKS SLOTS, and this is the join between them.
+   * The block used to hand its FIRST slot's start to `toggle`, so a button
+   * reading "13:30 – 21:30" selected two hours and the panel underneath then
+   * disagreed with it by six. Selection is still per slot — the grid depends on
+   * that, and so does mergeSelectedSlots — but a press on a block now moves all
+   * of them together.
+   */
+  const toggleBlock = (slotStarts: string[], select: boolean) => {
+    setSelected((current) => {
+      const rest = current.filter((key) => !slotStarts.includes(key));
+
+      return select ? [...rest, ...slotStarts] : rest;
+    });
+    setEdits({});
+  };
+
   /** The run as it will be booked, with any fine-tuning applied. */
   const bookable = runs.map((run) => ({
     run,
@@ -350,6 +369,7 @@ export function ScheduleMeetingDialog({
             ) : (
               <SlotListView
                 days={days}
+                onToggleBlock={toggleBlock}
                 visibleDays={visibleDays}
                 onShowMore={() =>
                   setVisibleDays((current) =>
@@ -358,7 +378,6 @@ export function ScheduleMeetingDialog({
                 }
                 onShowLess={() => setVisibleDays(LIST_PAGE_DAYS)}
                 selected={selected}
-                onToggle={toggle}
               />
             )}
 
@@ -486,7 +505,10 @@ function SlotGridView({
      * grid that stops mid-row with the title field under it.
      */
     <div className="-mx-1 shrink-0 overflow-x-auto px-1 pb-2">
-      <table className="w-full min-w-[36rem] border-separate border-spacing-1">
+      {/* table-fixed, so the seven day columns are exactly equal. Without it the
+          browser sizes each column to its own content and a long day label
+          makes its column wider than its neighbours. */}
+      <table className="w-full min-w-[36rem] table-fixed border-separate border-spacing-1">
         <caption className="sr-only">
           Shared free time. Only the times you are both free can be selected.
         </caption>
@@ -579,14 +601,14 @@ function SlotListView({
   onShowMore,
   onShowLess,
   selected,
-  onToggle,
+  onToggleBlock,
 }: {
   days: ReturnType<typeof groupSlotsByDay>;
   visibleDays: number;
   onShowMore: () => void;
   onShowLess: () => void;
   selected: string[];
-  onToggle: (startsAt: string) => void;
+  onToggleBlock: (slotStarts: string[], select: boolean) => void;
 }) {
   const showing = days.slice(0, visibleDays);
   const hiddenDays = days.length - showing.length;
@@ -598,28 +620,69 @@ function SlotListView({
           <p className="text-on-surface-variant mb-2 text-label-sm">{day.label}</p>
 
           <div className="flex flex-wrap gap-2">
-            {/* {day.slots.map((slot) => { */}
-            {mergeConsecutiveSlots(day.slots).map((slot) => {
-              const isOn = selected.includes(slot.startsAt);
+            {mergeSlotsIntoBlocks(day.slots).map((block) => {
+              const chosen = block.slotStarts.filter((start) => selected.includes(start));
+              const isOn = chosen.length > 0;
+              const isWhole = chosen.length === block.slotStarts.length;
+
+              /*
+               * A PARTLY-CHOSEN BLOCK SHOWS WHAT IS CHOSEN, not the whole block.
+               * Picking two hours out of an eight-hour afternoon in the grid and
+               * then switching to the list used to show the button lit with the
+               * full range on it, which claimed a booking six hours longer than
+               * the one about to be made.
+               */
+              const shownStart = isOn ? chosen[0] : block.startsAt;
+              const shownEnd = isOn
+                ? (day.slots.find((slot) => slot.startsAt === chosen.at(-1))?.endsAt ??
+                  block.endsAt)
+                : block.endsAt;
 
               return (
                 <button
-                  key={slot.startsAt}
+                  key={block.startsAt}
                   type="button"
-                  onClick={() => onToggle(slot.startsAt)}
+                  /* Pressing a block that is wholly on clears it; anything else
+                     fills it. Two presses always return you to where you were. */
+                  onClick={() => onToggleBlock(block.slotStarts, !isWhole)}
                   aria-pressed={isOn}
+                  aria-label={
+                    isOn && !isWhole
+                      ? `${formatSlotRange(shownStart, shownEnd)} of ${formatSlotRange(
+                          block.startsAt,
+                          block.endsAt,
+                        )} selected`
+                      : formatSlotRange(block.startsAt, block.endsAt)
+                  }
                   className={cn(
-                    'rounded-md border px-3 py-2 text-label-sm transition-colors',
+                    'flex flex-col items-start rounded-md border px-3 py-2 text-label-sm transition-colors',
                     'focus-visible:ring-brand/35 focus-visible:ring-4 focus-visible:outline-none',
-                    isOn
+                    isWhole
                       ? 'border-brand bg-brand text-white'
-                      : 'border-outline-variant/60 hover:bg-brand-fixed/60 bg-white',
+                      : isOn
+                        ? 'border-brand bg-brand-fixed text-brand'
+                        : 'border-outline-variant/60 hover:bg-brand-fixed/60 bg-white',
                   )}
                 >
-                  {isOn ? (
-                    <Check className="mr-1 inline size-3.5" aria-hidden="true" />
-                  ) : null}
-                  {formatSlotRange(slot.startsAt, slot.endsAt)}
+                  <span className="flex items-center">
+                    {isOn ? (
+                      <Check className="mr-1 inline size-3.5" aria-hidden="true" />
+                    ) : null}
+                    {formatSlotRange(shownStart, shownEnd)}
+                  </span>
+
+                  {/* The length of the session, not of the availability. */}
+                  <span
+                    className={cn(
+                      'text-[11px] font-normal',
+                      isWhole ? 'text-white/80' : 'text-outline',
+                    )}
+                  >
+                    {formatDuration(shownStart, shownEnd)}
+                    {isOn && !isWhole
+                      ? ` of ${formatDuration(block.startsAt, block.endsAt)}`
+                      : null}
+                  </span>
                 </button>
               );
             })}
@@ -654,6 +717,78 @@ function SlotListView({
   );
 }
 
+/** Fifteen minutes. The picker offers hours; trimming is finer than that. */
+const STEP_SECONDS = 900;
+
+/** The shortest session worth booking, and the floor every trim clamps to. */
+const MIN_SESSION_MS = 15 * 60_000;
+
+/** One session in the fine-tune panel: its run, and its trimmed hours. */
+type TunedSession = { run: SelectedRun; startsAt: string; endsAt: string };
+
+/**
+ * The combined length of everything about to be booked.
+ *
+ * @param sessions - The sessions in the panel.
+ * @returns The total, in the same words formatDuration uses.
+ */
+function totalDuration(sessions: TunedSession[]): string {
+  const minutes = sessions.reduce(
+    (sum, session) =>
+      sum + (new Date(session.endsAt).getTime() - new Date(session.startsAt).getTime()) / 60_000,
+    0,
+  );
+
+  const base = new Date(0).toISOString();
+
+  return formatDuration(base, new Date(minutes * 60_000).toISOString());
+}
+
+/**
+ * Moves a session's start, keeping it inside its run and behind its own end.
+ *
+ * CLAMPED RATHER THAN REJECTED. A time input hands over whatever is in it,
+ * including a half-typed hour, and a change that would put the start after the
+ * end used to be written through unchanged — leaving the panel showing a
+ * negative session and the form submitting one the database would refuse.
+ *
+ * @param session - The session being trimmed.
+ * @param value   - `HH:mm` from the input.
+ * @returns The new hours, always a valid interval inside the run.
+ */
+function trimStart(session: TunedSession, value: string): { startsAt: string; endsAt: string } {
+  const runStart = new Date(session.run.startsAt).getTime();
+  const end = new Date(session.endsAt).getTime();
+  const wanted = new Date(withTime(session.run.startsAt, value)).getTime();
+
+  const startsAt = new Date(
+    Math.min(Math.max(wanted, runStart), end - MIN_SESSION_MS),
+  ).toISOString();
+
+  return { startsAt, endsAt: session.endsAt };
+}
+
+/**
+ * Moves a session's end, keeping it inside its run and ahead of its own start.
+ *
+ * @param session - The session being trimmed.
+ * @param value   - `HH:mm` from the input.
+ * @returns The new hours, always a valid interval inside the run.
+ */
+function trimEnd(session: TunedSession, value: string): { startsAt: string; endsAt: string } {
+  const runEnd = new Date(session.run.endsAt).getTime();
+  const start = new Date(session.startsAt).getTime();
+  /* Anchored to the run's END day, so a block that crosses midnight trims
+     against the day it actually finishes on. */
+  const wanted = new Date(withTime(session.run.endsAt, value)).getTime();
+
+  const endsAt = new Date(
+    Math.max(Math.min(wanted, runEnd), start + MIN_SESSION_MS),
+  ).toISOString();
+
+  return { startsAt: session.startsAt, endsAt };
+}
+
 /**
  * The hours of each session about to be booked, adjustable within its own block.
  *
@@ -668,7 +803,7 @@ function FineTune({
   sessions,
   onChange,
 }: {
-  sessions: Array<{ run: SelectedRun; startsAt: string; endsAt: string }>;
+  sessions: TunedSession[];
   onChange: (id: string, next: { startsAt: string; endsAt: string }) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -676,10 +811,12 @@ function FineTune({
   return (
     <div className="border-outline-variant/30 bg-surface-container-high/40 shadow-clay flex flex-col gap-3 rounded-xl border p-4">
       <div className="flex items-center justify-between">
+        {/* The heading carries the total, so the length being booked is on
+            screen whether or not the panel is open for editing. */}
         <p className="text-label-sm font-semibold">
           {sessions.length === 1
-            ? 'Session hours'
-            : `${sessions.length} sessions`}
+            ? `Session hours · ${formatDuration(sessions[0].startsAt, sessions[0].endsAt)}`
+            : `${sessions.length} sessions · ${totalDuration(sessions)} in total`}
         </p>
         <button
           type="button"
@@ -716,14 +853,18 @@ function FineTune({
                   id={startId}
                   type="time"
                   value={toTimeValue(session.startsAt)}
+                  /*
+                   * BOUNDED BY THE RUN, NOT BY THE OTHER INPUT. These used to
+                   * read `max={session.endsAt}` and `min={session.startsAt}` —
+                   * each input bounded by the value the other one was currently
+                   * showing — so every keystroke moved the other field's limits
+                   * and a half-typed hour could put the pair somewhere neither
+                   * of them agreed with. The run's own edges do not move.
+                   */
                   min={toTimeValue(session.run.startsAt)}
-                  max={toTimeValue(session.endsAt)}
-                  onChange={(event) =>
-                    onChange(session.run.id, {
-                      startsAt: withTime(session.run.startsAt, event.target.value),
-                      endsAt: session.endsAt,
-                    })
-                  }
+                  max={toTimeValue(session.run.endsAt)}
+                  step={STEP_SECONDS}
+                  onChange={(event) => onChange(session.run.id, trimStart(session, event.target.value))}
                   className="border-outline-variant bg-surface rounded-md border px-2.5 py-1.5 text-sm"
                 />
                 <span className="text-outline">–</span>
@@ -734,20 +875,25 @@ function FineTune({
                   id={endId}
                   type="time"
                   value={toTimeValue(session.endsAt)}
-                  min={toTimeValue(session.startsAt)}
+                  min={toTimeValue(session.run.startsAt)}
                   max={toTimeValue(session.run.endsAt)}
-                  onChange={(event) =>
-                    onChange(session.run.id, {
-                      startsAt: session.startsAt,
-                      endsAt: withTime(session.run.endsAt, event.target.value),
-                    })
-                  }
+                  step={STEP_SECONDS}
+                  onChange={(event) => onChange(session.run.id, trimEnd(session, event.target.value))}
                   className="border-outline-variant bg-surface rounded-md border px-2.5 py-1.5 text-sm"
                 />
               </div>
             ) : (
-              <span className="text-on-surface text-label-sm font-medium">
-                {toTimeValue(session.startsAt)} – {toTimeValue(session.endsAt)}
+              <span className="flex items-baseline gap-2">
+                <span className="text-on-surface text-label-sm font-medium">
+                  {toTimeValue(session.startsAt)} – {toTimeValue(session.endsAt)}
+                </span>
+                <span className="text-outline text-[11px] font-normal">
+                  {formatDuration(session.startsAt, session.endsAt)}
+                  {session.startsAt !== session.run.startsAt ||
+                  session.endsAt !== session.run.endsAt
+                    ? ` of ${formatDuration(session.run.startsAt, session.run.endsAt)} free`
+                    : null}
+                </span>
               </span>
             )}
           </div>

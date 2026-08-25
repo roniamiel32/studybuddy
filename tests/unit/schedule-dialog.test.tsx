@@ -22,6 +22,8 @@
  * Version:     0.49.0
  *
  * Modifications:
+ *     0.53.0 - 2026-08-25 - A list block selects every slot it covers, and the
+ *                           panel names the real duration
  *     0.49.0 - 2026-08-19 - The list's "Load more" no longer counts the days it
  *                           is holding back
  *     0.48.0 - 2026-08-19 - Fixtures anchored on the week's Sunday, matching the
@@ -228,10 +230,13 @@ describe('selecting times', () => {
     await user.click(cells.at(-1)!);
 
     expect(screen.getByRole('button', { name: /Schedule it/ })).toBeInTheDocument();
-    /* The panel is headed "Session hours" for a single session and "N sessions"
-       otherwise; it was "Fine-tune session hours" before the panel gained its
-       Edit times toggle. One session here is the whole point of the merge. */
-    expect(screen.getByText('Session hours')).toBeInTheDocument();
+    /*
+     * One session, and the heading now says how long it is. The duration is the
+     * assertion with teeth: the panel used to say "Session hours" while the
+     * block above it advertised a different length entirely, and a heading that
+     * names the real 14:00–18:00 total is what closes that gap.
+     */
+    expect(screen.getByText('Session hours · 4h')).toBeInTheDocument();
   });
 
   it('will not submit with nothing picked', async () => {
@@ -284,6 +289,62 @@ describe('the list view', () => {
 
     expect(times[0]).toHaveAttribute('aria-pressed', 'true');
     expect(times[1]).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('selects every slot in a block, not just the first', async () => {
+    /*
+     * THE BUG THIS FILE EXISTS TO STOP COMING BACK. The list merges contiguous
+     * slots into one button so an afternoon reads as "14:00 – 18:00" rather than
+     * as two buttons — and it used to hand only the FIRST slot's start to the
+     * toggle, so the button advertised four hours and booked two.
+     */
+    const user = await openPicker();
+
+    await user.click(screen.getByRole('button', { name: 'List' }));
+
+    const sunday = screen
+      .getAllByRole('button')
+      .find((button) => /14:00 – 18:00/.test(button.textContent ?? ''));
+
+    expect(sunday, 'Sunday 14–16 and 16–18 should merge into one block').toBeDefined();
+
+    await user.click(sunday!);
+
+    /* Both slots of the block are now selected, so the panel books all four
+       hours the button named. */
+    expect(screen.getByText('Session hours · 4h')).toBeInTheDocument();
+  });
+
+  it('clears a whole block on a second press', async () => {
+    const user = await openPicker();
+
+    await user.click(screen.getByRole('button', { name: 'List' }));
+
+    const sunday = screen
+      .getAllByRole('button')
+      .find((button) => /14:00 – 18:00/.test(button.textContent ?? ''))!;
+
+    await user.click(sunday);
+    await user.click(sunday);
+
+    expect(screen.getByRole('button', { name: /Schedule it/ })).toBeDisabled();
+    expect(screen.getByText('Pick a time first')).toBeInTheDocument();
+  });
+
+  it('shows what is chosen when only part of a block is', async () => {
+    /* Picked in the grid, read in the list: the button must describe the two
+       hours actually selected, not the four the block covers. */
+    const user = await openPicker();
+
+    await user.click(gridCells()[0]);
+    await user.click(screen.getByRole('button', { name: 'List' }));
+
+    const partly = screen
+      .getAllByRole('button', { pressed: true })
+      .find((button) => /\d{2}:\d{2} – \d{2}:\d{2}/.test(button.textContent ?? ''))!;
+
+    expect(partly.textContent).toContain('14:00 – 16:00');
+    expect(partly.textContent).toContain('2h of 4h');
   });
 
   it('shows three days, then loads the rest, then folds back', async () => {

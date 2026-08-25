@@ -14,9 +14,11 @@
  *
  *              No 'server-only' here: the dialog is a client component and needs
  *              these formatters.
- * Version:     0.49.0
+ * Version:     0.53.0
  *
  * Modifications:
+ *     0.53.0 - 2026-08-25 - mergeSlotsIntoBlocks and formatDuration, so the list
+ *                           can show a block and still select every slot in it
  *     0.49.0 - 2026-08-19 - buildSlotGrid takes a baseDate, so the picker can
  *                           page between weeks
  *     0.48.0 - 2026-08-19 - isDefaultMeetingTitle and meetingChatHref, for the
@@ -391,6 +393,88 @@ export function buildSlotGrid(
   return { columns, times };
 }
 
+/**
+ * One run of back-to-back offered slots, as the list view draws it.
+ *
+ * WHY THE COVERED SLOTS ARE CARRIED. The list shows a merged block — "13:30 –
+ * 21:30" reads far better than four buttons two hours apart — but selection is
+ * per slot, because that is the unit the grid works in and the unit
+ * mergeSelectedSlots re-merges. A block that displayed a four-slot range and
+ * then handed one `startsAt` to the toggle is exactly the mismatch this type
+ * exists to prevent: the button said eight hours and the booking was two.
+ */
+export interface MeetingSlotBlock {
+  /** Where the block opens — the first covered slot's start. */
+  startsAt: string;
+  /** Where it closes — the last covered slot's end. */
+  endsAt: string;
+  /** The `startsAt` of every slot inside it, in order. Never empty. */
+  slotStarts: string[];
+}
+
+/**
+ * Merges back-to-back offered slots into the blocks the list draws.
+ *
+ * ADJACENCY IS EXACT TIMESTAMP EQUALITY, the same rule mergeSelectedSlots uses:
+ * a block continues only where one slot's end is the next one's start. An hour
+ * somebody else has already booked in the middle of an afternoon therefore
+ * splits the afternoon in two rather than being swallowed, which is the whole
+ * point — the gap is not bookable and a block spanning it would say it was.
+ *
+ * @param slots - Offered slots, in any order.
+ * @returns One entry per contiguous run, in chronological order.
+ */
+export function mergeSlotsIntoBlocks(slots: MeetingSlotView[]): MeetingSlotBlock[] {
+  const ordered = [...slots].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const blocks: MeetingSlotBlock[] = [];
+
+  for (const slot of ordered) {
+    const open = blocks.at(-1);
+
+    if (open && open.endsAt === slot.startsAt) {
+      open.endsAt = slot.endsAt;
+      open.slotStarts.push(slot.startsAt);
+      continue;
+    }
+
+    blocks.push({
+      startsAt: slot.startsAt,
+      endsAt: slot.endsAt,
+      slotStarts: [slot.startsAt],
+    });
+  }
+
+  return blocks;
+}
+
+/**
+ * How long a session actually runs, in words.
+ *
+ * The picker offers availability and books a meeting, and those are different
+ * lengths the moment anybody trims one. Printing the duration beside the times
+ * is what stops "13:30 – 21:30" in the list being read as the length of the
+ * thing about to be booked.
+ *
+ * @param startsAt - ISO instant.
+ * @param endsAt   - ISO instant.
+ * @returns "2h", "1h 30m", "45m".
+ */
+export function formatDuration(startsAt: string, endsAt: string): string {
+  const minutes = Math.max(
+    0,
+    Math.round((new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 60_000),
+  );
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+
+  if (hours === 0) {
+    return `${rest}m`;
+  }
+
+  return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
 /** A session the picker will book: one contiguous run of selected slots. */
 export interface SelectedRun {
   /** Stable identity, so React keys and fine-tune edits survive a re-render. */
@@ -439,16 +523,23 @@ export function mergeSelectedSlots(
   const runs: SelectedRun[] = [];
 
   for (const slot of chosen) {
-    const startDate = new Date(slot.startsAt);
-    const baseHour = Math.floor(startDate.getHours() / 2) * 2;
-    
-    const blockEndDate = new Date(startDate);
-    blockEndDate.setHours(baseHour + 2, 0, 0, 0);
-    const blockEndIso = blockEndDate.toISOString();
-
-    const effectiveEndsAt = slot.endsAt < blockEndIso ? slot.endsAt : blockEndIso;
-    // ---------------------------------------------------------
-
+    /*
+     * A SLOT'S OWN END, NOT THE END OF THE GRID ROW IT IS DRAWN IN.
+     *
+     * This used to clamp each end to `floor(hour / 2) * 2 + 2` — the boundary of
+     * the two-hour row buildSlotGrid buckets the slot into — and that broke
+     * every slot whose time is not a multiple of two hours, which is every slot
+     * derived from a connected calendar. A 13:30–15:30 slot sits in the 12:00
+     * row, so its end was pulled back to 14:00 and a two-hour slot became a
+     * thirty-minute session.
+     *
+     * It also made runs unmergeable, which is the half that was harder to see. A
+     * run ending at the clamped 14:00 never equals the next slot's 15:30 start,
+     * so `continues` was false every time and four contiguous slots came out as
+     * four separate thirty-minute sessions instead of one eight-hour one.
+     *
+     * The row is a display bucket. The slot is the thing being booked.
+     */
     const open = runs.at(-1);
     const continues =
       open !== undefined &&
@@ -458,7 +549,7 @@ export function mergeSelectedSlots(
       localDayKey(open.startsAt) === localDayKey(slot.startsAt);
 
     if (continues) {
-      open.endsAt = effectiveEndsAt; 
+      open.endsAt = slot.endsAt;
       open.slotCount += 1;
       continue;
     }
@@ -466,7 +557,7 @@ export function mergeSelectedSlots(
     runs.push({
       id: slot.startsAt,
       startsAt: slot.startsAt,
-      endsAt: effectiveEndsAt, 
+      endsAt: slot.endsAt,
       slotCount: 1,
     });
   }
