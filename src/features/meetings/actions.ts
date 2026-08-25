@@ -192,8 +192,8 @@ export async function createMeeting(
      * would be rejected by the schema as a validation error about a field the
      * student was never asked to fill in.
      */
-    const typedTitle = String(formData.get('title') ?? '').trim();
-    const title = typedTitle || defaultMeetingTitle(await scopePartnerLabel(supabase, scope, user.id));
+   const typedTitle = String(formData.get('title') ?? '').trim();
+    const title = typedTitle || defaultMeetingTitle((await scopePartnerLabel(supabase, scope, user.id)) ?? undefined);
 
     const raw = {
       ...scope,
