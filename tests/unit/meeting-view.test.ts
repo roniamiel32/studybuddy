@@ -29,6 +29,7 @@ import {
   MEETING_MAX_HOURS,
   buildChatFeed,
   buildSlotGrid,
+  clampSlotsToGridRows,
   formatDuration,
   formatMeetingWhen,
   formatSlotRange,
@@ -446,6 +447,107 @@ describe('formatMeetingWhen', () => {
 
     expect(when).toMatch(/\d{2}:\d{2} – \d{2}:\d{2}/);
     expect(when).not.toMatch(/[AP]M/i);
+  });
+});
+
+describe('clampSlotsToGridRows', () => {
+  /* Local components: the rows are the reader's hours, not UTC's. */
+  const slot = (fromHour: number, fromMinute: number, hours: number): MeetingSlotView => {
+    const start = new Date(2026, 7, 16, fromHour, fromMinute);
+
+    return {
+      startsAt: start.toISOString(),
+      endsAt: new Date(start.getTime() + hours * 3_600_000).toISOString(),
+      participantCount: 2,
+    };
+  };
+
+  const ranges = (slots: MeetingSlotView[]) =>
+    slots.map((one) => formatSlotRange(one.startsAt, one.endsAt));
+
+  it('cuts a slot that would straddle the next row', () => {
+    /*
+     * THE REPORTED BUG. A session booked 14:00–15:00 leaves free time from
+     * 15:00, the RPC offers 15:00–17:00, and buildSlotGrid files it under the
+     * 14:00 row — so pressing a cell in the row labelled 14:00 offered a booking
+     * that ran to 17:00.
+     */
+    expect(ranges(clampSlotsToGridRows([slot(15, 0, 2)]))).toEqual([
+      '15:00 – 16:00',
+      '16:00 – 17:00',
+    ]);
+  });
+
+  it('leaves a slot that already fills its row alone', () => {
+    expect(ranges(clampSlotsToGridRows([slot(14, 0, 2)]))).toEqual(['14:00 – 16:00']);
+  });
+
+  it('gives every row it touches exactly one fragment', () => {
+    /* A whole afternoon offered as three overlapping-by-adjacency chunks comes
+       back as one fragment per row, which is what the grid can draw. */
+    const offered = [slot(15, 0, 2), slot(17, 0, 2), slot(19, 0, 2)];
+
+    expect(ranges(clampSlotsToGridRows(offered))).toEqual([
+      '15:00 – 16:00',
+      '16:00 – 18:00',
+      '18:00 – 20:00',
+      '20:00 – 21:00',
+    ]);
+  });
+
+  it('handles a start that is not on the hour', () => {
+    /* Calendar-derived availability starts wherever the calendar says. */
+    expect(ranges(clampSlotsToGridRows([slot(13, 30, 2)]))).toEqual([
+      '13:30 – 14:00',
+      '14:00 – 15:30',
+    ]);
+  });
+
+  it('drops a sliver rather than offering it', () => {
+    /* Five minutes before the row closes is not a study session. */
+    expect(ranges(clampSlotsToGridRows([slot(15, 55, 2)]))).toEqual(['16:00 – 17:55']);
+  });
+
+  it('keeps disjoint spans apart, even inside one row', () => {
+    /* Free 14:00–14:30, busy until 15:00, free again — two fragments, one row.
+       They must not be joined across the booking that separates them. */
+    const offered = [slot(14, 0, 0.5), slot(15, 0, 1)];
+
+    expect(ranges(clampSlotsToGridRows(offered))).toEqual([
+      '14:00 – 14:30',
+      '15:00 – 16:00',
+    ]);
+  });
+
+  it('has nothing to cut in an empty week', () => {
+    expect(clampSlotsToGridRows([])).toEqual([]);
+  });
+});
+
+describe('buildSlotGrid, when a row holds more than one fragment', () => {
+  const slot = (fromHour: number, fromMinute: number, hours: number): MeetingSlotView => {
+    const start = new Date(
+      GRID_ANCHOR.getFullYear(),
+      GRID_ANCHOR.getMonth(),
+      GRID_ANCHOR.getDate(),
+      fromHour,
+      fromMinute,
+    );
+
+    return {
+      startsAt: start.toISOString(),
+      endsAt: new Date(start.getTime() + hours * 3_600_000).toISOString(),
+      participantCount: 2,
+    };
+  };
+
+  it('offers the longer of the two', () => {
+    /* The cell draws one slot, and half an hour is a worse offer than a full
+       one. The list view still shows both. */
+    const grid = buildSlotGrid([slot(14, 0, 0.5), slot(15, 0, 1)], 7, GRID_ANCHOR);
+    const cell = grid.columns[0].slotsByTime['14:00'];
+
+    expect(formatSlotRange(cell[0].startsAt, cell[0].endsAt)).toBe('15:00 – 16:00');
   });
 });
 

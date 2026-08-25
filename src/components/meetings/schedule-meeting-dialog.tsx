@@ -58,6 +58,7 @@ import { createMeeting, findMeetingSlots } from '@/features/meetings/actions';
 import {
   SCHEDULER_WINDOW_DAYS,
   buildSlotGrid,
+  clampSlotsToGridRows,
   defaultMeetingTitle,
   formatDuration,
   formatSlotRange,
@@ -207,9 +208,15 @@ export function ScheduleMeetingDialog({
     }
   }, [state, onClose]);
 
-  /* Memoised, not `slots ?? []` inline: a fresh array every render would make
-     every memo below it recompute, which is the whole cost they exist to avoid. */
-  const offered = useMemo(() => slots ?? [], [slots]);
+  /*
+   * Memoised, not `slots ?? []` inline: a fresh array every render would make
+   * every memo below it recompute, which is the whole cost they exist to avoid.
+   *
+   * CLAMPED ONCE, HERE, so the grid, the list and the merge all reason about the
+   * same slots. Doing it inside buildSlotGrid would leave the list offering
+   * blocks the grid could not draw.
+   */
+  const offered = useMemo(() => clampSlotsToGridRows(slots ?? []), [slots]);
   const grid = useMemo(() => {
     const baseDate = new Date();
     baseDate.setDate(baseDate.getDate() + (weekOffset * 7));
@@ -559,6 +566,16 @@ function SlotGridView({
                 }
 
                 const isOn = selected.includes(slot.startsAt);
+                /*
+                 * A cell that does not fill its whole row says so on its face.
+                 * The row heading is the only label a full cell needs, but a
+                 * partial one books something the heading does not name — and
+                 * being asked to confirm 15:00 from a cell in the 14:00 row is
+                 * the surprise this whole clamp exists to remove.
+                 */
+                const rowEnd = `${String(Number(time.slice(0, 2)) + 2).padStart(2, '0')}:00`;
+                const partial =
+                  toTimeValue(slot.startsAt) !== time || toTimeValue(slot.endsAt) !== rowEnd;
 
                 return (
                   <td key={column.date}>
@@ -571,7 +588,7 @@ function SlotGridView({
                         slot.endsAt,
                       )}`}
                       className={cn(
-                        'flex h-9 w-full items-center justify-center rounded-sm border transition-colors',
+                        'flex h-9 w-full items-center justify-center gap-1 rounded-sm border transition-colors',
                         'focus-visible:ring-brand/35 focus-visible:ring-4 focus-visible:outline-none',
                         isOn
                           ? 'border-brand bg-brand text-white'
@@ -579,6 +596,17 @@ function SlotGridView({
                       )}
                     >
                       {isOn ? <Check className="size-3.5" aria-hidden="true" /> : null}
+                      {partial ? (
+                        <span
+                          suppressHydrationWarning
+                          className={cn(
+                            'text-[10px] leading-none font-medium',
+                            isOn ? 'text-white' : 'text-outline',
+                          )}
+                        >
+                          {toTimeValue(slot.startsAt)}–{toTimeValue(slot.endsAt)}
+                        </span>
+                      ) : null}
                     </button>
                   </td>
                 );

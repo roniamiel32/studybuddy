@@ -14,9 +14,11 @@
  *
  *              No 'server-only' here: the dialog is a client component and needs
  *              these formatters.
- * Version:     0.53.0
+ * Version:     1.0.0
  *
  * Modifications:
+ *     1.0.0  - 2026-08-25 - clampSlotsToGridRows: an offered slot never crosses
+ *                           the grid row it is drawn in
  *     0.53.0 - 2026-08-25 - mergeSlotsIntoBlocks and formatDuration, so the list
  *                           can show a block and still select every slot in it
  *     0.49.0 - 2026-08-19 - buildSlotGrid takes a baseDate, so the picker can
@@ -291,6 +293,105 @@ function localTimeKey(iso: string): string {
   });
 }
 
+/** How wide one row of the picker's grid is. */
+const GRID_ROW_HOURS = 2;
+
+/** Below this a fragment is a sliver, not a study session, and is not offered. */
+const MIN_SLOT_MINUTES = 15;
+
+/**
+ * The next two-hour row boundary strictly after an instant, in the reader's zone.
+ *
+ * @param from - The instant to step forward from.
+ * @returns The boundary. 14:00 gives 16:00; 15:20 also gives 16:00.
+ */
+function nextRowBoundary(from: Date): Date {
+  const boundary = new Date(from);
+
+  boundary.setHours(
+    Math.floor(from.getHours() / GRID_ROW_HOURS) * GRID_ROW_HOURS + GRID_ROW_HOURS,
+    0,
+    0,
+    0,
+  );
+
+  return boundary;
+}
+
+/**
+ * Re-cuts the offered slots so none of them crosses a grid row.
+ *
+ * THE BUG THIS EXISTS FOR. rpc_meeting_slots walks each free span in two-hour
+ * steps FROM WHERE THE SPAN STARTS, and a span starts wherever the last booking
+ * left off. Book 14:00–15:00 and the remaining free time starts at 15:00, so the
+ * RPC offers 15:00–17:00 — and buildSlotGrid files it under `floor(15 / 2) * 2`,
+ * which is the 14:00 row. The student then presses a cell in the row labelled
+ * 14:00 and is asked to confirm a session from 15:00 to 17:00, straddling the
+ * 16:00 row, which also still shows a cell of its own.
+ *
+ * The rows are the contract the grid makes with the reader: a cell in the 14:00
+ * row books time inside 14:00–16:00 and nothing else. So the spans are rebuilt
+ * and re-cut on those boundaries — 15:00–17:00 becomes 15:00–16:00 in the 14:00
+ * row and 16:00–17:00 in the 16:00 row, and no free time is lost in the process.
+ *
+ * CUT IN THE READER'S ZONE, WHICH IS WHY THIS IS NOT IN SQL. The obvious home
+ * for it is rpc_meeting_slots, and that would be wrong: the RPC works in the
+ * campus timezone while the grid's rows are built from the reader's local hours,
+ * by long-standing decision in this module. Clamping to campus hours would still
+ * bleed across rows for a student who is travelling — the one case where getting
+ * it wrong is hardest to notice.
+ *
+ * MERGED FIRST, THEN CUT. Cutting each offered slot where it stands would leave
+ * two fragments in one row whenever a span's own two-hour steps straddle a
+ * boundary. Rebuilding the contiguous span and cutting that gives exactly one
+ * fragment per row it touches.
+ *
+ * @param slots - Slots as the RPC returned them.
+ * @returns Slots that each sit inside a single row, in chronological order.
+ */
+export function clampSlotsToGridRows(slots: MeetingSlotView[]): MeetingSlotView[] {
+  const ordered = [...slots].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+
+  /* Back into contiguous spans. Adjacency is exact timestamp equality, the same
+     rule the rest of this module uses. */
+  const spans: MeetingSlotView[] = [];
+
+  for (const slot of ordered) {
+    const open = spans.at(-1);
+
+    if (open && open.endsAt === slot.startsAt) {
+      open.endsAt = slot.endsAt;
+      continue;
+    }
+
+    spans.push({ ...slot });
+  }
+
+  const cut: MeetingSlotView[] = [];
+
+  for (const span of spans) {
+    let cursor = new Date(span.startsAt);
+    const closes = new Date(span.endsAt);
+
+    while (cursor < closes) {
+      const boundary = nextRowBoundary(cursor);
+      const sliceEnd = boundary < closes ? boundary : closes;
+
+      if (sliceEnd.getTime() - cursor.getTime() >= MIN_SLOT_MINUTES * 60_000) {
+        cut.push({
+          startsAt: cursor.toISOString(),
+          endsAt: sliceEnd.toISOString(),
+          participantCount: span.participantCount,
+        });
+      }
+
+      cursor = sliceEnd;
+    }
+  }
+
+  return cut;
+}
+
 /** One column of the picker's grid: a day, and what is on offer that day. */
 export interface SlotGridColumn {
   /** Local calendar day, `2026-08-16`. */
@@ -387,6 +488,26 @@ export function buildSlotGrid(
         column.slotsByTime[matchingRowTime] = [];
       }
       column.slotsByTime[matchingRowTime].push(slot);
+    }
+  }
+
+  /*
+   * The cell draws one slot, so put the longest first.
+   *
+   * A row normally holds exactly one fragment — clampSlotsToGridRows guarantees
+   * that per contiguous span. Two disjoint spans can still touch the same row
+   * though, which is what a session booked in the middle of one looks like:
+   * 14:00–14:30 free, busy until 15:00, then free again. Offering the longer of
+   * the two is the better default, and the list view shows both.
+   */
+  for (const column of columns) {
+    for (const time of Object.keys(column.slotsByTime)) {
+      column.slotsByTime[time].sort(
+        (a, b) =>
+          new Date(b.endsAt).getTime() -
+          new Date(b.startsAt).getTime() -
+          (new Date(a.endsAt).getTime() - new Date(a.startsAt).getTime()),
+      );
     }
   }
 
