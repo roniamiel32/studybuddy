@@ -48,6 +48,7 @@ const DENIED = '42501';
 
 /** Sunday, in the numbering the schema uses (0 = Sunday, as extract(dow) does). */
 const SUNDAY = 0;
+const MONDAY = 1;
 
 describeDb('Meetings: scheduling, blocking and attendance', () => {
   const admin = hasLocalDb() ? adminDb() : null!;
@@ -122,6 +123,10 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
       { profile_id: ids.ben, day_of_week: SUNDAY, starts_at: '14:00', ends_at: '16:00' },
       { profile_id: ids.ben, day_of_week: SUNDAY, starts_at: '16:00', ends_at: '18:00' },
       { profile_id: ids.cleo, day_of_week: SUNDAY, starts_at: '16:00', ends_at: '18:00' },
+      /* One shared hour on Monday, deliberately shorter than a two-hour block —
+         see the tail test below. Invisible to every Sunday assertion above. */
+      { profile_id: ids.ada, day_of_week: MONDAY, starts_at: '12:00', ends_at: '13:00' },
+      { profile_id: ids.ben, day_of_week: MONDAY, starts_at: '12:00', ends_at: '13:00' },
     ]);
     if (slots.error) {
       throw new Error(`availability seed failed: ${slots.error.message}`);
@@ -226,6 +231,34 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
 
       expect(hours).not.toContain(10);
       expect(hours).not.toContain(16);
+    });
+
+    it('offers a shared hour that is shorter than a whole block', async () => {
+      /*
+       * THE BUG THIS MIGRATION FIXED. The series used to be generated with
+       * `generate_series(lower, upper - interval '2 hours', interval '2 hours')`,
+       * which stops two hours before a span ends. For a span shorter than a
+       * block that lands before the start, so generate_series returned nothing
+       * at all: a pair with exactly one shared hour were told they had no common
+       * time whatsoever — the case where the feature is needed most.
+       */
+      const { data, error } = await clients.ada.rpc('rpc_meeting_slots', {
+        p_conversation_id: conversationId,
+        p_from: nextSunday(),
+        p_days: 2,
+      });
+
+      expect(error).toBeNull();
+
+      const monday = (data ?? []).filter((row) => new Date(row.starts_at).getDay() === MONDAY);
+
+      expect(monday).toHaveLength(1);
+      expect(new Date(monday[0].starts_at).getHours()).toBe(12);
+      /* And it is one hour, not two — the block is clamped to the span it came
+         from rather than running past the end of the shared time. */
+      expect(
+        new Date(monday[0].ends_at).getTime() - new Date(monday[0].starts_at).getTime(),
+      ).toBe(3_600_000);
     });
 
     it('returns nothing for a group with no common hour at all', async () => {
@@ -339,7 +372,23 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
         .select('day_of_week, starts_at')
         .eq('profile_id', ids.ada);
 
-      expect(data).toHaveLength(3);
+      /*
+       * Compared against the seed rather than against a count. The claim is that
+       * booking wrote NOTHING here — a bare length was standing in for that, and
+       * broke the moment the fixture gained an unrelated row.
+       */
+      const rows = (data ?? [])
+        .map((row) => `${row.day_of_week}|${row.starts_at.slice(0, 5)}`)
+        .sort();
+
+      expect(rows).toEqual(
+        [
+          `${SUNDAY}|10:00`,
+          `${SUNDAY}|12:00`,
+          `${SUNDAY}|14:00`,
+          `${MONDAY}|12:00`,
+        ].sort(),
+      );
     });
 
     it('refuses a second meeting that clashes with it', async () => {

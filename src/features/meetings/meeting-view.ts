@@ -34,7 +34,13 @@
  *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
  */
 
-/** A bookable two-hour window every participant of a chat is free for. */
+/**
+ * A bookable window every participant of a chat is free for.
+ *
+ * Two hours as a rule, and shorter at the edges: the last block of a free span
+ * is whatever remains of it, and clampSlotsToGridRows cuts anything that would
+ * cross one of the picker's rows. Nothing downstream may assume the length.
+ */
 export interface MeetingSlotView {
   /** ISO instant the window opens. */
   startsAt: string;
