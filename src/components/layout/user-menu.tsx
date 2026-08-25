@@ -116,7 +116,7 @@ export function UserMenu({ viewerId, fullName, avatarUrl, signOut }: UserMenuPro
           className="text-on-surface-variant hover:bg-surface-container-high focus-visible:ring-brand/35 flex items-center gap-2.5 px-4 py-3 text-label-md transition-colors focus-visible:ring-4 focus-visible:outline-none focus-visible:-outline-offset-2"
         >
           <UserRound className="size-4" aria-hidden="true" />
-          Profile
+          Profile 
         </Link>
           
           <a
