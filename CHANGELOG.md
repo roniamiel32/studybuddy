@@ -4,6 +4,569 @@ All notable changes to StudyBuddy. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] — 2026-08-10
+
+Phase 6 — student profiles, and the post-session rating system.
+
+### Added
+- **`/students/[profileId]`** — a social-style profile: avatar, name, age, year,
+  degree, university, city, weekly free hours, and every answer the onboarding
+  questionnaire collected. Reachable by clicking a name on a match card or in a
+  chat header.
+- **Viewer context.** Shared courses, shared study groups, and the compatibility
+  score — taken from `rpc_find_candidates` rather than recomputed, so the number on
+  a profile can never disagree with the ranking on the matches screen.
+- **`study_ratings`** with a `positive` / `negative` sentiment, one row per rater
+  per ratee, and a rating dialog reachable from a profile.
+- **Public positive connections.** A positive rating appears on the rated student's
+  profile naming the rater, and adds up to 6 bonus points to their score with
+  everyone, saturating at three ratings.
+- **Private negative ratings.** Never shown to anyone but their author, and they
+  remove the pair from each other's candidates entirely.
+- **`app_profile_age_years`**, which returns an age and never a birth date.
+- 44 tests: 23 integration on the rating policies and their effect on matching, 14
+  unit on the profile view model, and 7 e2e across the profile and both ratings.
+
+### The privacy rule, and where it lives
+"Only positive connections are publicly displayed" is a promise to the person being
+rated, so it is enforced by a **SELECT policy**, not a `WHERE` clause:
+
+```sql
+using (rater_id = auth.uid()
+       or (sentiment = 'positive' and app_can_see_profile(ratee_id)))
+```
+
+A negative row is therefore invisible to the person it is about, to their
+classmates, and to every other rater — its author is the only reader. No query,
+route or future feature can leak one by forgetting a filter. Tests assert this from
+the rated student's own session, including through an unfiltered read of the table
+and through a `count`, and the e2e suite checks it from their browser.
+
+Three supporting decisions:
+- **The view model has no field for a negative rating**, so no component could
+  render one even by mistake.
+- **The public summary never implies a denominator.** "Studied with 3 classmates"
+  is safe; "3 of 5 partners rated this well" would disclose the two negatives. A
+  unit test asserts the wording contains no "of", no percentage and no mention of
+  rating at all.
+- **The exclusion is symmetric.** The rated student is never told, but they also
+  stop seeing the person who quietly opted out of them — a one-directional
+  exclusion would leave exactly one of the pair still being shown the other.
+
+### Changed
+- Rating requires an existing conversation, enforced by the insert policy: a
+  student can only rate someone they have actually talked to on StudyBuddy. Without
+  it this is a drive-by system where anyone can mark any classmate as one to avoid.
+- Matching is now **v4**. Unchanged behaviour with no ratings present — all 28
+  existing matching and override tests passed after the rewrite.
+- `/students` and `/groups` added to the route guard.
+
+### A deliberate disclosure worth naming
+The schema put `date_of_birth` in `profile_private` specifically so classmates
+could not read it, and matching only ever derived a *gap* from it. Showing an age
+on a profile discloses more than that. It is what the specification asks for and
+what a reader expects a profile to show, so `app_profile_age_years` returns whole
+years — and only to someone who may already see that student. The date itself still
+never leaves the database, and a test asserts the private table stays unreadable.
+
+### Fixed
+- Three stale assertions in `academic-email.test.ts`, which were still expecting
+  the derived names ("Runi", "Tau") after the switch to real university names.
+  Rewritten to cover both the known-domain map and the derivation fallback.
+- Removed a dead `labelsFor` helper left in the course-preferences dialog.
+- `sign_in_sign_ups` raised to 1000 locally; 300 stopped being enough once the
+  suite passed eighty tests.
+
+### Known limitations
+- **"Avoid matching with profiles similar to a negative interaction" is not
+  implemented.** The concrete half — never pairing that pair again — is. Inferring
+  similarity between students would need a model of what made the session fail, and
+  the schema records only that it did. Guessing at it would quietly shrink someone's
+  candidate pool for reasons nobody could explain.
+- **Connections are rating-based**, not the unused `connection_requests` table.
+- **One rating per pair**, not per session; a second study session replaces the
+  first answer rather than adding to it.
+- The reject flow in `groups.spec.ts` failed once in a full run and has passed
+  every isolated run since. Not root-caused, and recorded rather than papered over.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 359 tests, production build. Playwright:
+80 e2e tests across chromium and mobile-safari.
+
+## [0.16.0] — 2026-08-10
+
+Header and navigation redesign.
+
+### Changed
+- **The header now runs brand → centred menu → Match → user**, as specified. The
+  menu is `Courses`, `Groups`, `Messages`, each an icon and a text label.
+- **Match is the call to action**, a pill with a purple-to-blue gradient, a sparkles
+  icon and a coloured shadow in the same hue. It was one link among four, which
+  said it was a peer of the others rather than the thing the product exists to do.
+  It sits outside the `nav` landmark deliberately, and a test asserts that.
+- **The user area is one stadium-shaped control** — avatar initial, first name,
+  chevron — opening a menu with `Profile` and `Sign out`. Sign out used to sit
+  permanently in the header as a bare button, giving the most destructive action on
+  the screen the same weight as navigation.
+- **The join-request badge moved from Courses to Groups.** A join request is a
+  group request; on Courses a student had to guess which of the two tabs wanted
+  them.
+
+### Added
+- **`/groups`** — the Groups tab needed a page, or the nav link would 404. It lists
+  the groups you are in, with the requests waiting on you first. Groups are still
+  created and discovered on a course page, because a group belongs to a course.
+- `getMyGroups()`, which reads membership first and the groups second: the groups
+  policy admits every group in every course you take, so filtering there would
+  return groups you can merely see.
+
+### Notes on the implementation
+- The user menu is a native `<details>`, so open/close, Escape and button semantics
+  come from the platform. The two behaviours added by hand are click-outside and
+  close-on-navigation — the component is not remounted by a client-side route
+  change, so without the latter the menu stays open behind the new page.
+- The accessible name is on the `<summary>` rather than in an `sr-only` child. A
+  hidden span inside it sits behind the avatar and cannot be clicked, and a screen
+  reader would read the avatar, the name and the label as three separate things.
+- **The mobile bar keeps five items** rather than mirroring the desktop shape. A
+  fixed bottom bar has no room for a dropdown or a CTA pill, so Profile stays a
+  destination and Match stays a tab. The alternative is a hamburger, which hides the
+  two things people use most.
+
+### Fixed
+- **`sign_in_sign_ups` raised from 30 to 300 in `supabase/config.toml`.** The e2e
+  suite signs in far more than 30 times in five minutes — every test starts from the
+  login page on purpose, because a session carried between tests hides bugs in the
+  route guards. At the default, later specs failed with a silent redirect back to
+  `/login`, which looks exactly like a broken guard and is really a throttle. Local
+  only; a hosted project sets its own limits.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 318 tests, production build. Playwright:
+66 e2e tests across chromium and mobile-safari. The header was also captured at
+1280px and 390px, with the dropdown open, to check it against the specification.
+
+## [0.15.0] — 2026-08-10
+
+Phase 5 — study groups, join requests, and a group chat. Closes design conflict
+**C4**, open since Phase 1.5.
+
+### Added
+- **Four tables.** `study_groups` (one course, one admin, `max_participants`,
+  `status`), `study_group_members`, `group_requests`, and
+  `study_group_messages`. Membership is its own table rather than an array on the
+  group: an array of uuids cannot be constrained, cannot cascade when a student is
+  deleted, and cannot be joined against without unnesting it on every read.
+- **Create a study group** from the course page, setting the size and becoming its
+  admin. The creator is added as a member by trigger, so a group can never exist
+  with an admin who is not in it.
+- **Discovery and join requests.** Open groups are listed to the whole class —
+  a group nobody can find has nobody to join it — with `Request to join`, and the
+  specific reason when that is unavailable ("Full", "Waiting for the admin to
+  reply", "Not accepting requests" are three different situations and a single
+  greyed-out button explains none of them).
+- **Admin notification**: a red badge on the Courses tab, seeded server-side and
+  kept live by Realtime, plus a count on the group card so they know *which* group.
+- **Applicant review**: opening a request shows the applicant's profile with
+  **Accept** and **Reject** on it, so the decision is made while looking at the
+  person it concerns.
+- **Rejection flow**: a dropdown of four polite canned messages plus **Other** for
+  custom text, the exact wording shown before sending, and the result delivered to
+  the rejected student as a real one-to-one message from the admin — reusing Phase
+  3's conversations, so it arrives where they already read messages.
+- **Acceptance flow**: `rpc_approve_group_request` marks the request, adds the
+  member and posts `Welcome [name] to the group!` as a system message, in **one
+  transaction**.
+- **Group chat**, live over Realtime, with sender names (a group needs them; a
+  one-to-one thread does not) and system messages rendered as centred events
+  rather than as something a person said.
+- 58 tests: 27 integration on the policies, 25 unit on capacity, blocked-reasons
+  and the canned messages, and 6 e2e covering create → request → notify → accept
+  and → reject.
+
+### Why approval is one SQL function
+The members insert policy requires an already-approved request, so the application
+would have to approve first and insert second. If the insert then failed — and it
+can, because the capacity trigger rejects a group that filled up in between — the
+request would be left approved with no membership, and the freeze trigger
+deliberately forbids re-deciding it. That is an unrecoverable state reachable by
+two clicks at the same moment. Inside one function it is one transaction: capacity
+fails, everything rolls back, the request stays pending. There is a test that fills
+a group and asserts exactly this.
+
+### Security notes
+- **Discovery and privacy are different rules.** The class can see that a group
+  exists and how full it is; only members can read its chat. Both are tested from
+  the position of a classmate who can see the group and must not read a word of it.
+- **An admin cannot add someone who never asked** — the members policy requires an
+  approved request, which is what makes joining consensual rather than something
+  done to you.
+- **A member cannot forge a system message.** `not is_system` in the insert policy
+  means "Welcome X to the group!" can only come from the approval function, so
+  nobody can fake a decision the admin never made.
+- `rpc_approve_group_request` is SECURITY DEFINER and therefore restates its own
+  authorisation: caller must be the group's admin and the request must be pending.
+  Two tests attack it as a non-admin and as the requester.
+
+### Fixed
+- **A SELECT policy that broke `insert().select()`.** The `study_groups` read
+  policy originally called `app_can_see_group(id)`, a STABLE definer function that
+  re-reads `study_groups` — so during an insert-with-returning it evaluated against
+  the pre-insert snapshot, could not find the new row, and failed with a policy
+  violation. Rewritten against the row's own columns. Found because a test used
+  `.select('id')` after inserting; the helper is still correct for the other three
+  tables, where the group id is a foreign key to a row that already exists.
+
+### Known limitations
+- **Saturday and languages are not overridable per group**, and group membership
+  does not yet feed the match score.
+- **The admin cannot leave or hand over a group** — leaving would orphan it, so the
+  delete policy excludes them. They can close it to new requests.
+- **A rejected student can ask again.** Deliberate: circumstances change, and a
+  permanent ban after one "not right now" is harsher than anyone meant.
+- **C5, C8 and C9 remain open** — session scheduling, meeting times and sections.
+  The group has no calendar, so "Next: Thu 6:00 PM" from the design is still absent.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 318 tests, production build. Playwright:
+66 e2e tests across chromium and mobile-safari.
+
+## [0.14.1] — 2026-08-10
+
+Header logo, and brand-only course banners.
+
+### Changed
+- The app header carries a logo image and wordmark (`src/components/ui/logo.tsx`)
+  in place of the text-only `Wordmark`, and the profile badge is now the avatar
+  alone — the name it used to show is repeated by the logo beside it.
+- Course-card banners use purple and orange only, dropping the green, teal and
+  maroon gradients that did not belong to the brand.
+
+### Fixed
+- **`public/logo.PNG` renamed to `public/logo.png`.** The component requests
+  `/logo.png`, and macOS resolves that case-insensitively while Linux does not —
+  so the logo worked locally and would have 404'd on Vercel. The kind of bug that
+  only appears once it is deployed.
+
+### Note
+The banner gradients and the wordmark use literal hex values rather than the
+theme tokens (`brand-bright`, `grape-bright`, `sunset`). Everything else in the
+app derives its colour from `@theme`, which is what keeps a palette change in one
+place — worth converting when convenient. See design section 8.3.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 266 tests, production build.
+
+## [0.14.0] — 2026-08-10
+
+Phase 4 — the Profile and Courses tabs, and per-course preference overrides.
+
+### Added
+- **Per-course preference overrides**, on `enrollments`. That table is already
+  keyed by exactly `(profile_id, course_offering_id)`, already holds a per-course
+  answer in `intent`, and already has owner-scoped insert/update/delete policies —
+  so the four nullable columns needed no new policy and no new join. **NULL means
+  inherit**, not "no preference", which is why they are nullable arrays rather
+  than empty ones.
+- **`rpc_find_candidates` v3**, which resolves preferences PER COURSE. This is what
+  makes the feature real rather than decorative: a student who sets "in person" for
+  one class is filtered against that class on that basis, while every other course
+  keeps using the global answer. An `effective` CTE resolves each side's
+  preferences once, so the coalesce cannot be forgotten at one of a dozen
+  comparison sites.
+- **The Profile tab** (`/settings`): photo upload to Supabase Storage that updates
+  the header and every match card in the same navigation, personal details, and
+  the global study preferences. Three independent forms, so a rejected photo does
+  not discard preference edits made in the same visit.
+- **The Courses tab** (`/courses`): a Moodle-style grid of course cards with a
+  colour banner derived from the course code — stable per course, on every
+  student's screen, with no colour column to seed or migrate. Add a course from a
+  degree-scoped picker; drop one behind a two-press confirmation.
+- **The per-course page** (`/courses/[offeringId]`): course facts, the preferences
+  in force, and matches scoped to that course alone — `rpc_find_candidates` has
+  accepted an offering id since Phase 2 precisely so this screen could exist.
+- **"Edit preferences for this course"**, a native `<dialog>` so focus trapping,
+  Escape and the backdrop come from the platform. Every question shows the global
+  answer beneath it, and there is a one-press way back to inheriting.
+- 38 tests: 10 integration proving an override changes who is matched for that
+  course and nothing else, 19 unit for the resolution rules, and 9 e2e across the
+  three screens.
+
+### Changed
+- The last course cannot be dropped. Matching is anchored to a shared course, so a
+  student with none is unmatchable — the same rule step 2 of onboarding enforces.
+  The control is hidden rather than offered and then refused.
+- An override equal to the global answer is stored as **NULL, not a copy**.
+  Otherwise a later change to the global preference would silently skip that
+  course and the student would have no way to find out why.
+- Changing global preferences does **not** overwrite a course that has its own
+  answers, and the Profile tab says so. Without that line a student changes a
+  default, sees one course not move, and concludes the save is broken.
+- `uploadAvatar` moved to `src/features/profile/avatar.ts`, shared by onboarding
+  and the Profile tab rather than duplicated. Two copies of an upload that fails
+  *silently* on a rejected file would be two places for that behaviour to drift,
+  invisibly.
+- `getOnboardingProfile` additionally returns `isDiscoverable` and `degreeName`.
+- Vitest now runs **one test file at a time** with a 90s hook timeout. Every
+  integration suite creates real auth users in the same local Supabase, and a
+  fourth suite was enough to make `createUser` blow the default 5s timeout — a
+  failure that looks like a broken schema and is really contention. Same reason
+  Playwright already runs with a single worker.
+
+### Deviations from the supplied design
+| Design | What was built | Why |
+|---|---|---|
+| Meeting times, room, lecturer, "View syllabus" | Code, faculty, classmate count | The schema has no columns for any of it — design conflicts C8 and C9. Inventing a room for a course whose *name* is already unverified would compound one guess with three more |
+| "Study Groups — join the next session" | Not built | Study groups are conflict C4 and session scheduling C5. A CTA that does nothing is worse than its absence |
+| "Same Section" / "Project Partners" filter chips | Not built | Sections are C9. `intent` exists and could power a "project partners" filter, but a row of chips where one works and three are dead reads as broken |
+| "High Match" badge, `Connect` button | The existing score badge and "Send message" | Both already exist from Phases 2 and 3; a second visual language for the same two actions would be the drift this project has been avoiding |
+| Material Symbols, its own palette and fonts | lucide-react and the Kinetic Learning tokens | The layout is reproduced — breadcrumb, title, sidebar-plus-grid, card shapes. Copying the palette would give the app two colour systems that disagree the first time either changes |
+
+### Known limitations
+- **Saturday and spoken languages are not overridable.** Neither is a property of
+  a course: a student who does not study on Saturday does not study on Saturday
+  for Linear Algebra either.
+- **The override cannot be set from the Courses grid**, only from a course page.
+  The grid marks which courses carry one.
+- **Availability is still edited through the onboarding step.** The Profile tab
+  links to it rather than duplicating the grid.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 266 tests, production build — twice in a
+row, to confirm the parallelism fix. Playwright: 54 e2e tests across chromium and
+mobile-safari.
+
+The override was verified end to end rather than assumed: the integration suite
+sets "in person" on one course and asserts the remote-only classmate disappears
+from that course and stays visible on the other, and the e2e suite does the same
+thing through the modal, checks the grid's "Custom here" badge, then clears it and
+watches the classmate come back.
+
+## [0.13.0] — 2026-08-10
+
+Renamed the Requests tab to Messages.
+
+### Changed
+- **"Requests" is now "Messages"** in the navigation, the page title, the heading
+  and the empty state. The name came from design conflict C2, where the tab stood
+  in for an accept/decline flow that did not exist yet; once it held real
+  conversations, "Requests" described something the screen no longer did.
+- **The route moved with it**, `/requests` → `/messages`. A tab labelled Messages
+  pointing at `/requests` is the kind of drift that turns into a bug later, and
+  the rename frees `/requests` for the connection-request flow decision D2
+  actually describes — a genuinely different feature, still unbuilt.
+- The tab icon changed from an inbox to a speech bubble, for the same reason.
+
+### Verification
+`npm run verify` passes; 36 e2e tests still pass after the route change.
+
+## [0.12.0] — 2026-08-10
+
+Phase 3 — conversations, the Smart Icebreaker, and realtime chat.
+
+### Added
+- **`conversations` and `messages`**, with `is_read` on messages. One
+  conversation per PAIR rather than per course: a connection request is
+  per-course because the unit of interest is "a partner for Computational
+  Models", but a conversation is between two people, and splitting the same two
+  students into one thread per shared course would fragment a single human
+  exchange. The course they matched on is recorded on the row instead, so the
+  chat header can still name it.
+- **RLS restricted to the two participants** — a stricter rule than anywhere
+  else in the app. Elsewhere the condition is "your university"; here that is
+  necessary but nowhere near sufficient, since every classmate shares a
+  university and none of them may read the thread. 24 integration tests attack
+  it as a real student: an outsider reading it, writing into it, marking it read,
+  a participant forging a message as the other person, and a participant editing
+  what was said.
+- **`POST /api/icebreaker`** — creates the conversation, generates the opener
+  with the specified prompt, and inserts it as the first message. Authorisation
+  is the insert policy, not the handler: the row goes in through the caller's own
+  client, so a student can only open a thread with someone the matches list would
+  have shown them.
+- **The Requests tab** (`/requests`) listing conversations with previews, unread
+  pills and relative times, and **the chat room** (`/requests/[conversationId]`)
+  built from the supplied design.
+- **Realtime.** Both sides see a new message without a refresh, and receipts flip
+  to "Read" when the other person opens the thread. Verified in a browser with
+  two real signed-in students.
+- **The unread badge** over the Requests tab: a red circle with a white count,
+  seeded server-side so it is right on first paint, then kept live by the same
+  subscription. Hidden completely at zero — not a zero in a circle.
+- **Mark as read on open**, which clears the badge and stamps `read_at`.
+- 41 tests: 24 RLS, 17 for the chat formatting and the icebreaker's pure parts,
+  and 5 e2e including two that prove a message arrives with no reload.
+
+### Changed
+- The match-card button is now **"Send message"**. It was "Send smart
+  icebreaker", which promised which kind of opener would be written — the button
+  sends a model-written one when a model is configured and a hand-built one when
+  not, and the label should not claim which.
+- `messages.model` and `is_icebreaker` record provenance, and the chat labels a
+  generated opener "AI ICEBREAKER". The recipient is told a message was drafted
+  rather than typed — the same honesty rule the course catalog follows. The
+  fallback opener is deliberately NOT labelled: a sentence assembled from two
+  facts the sender already knew is their own message, and calling it AI would be
+  a lie in the other direction.
+
+### Deviations from the supplied design
+| Design | What was built | Why |
+|---|---|---|
+| Green dot and "Online" | Degree and course code | There is no presence tracking (conflict C7). A green dot that means nothing is worse than none: a student would wait for a reply that was never coming |
+| Material Symbols icon font | lucide-react | Already a dependency; a second icon font is ~100 KB of render-blocking request for glyphs we have |
+| "Schedule Session" quick action | Not built | Session scheduling is conflicts C5/C7, still unresolved. A control that silently does nothing is worse than its absence |
+| Its own colour tokens and fonts | The existing Kinetic Learning tokens | Layout, spacing and bubble shapes are reproduced exactly, including the asymmetric corner that makes direction readable without reading the text. Copying the literal palette would have given the app two disagreeing colour systems |
+| "AI Icebreaker" as a card with "Send Suggestion" | Label on the message itself | The specification is that the API sends the opener, so by the time the student sees the thread it is already sent. A "send" button on a sent message would be a lie |
+
+### Fixed
+- A shared Realtime channel name crashed the app. `createBrowserClient`
+  memoises its client and that client keeps one channel per name, so the second
+  badge to mount called `.on()` on a channel the first had already subscribed —
+  which throws and took the whole page down. Channel names are now unique per
+  component instance. Found by running it, not by reading it.
+- The mobile nav dimmed inactive tabs with `opacity-60` on the link, which faded
+  the unread badge with everything else — on the one tab where it matters, since
+  Requests is inactive exactly when a student needs to notice something arrived.
+  The dimming now applies to the icon and label only.
+- A screen reader announced the badge before the label ("2 unread messages,
+  Requests"). The count is now a hook, so the visual circle sits over the icon
+  and the spoken sentence comes after the label.
+
+### Known limitations
+- **A thread is not paginated.** Fine for two study partners; it would not be for
+  a year of history.
+- **The fallback opener is not a model's work**, and reads like it. That is the
+  cost of working without an API key, which is how this will be graded.
+- **No typing indicator, presence, or attachments.** None were specified, and
+  each needs its own store.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 238 tests, production build.
+Playwright: 36 e2e tests across chromium and mobile-safari.
+
+Verified by hand in the browser with two signed-in students: pressing "Send
+message" opened a thread with an opener in it; a message sent by the other
+student appeared with no reload; the badge went 0 → 2 live and cleared on
+opening; read receipts moved to "Read" only for the recipient's side.
+
+## [0.11.0] — 2026-08-09
+
+Step 2 always has courses to pick, and now requires one.
+
+### Added
+- **A placeholder catalog per degree**, so `/api/courses` never returns an empty
+  list for a degree it recognises. With no API key — the state the graders will
+  run in — it stores the stock curriculum for the subject instead: Law gets
+  Introduction to Law, Constitutional Law, Contract Law and nine more. Keyword
+  matching covers every seeded degree and every degree a new institution is
+  provisioned with; a combined degree ("Economics & Computer Science") draws from
+  both subjects, because those students really do sit in both sets of lectures.
+- `course_source` value **`placeholder`**, distinct from `ai_generated`. Both are
+  unverified, but they are different claims: a generated list is a model's
+  attempt at *this* university's syllabus, a placeholder list is a generic
+  curriculum that was never about this university at all. Keeping them apart is
+  what makes it possible to find and replace the placeholders once a key is
+  configured. The picker words the warning differently for each.
+- 13 unit tests for the catalog, written as invariants over every degree the app
+  can offer: never empty, always passes the same schema a model's reply must
+  pass, and codes unique *across* degrees — `courses` is unique on
+  `(university_id, code)` with one `degree_id` per row, so a shared code would be
+  inserted once and silently missing from the second degree's list.
+
+### Changed
+- **Continue on step 2 is disabled until a course is selected**, with the reason
+  beside it ("Choose a course first — we match you on the courses you share")
+  and wired to the button through `aria-describedby`, so a disabled control is
+  never a dead end with no explanation. The server action already enforced the
+  same rule; this makes it visible before it is broken.
+- The unverified warning is now read off the courses themselves rather than the
+  API response, so a catalog rendered from the database on a later visit still
+  carries it.
+- The model is no longer called when no key is configured, so an unconfigured
+  deployment stops writing `not_configured` rows to `ai_generation_log` — which
+  had been consuming the student's daily generation cap for calls that never
+  happened.
+- Course buttons carry an explicit `aria-label` ("Constitutional Law (LAW-102)").
+  The name and code sit in adjacent spans and were announced run together.
+- `generate.ts` split: the schema moved to `catalog-schema.ts`, which has no
+  `server-only` marker, so the placeholder catalog and its tests can use it.
+
+### Removed
+- The "Automatic course lookup is not switched on yet" dead end.
+
+### Known limitation
+- The placeholder path is not rate-limited, since it costs nothing and its
+  upserts are idempotent. It is reachable only when a degree's catalog is empty,
+  which stops being true after the first call.
+
+### Verification
+`npm run verify` passes: lint, typecheck, 180 tests, production build.
+Playwright: 26 e2e tests pass across chromium and mobile-safari, including a run
+from a deliberately emptied Law catalog that proves the fallback stores and
+returns a list rather than leaving the student stuck.
+
+## [0.10.0] — 2026-08-09
+
+The Smart Course API, the respecified step 1, and the removal of study tracks.
+
+### Added
+- **`POST /api/courses` — the Smart Course API.** Checks the database for the
+  chosen degree's catalog and, only on a miss, asks a model for that degree's
+  typical syllabus, then saves the result as ordinary FK-linked `courses` and
+  current-term `course_offerings`. Step 2 shows "Fetching syllabus…" while it
+  runs. Generated courses carry `source = 'ai_generated'`, and the picker states
+  plainly that the list is unverified — a model's guess at a university's
+  syllabus is plausible, not authoritative.
+- Guards on that endpoint, because an LLM call behind a public route is where
+  this could go wrong: the degree is read through the **caller's** client so RLS
+  is the tenancy check; requests are rate-limited per user from
+  `ai_generation_log`; the model's JSON is validated with zod (≤40 courses,
+  deduplicated by code) and discarded whole if any entry is invalid; upserts use
+  `onConflict: 'university_id,code'` so a repeat request is idempotent. With no
+  provider key configured the endpoint returns an empty catalog and an
+  explanation — onboarding still completes.
+- An e2e regression test that signs up, picks Law, and asserts no Computer
+  Science course appears *and* that the student can still continue.
+
+### Changed
+- **Step 1 is now** University (read-only, from the email domain), Degree level,
+  Degree, Year of study, City, Date of birth. Choosing a degree is what triggers
+  the course fetch.
+- Section 11 of the design doc records decisions D15–D17.
+
+### Removed
+- **Study tracks, completely** — UI, React form state, schema. Every track had
+  exactly one same-named degree above it, so the level carried no information
+  while giving two fields that could disagree; `degree_level` + `degree_id`
+  classify a student on their own. Migration
+  `20260809130000_remove_study_tracks.sql` drops the three track triggers,
+  `profiles.study_track_id`, `course_tracks` and `study_tracks`, and rebuilds
+  `rpc_find_candidates` without `track_name`. It refuses to run while any course
+  still derives its degree through `course_tracks`, which would orphan those
+  courses. `03_study_tracks.sql` became `03_degrees.sql`.
+
+### Fixed
+- **Course filtering (critical).** Choosing Law listed Computer Science courses.
+  `/api/courses` was already filtering on `degree_id` correctly and was not the
+  cause: the page read the catalog with `getCurrentTermOfferings()`, which
+  filtered only on `terms.is_current` and so returned the whole university
+  catalog. Because that list was non-empty, the picker's `offerings.length === 0`
+  guard was false and the course API was **never called** — the bug was hiding
+  the condition that triggers the generator. Replaced with
+  `getDegreeOfferings(degreeId)`, which constrains `courses.degree_id`; search
+  narrows that degree-scoped list rather than reaching across degrees.
+- The requirement to pick at least one course is now counted per **degree**, so a
+  Law student with an empty catalog is not forced to enroll in a CS course to
+  leave step 2.
+- Name placeholder was a real name from testing; now a generic "Jane Doe".
+- Two misleading strings in the empty state: the picker no longer offers "search
+  instead" when there is nothing to search, nor asks for a pick when the catalog
+  is empty.
+
+### Verification
+`npm run verify` passes: lint, typecheck, unit and integration tests, production
+build. Playwright: 26 e2e tests pass across chromium and mobile-safari.
+
 ## [0.9.0] — 2026-08-09
 
 Schema for the reworked onboarding, matching algorithm v2, and the dashboard

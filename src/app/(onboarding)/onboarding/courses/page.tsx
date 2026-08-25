@@ -2,9 +2,11 @@
  * File:        src/app/(onboarding)/onboarding/courses/page.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: Step 2 — the course picker.
- * Version:     0.6.0
+ * Version:     0.11.0
  *
  * Modifications:
+ *     0.11.0 - 2026-08-09 - Placeholder catalog fallback
+ *     0.10.0 - 2026-08-09 - Degree-scoped course read; Smart Course API
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  */
 
@@ -13,10 +15,10 @@ import { redirect } from 'next/navigation';
 
 import { CoursePicker } from '@/components/onboarding/course-picker';
 import {
-  getCurrentTermOfferings,
+  getDegreeOfferings,
+  getDegrees,
   getMyEnrolledOfferingIds,
   getOnboardingProfile,
-  getStudyTracks,
 } from '@/features/onboarding/queries';
 
 export const metadata: Metadata = { title: 'Your courses' };
@@ -29,20 +31,20 @@ export const metadata: Metadata = { title: 'Your courses' };
 export default async function OnboardingCoursesPage() {
   const profile = await getOnboardingProfile();
 
-  // The track drives the default list, so step 1 has to be done first. A
+  // The degree drives the course list, so step 1 has to be done first. A
   // student can always type this URL directly.
-  if (!profile.studyTrackId) {
+  if (!profile.degreeId) {
     redirect('/onboarding');
   }
 
-  const [offerings, tracks, enrolled] = await Promise.all([
-    getCurrentTermOfferings(),
-    getStudyTracks(),
+  const [offerings, degrees, enrolled] = await Promise.all([
+    getDegreeOfferings(profile.degreeId),
+    getDegrees(),
     getMyEnrolledOfferingIds(),
   ]);
 
-  const trackName =
-    tracks.find((track) => track.id === profile.studyTrackId)?.name ?? 'Your track';
+  const degreeName =
+    degrees.find((degree) => degree.id === profile.degreeId)?.name ?? 'your degree';
 
   return (
     <>
@@ -50,14 +52,13 @@ export default async function OnboardingCoursesPage() {
         Which courses are you taking?
       </h1>
       <p className="text-on-surface-variant mt-2 mb-8 text-body-md text-pretty">
-        Every course on your track this semester is here, whatever year you are
-        in. Taking something outside your track? Search for it.
+        
       </p>
 
       <CoursePicker
         offerings={offerings}
-        studyTrackId={profile.studyTrackId}
-        trackName={trackName}
+        degreeId={profile.degreeId}
+        degreeName={degreeName}
         defaultSelected={enrolled}
       />
     </>

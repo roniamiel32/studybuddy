@@ -1,0 +1,35 @@
+<!--
+  File:        supabase/templates/confirmation.html
+  Authors:     Roni Amiel & Eden Bitran
+  Description: The sign-up email.
+
+               IT CARRIES A CODE, NOT A LINK, and that is the whole reason this
+               template exists — the stock one sends {{ .ConfirmationURL }}, and
+               a student who follows a link never comes back to the tab they
+               registered in. A six-digit code is typed into the page that is
+               already open and already knows which address it is waiting on.
+
+               {{ .Token }} is what makes the code appear at all. Supabase mints
+               one for every confirmation regardless; omitting it from the
+               template is what normally leaves it unused and invisible.
+  Version:     0.23.0
+
+  Modifications:
+      0.23.0 - 2026-08-12 - Initial implementation (Phase 9A)
+-->
+<div style="font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #1c1b1f;">
+  <h1 style="font-size: 22px; margin: 0 0 8px;">Confirm your address</h1>
+
+  <p style="font-size: 15px; line-height: 1.6; margin: 0 0 24px; color: #49454f;">
+    Enter this code on StudyBuddy to finish setting up your account.
+  </p>
+
+  <p style="font-size: 34px; letter-spacing: 10px; font-weight: 700; margin: 0 0 24px; padding: 16px 0; text-align: center; background: #f4f0f7; border-radius: 12px;">
+    {{ .Token }}
+  </p>
+
+  <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #79747e;">
+    The code expires in an hour. If you did not sign up for StudyBuddy, you can ignore
+    this email — no account will be created without it.
+  </p>
+</div>

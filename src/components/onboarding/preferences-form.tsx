@@ -4,9 +4,10 @@
  * Description: Step 3 — how the student likes to study. These become the
  *              profile's DEFAULT preferences; per-course overrides are a
  *              planned extension.
- * Version:     0.6.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Study format multi-select
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  */
 
@@ -18,6 +19,7 @@ import {
   ENVIRONMENT_OPTIONS,
   GROUP_SIZE_OPTIONS,
   LANGUAGE_OPTIONS,
+  STUDY_FORMAT_OPTIONS,
   TIME_BLOCK_OPTIONS,
 } from '@/config/onboarding';
 import { savePreferences } from '@/features/onboarding/actions';
@@ -28,6 +30,7 @@ export interface PreferencesFormProps {
     studyEnvironments: string[];
     groupSizes: string[];
     studiesOnSaturday: boolean | null;
+    studyFormats: string[];
     spokenLanguages: string[];
   };
 }
@@ -54,9 +57,15 @@ export function PreferencesForm({ defaults }: PreferencesFormProps) {
       />
 
       <ChoiceGroup
+        name="studyFormats"
+        legend="How do you want to meet?"
+        options={STUDY_FORMAT_OPTIONS}
+        defaultValue={defaults.studyFormats.length > 0 ? defaults.studyFormats : ['in_person']}
+      />
+
+      <ChoiceGroup
         name="studyEnvironments"
         legend="How do you like to work?"
-        description="Both is a perfectly good answer."
         options={ENVIRONMENT_OPTIONS}
         defaultValue={defaults.studyEnvironments}
       />
@@ -71,7 +80,6 @@ export function PreferencesForm({ defaults }: PreferencesFormProps) {
       <ChoiceGroup
         name="studiesOnSaturday"
         legend="Do you study on Saturday?"
-        description="Shabbat is the one day the Israeli week reliably differs on, so it is worth asking outright."
         options={[
           { value: 'yes', label: 'Yes', icon: '✅' },
           { value: 'no', label: 'No', icon: '🚫' },
@@ -87,7 +95,6 @@ export function PreferencesForm({ defaults }: PreferencesFormProps) {
       <ChoiceGroup
         name="spokenLanguages"
         legend="Which languages can you study in?"
-        description="A partner who wants Hebrew and one who wants English are a poor match however well their timetables line up."
         options={LANGUAGE_OPTIONS}
         defaultValue={defaults.spokenLanguages.length > 0 ? defaults.spokenLanguages : ['he']}
       />

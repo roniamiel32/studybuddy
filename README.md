@@ -1,6 +1,6 @@
 # StudyBuddy
 
-Version **0.9.0** — ranked matches with strict format filtering and proximity bonuses.
+Version **0.18.0** — student profiles, with study connections you can only earn by being rated well.
 
 AI-assisted matchmaking that connects university students who share a course,
 have overlapping free time, and study in compatible ways. Built as the final
@@ -8,7 +8,7 @@ project for the Full-Stack course at Reichman University.
 
 **Authors:** Roni Amiel & Eden Bitran
 
----
+----
 
 ## Status
 
@@ -21,7 +21,13 @@ project for the Full-Stack course at Reichman University.
 | 1b | Row Level Security | ✅ 33 policies, 2 immutability triggers, 35 adversarial tests |
 | 1c | Auth & onboarding | ✅ Email+password, route guards, 4-step onboarding, avatars, dashboard |
 | 2 | Rule-based matching | ✅ Scoring RPC, matches dashboard, demo seed |
-| 3 | AI re-rank & icebreaker | ⬜ Not started |
+| 2.5 | Smart Course API | ✅ Per-degree catalog: from the database, a model, or a stock curriculum — never empty |
+| 3 | Chat & Smart Icebreaker | ✅ Conversations, realtime messages, unread badge, generated openers |
+| — | Messages tab | ✅ Renamed from "Requests", freeing that name for the D2 request flow |
+| 4 | Profile & Courses tabs | ✅ Settings, course grid, per-course page, preference overrides |
+| 5 | Study groups | ✅ Groups per course, join requests, admin review, group chat |
+| 6 | Profiles & ratings | ✅ Profile pages, shared context, positive connections, private negative feedback |
+| 3b | AI match re-rank | ⬜ Not started |
 | 4a | WhatsApp handoff | ⬜ Not started |
 | 4c | Calendar sync (D7) | ⬜ Not started — stretch goal |
 
@@ -30,7 +36,9 @@ project for the Full-Stack course at Reichman University.
 - **Frontend:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4,
   shadcn/ui
 - **Backend:** Supabase — PostgreSQL, Auth, Row Level Security
-- **AI:** OpenAI / Gemini — match re-ranking and icebreaker generation
+- **AI:** Anthropic Messages API — course-catalog generation and conversation
+  openers; match re-ranking to follow
+- **Realtime:** Supabase Realtime (postgres_changes) for chat and the unread badge
 - **Testing:** Vitest + Testing Library (unit/integration), Playwright (e2e)
 - **Deployment:** Vercel
 

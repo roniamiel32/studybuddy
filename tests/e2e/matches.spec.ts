@@ -7,9 +7,10 @@
  *              Creates its own pair of students rather than relying on
  *              `npm run seed:students`, so the test passes on a freshly reset
  *              database and cannot silently depend on demo data.
- * Version:     0.8.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Assertions updated for degrees
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
  */
 
@@ -21,7 +22,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const PASSWORD = 'matches-e2e-1234';
 
 const RUNI = '11111111-1111-4111-8111-111111111111';
-const RUNI_CS_TRACK = '7ac00001-0000-4000-8000-000000000001';
+const RUNI_CS_DEGREE = 'de600001-0000-4000-8000-000000000001';
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -57,7 +58,7 @@ async function makeStudent(email: string, name: string): Promise<string> {
     .from('profiles')
     .update({
       full_name: name,
-      study_track_id: RUNI_CS_TRACK,
+      degree_id: RUNI_CS_DEGREE,
       year_of_study: 2,
       is_discoverable: true,
       onboarding_completed_at: new Date().toISOString(),
@@ -113,7 +114,7 @@ test.describe('matches dashboard', () => {
   test('shows a real classmate with a real score', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('University email').fill(viewerEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
@@ -126,7 +127,7 @@ test.describe('matches dashboard', () => {
     // shared days spelled out rather than a raw minute count.
     await expect(page.getByText(/% match/)).toBeVisible();
     await expect(page.getByText('Sun, Tue · 8h a week')).toBeVisible();
-    await expect(page.getByText('CS-3040').first()).toBeVisible();
+    await expect(page.getByText('Full-Stack Web Development').first()).toBeVisible();
   });
 
   test('explains why a match was made when asked', async ({ page }) => {
@@ -136,7 +137,7 @@ test.describe('matches dashboard', () => {
 
     await page.goto('/login');
     await page.getByLabel('University email').fill(viewerEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
@@ -149,17 +150,69 @@ test.describe('matches dashboard', () => {
   test('navigation reflects where you are', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('University email').fill(viewerEmail);
-    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    // The design's "Chat" tab is replaced by Requests (design conflict C2).
-    const nav = page.getByRole('navigation', { name: 'Main' }).first();
-    await expect(nav.getByRole('link', { name: 'Match' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
-    await expect(nav.getByRole('link', { name: 'Requests' })).toBeVisible();
+    /*
+     * The menu holds Courses, Messages and Notifications. Groups was retired in
+     * Phase 9D — its requests went to Notifications and its chats to Messages —
+     * so its absence is asserted rather than its presence.
+     *
+     * Match is the call to action and deliberately NOT in the nav landmark, so it
+     * is asserted on the header, which is also what proves the redesign moved it
+     * rather than duplicating it.
+     */
+    /*
+     * `.last()` rather than `.first()`: both bars are in the DOM at every width and
+     * only one is displayed, and the mobile bar comes second. Asserting visibility
+     * against the hidden one would fail for a reason that has nothing to do with
+     * the navigation being right.
+     */
+    const nav = page
+      .getByRole('navigation', { name: 'Main' })
+      .filter({ visible: true })
+      .first();
+    await expect(nav.getByRole('link', { name: 'Courses' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Groups/ })).toHaveCount(0);
+    await expect(nav.getByRole('link', { name: /Messages/ })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Notifications/ })).toBeVisible();
+    /* The design's "Chat" tab is called Messages here (design conflict C2). */
     await expect(nav.getByRole('link', { name: 'Chat' })).toHaveCount(0);
+
+    /*
+     * Match lives in a different place on each breakpoint, and that is the design
+     * rather than an accident: a fixed bottom bar has no room for a call-to-action
+     * pill, so on a phone Match stays a tab. The invariant that holds either way is
+     * that there is exactly one Match link and it knows it is the current page.
+     */
+    const header = page.getByRole('banner');
+    const isDesktop = (page.viewportSize()?.width ?? 0) >= 768;
+    const match = isDesktop
+      ? header.getByRole('link', { name: 'Match' })
+      : page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Match' });
+
+    await expect(match).toHaveAttribute('aria-current', 'page');
+
+    /* On desktop it is deliberately outside the nav landmark. */
+    if (isDesktop) {
+      await expect(nav.getByRole('link', { name: 'Match' })).toHaveCount(0);
+    }
+
+    /* Profile and Sign out live in the user menu now, not loose in the header. */
+    await expect(header.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+    /*
+     * The <summary> IS the control, so it is clicked directly. Not by role:
+     * <details>/<summary> is exposed inconsistently across engines, and an sr-only
+     * label inside it would sit behind the avatar and be unclickable.
+     */
+    await header.locator('summary').click();
+    /*
+     * `exact`, because the stadium's own link is labelled "Your profile, <name>"
+     * since it started leading to the profile directly — a substring match now
+     * finds two links and fails on strict mode rather than on the assertion.
+     */
+    await expect(header.getByRole('link', { name: 'Profile', exact: true })).toBeVisible();
+    await expect(header.getByRole('button', { name: 'Sign out' })).toBeVisible();
   });
 });

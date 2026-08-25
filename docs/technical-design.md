@@ -6,9 +6,34 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.5.0
+Version:     0.11.0
 
 Modifications:
+    0.11.0 - 2026-08-10 - Added section 15: Phase 6 as built — profiles and the
+                          rating system, decisions D35-D39, why the privacy rule
+                          lives in a SELECT policy, and the age disclosure
+    0.10.0 - 2026-08-10 - Added section 14: Phase 5 as built — study groups,
+                          decisions D30-D34, why approval is one SQL function,
+                          the discovery-versus-privacy split, and the RLS bug a
+                          test found in the groups read policy
+    0.9.0 - 2026-08-10 - Added section 13: Phase 4 as built — per-course
+                         preference overrides, decisions D26-D29, why the
+                         overrides live on `enrollments`, the two places the
+                         resolution rule is implemented, and the deviations from
+                         the course-dashboard design
+    0.8.0 - 2026-08-10 - Added section 12: Phase 3 as built — conversations and
+                         messages, decisions D21-D25, why the participation rule
+                         is stricter than tenancy, what Realtime does and does
+                         not guarantee, and the deviations from the chat design
+    0.7.0 - 2026-08-09 - Section 11.7: why the API never returns an empty
+                         catalog, decisions D18-D20 (the placeholder curriculum,
+                         its own provenance value, and the course requirement on
+                         step 2), and the limits of all three
+    0.6.0 - 2026-08-09 - Added section 11: the Smart Course API and decisions
+                         D15-D17, why the Law course-filtering bug was a
+                         read-path bug rather than an API one, the tenancy and
+                         cost controls on model-backed generation, step 1 as
+                         respecified, and the removal of study tracks
     0.5.0 - 2026-08-05 - Added section 10: the matching engine as built, why
                          rpc_find_candidates is SECURITY DEFINER and what that
                          obliges, the implemented score, cold-start seeding, and
@@ -1352,17 +1377,28 @@ is a good sign the hybrid availability decision matches how students think.
 | # | Decision | Consequence |
 |---|----------|-------------|
 | D8 | **Email + password** authentication, no magic link and no SMS OTP | The university email domain is the only enrolment check. Local Supabase has `enable_confirmations = false`, so signup returns a session immediately; **turn confirmations on before any real deployment**, or anyone can register with someone else's address. |
-| D9 | **Study track is structural**, not free text | New `study_tracks` and `course_tracks` tables; `profiles.degree_program` (text) replaced by `profiles.study_track_id`. |
-| D10 | The course picker is **never filtered by year of study** | Students extend degrees and take courses out of sequence. The picker lists the whole track, and search reaches the entire current-term catalog for off-track courses. |
+| D9 | ~~**Study track is structural**, not free text~~ — **superseded by D17 (§11.2)** | Introduced `study_tracks` and `course_tracks`, replacing `profiles.degree_program` (text) with `profiles.study_track_id`. The structural half was right and survives in `degrees`; the extra level did not, and was removed in v0.10.0. |
+| D10 | The course picker is **never filtered by year of study** | Students extend degrees and take courses out of sequence. The picker lists the whole **degree** ("track" as written here; see D17), and search narrows that degree-scoped list — deliberately not the whole university, which was the Law/CS bug fixed in v0.10.0 (§11.3). |
 | D11 | Phone number is collected **at the first connection request**, not during onboarding | Asking a stranger for their phone number before showing any value is the classic drop-off point, and the consent notice lands better at the moment the number is about to be used. **Phase 4a owns this**; the WhatsApp handoff cannot ship without it. |
 
-### 9.2 Why `course_tracks` is many-to-many
+### 9.2 Why `course_tracks` was many-to-many
+
+> **Superseded in v0.10.0.** `course_tracks` was dropped with the rest of the
+> track level (D17, §11.6); a course now has one `degree_id`. Kept here because
+> the problem it solved has not gone away — see the note below.
 
 Linear Algebra genuinely belongs to Computer Science, Data Science and
 Economics. Duplicating it per track would split the matching pool for that
-course three ways — the exact opposite of what the product exists to do. The
-seed deliberately maps shared maths courses to several tracks so this case is
-exercised rather than theoretical.
+course three ways — the exact opposite of what the product exists to do.
+
+**This is now a known limitation, not a solved problem.** `courses.degree_id` is
+single-valued, so a course shared between degrees has to be duplicated, and two
+students taking the same Linear Algebra from different degrees will not match on
+it. The honest trade was accepting that in exchange for removing a level that
+carried no information — and the fix, when it is needed, is a
+`course_degrees` join table, which reintroduces the many-to-many at the level
+that actually exists. Not done now because no degree other than the two seeded
+Computer Science ones has a hand-written catalog to share.
 
 ### 9.3 Preference questions, as specified
 
@@ -1520,7 +1556,7 @@ demonstrated.
 | "Send Smart Icebreaker" | Rendered, **disabled**, with a note | Requests are Phase 3a and the icebreaker Phase 3c. A control that silently does nothing is worse than one that says why it is off |
 | "View Profile" button | Expands the card in place to show *why* this match | There is no profile route yet, and "why this match" is the question a student actually has at that moment |
 | Title "AI-Powered Matches" | "Your matches" | The ranking is entirely rule based at this phase. The AI re-rank is 3b; claiming it now would be a promise the screen cannot keep |
-| "Chat" nav tab | "Requests" | Design conflict C2, resolved earlier |
+| "Chat" nav tab | "Requests", renamed to "Messages" in v0.13.0 | Design conflict C2. "Requests" stood in for the unbuilt accept/decline flow; once the tab held real conversations that name described something it no longer did, and renaming it frees "Requests" for the D2 flow itself |
 | Tailwind config block, `.clay-*` CSS | Rebuilt as `@layer components` classes **derived from the theme tokens** | Copying the literal rgba values would let `.clay-card` and `shadow-clay` disagree. Now changing the brand purple updates both |
 
 ### 10.6 Still open
@@ -1532,3 +1568,636 @@ demonstrated.
 - The e2e suite showed one webkit timing flake in the form-preservation test
   during a full run; it passes in isolation and on re-run. Worth watching rather
   than declaring stable.
+
+---
+
+## 11. The Smart Course API, and the removal of study tracks (v0.10.0)
+
+### 11.1 The problem this phase solves
+
+Step 2 can only work if the institution's catalog exists. It does for the two
+seeded universities; for every other degree, and for every university the app
+provisions on first sight of an academic domain (D12), the catalog is empty and
+the student has nothing to pick. Asking them to type course names free-form
+would produce unmatched strings — two students in the same course entering
+"Intro to CS" and "Introduction to Computer Science" would never match, which
+defeats the primary matching signal.
+
+### 11.2 Decisions taken in this phase
+
+**D15 — the course catalog is generated on demand, per degree, and persisted as
+real rows.** `POST /api/courses { degreeId }` checks the database first; only on
+a miss does it ask a model for the degree's typical syllabus, then writes the
+courses and current-term offerings as ordinary FK-linked rows. The generated
+courses are not a separate "AI" kind of course: enrollments, matching and the
+course dashboard all treat them identically. What makes them distinguishable is
+`courses.source = 'ai_generated'` and `generated_at`.
+
+**D16 — generated catalogs are labelled in the UI, every time.** A model's guess
+at a university's syllabus is plausible, not authoritative; it may name courses
+that do not exist. The picker shows a standing notice that the list was suggested
+automatically and is unverified. This is the same principle as D14's refusal to
+draw invented university crests — the app must not assert something false about
+a real institution.
+
+**D17 — study tracks are removed; `degrees` is the only academic
+classification.** Tracks were introduced in Phase 1c as the thing a student
+picks, and §9.2 built `course_tracks` as many-to-many so a course could belong to
+several. In practice every track had exactly one same-named degree above it
+(v0.9.0 created them by promotion), so the level carried no information and gave
+two fields that could disagree. Degree level lives on `degrees`, so
+`degree_level` + `degree_id` fully classify a student.
+
+### 11.3 Why the Law bug was a read-path bug, not an API bug
+
+Reported: choosing Law in step 1 still listed Computer Science courses. It is
+worth recording that `/api/courses` was already filtering on `degree_id`
+correctly and was never the cause.
+
+The step 2 page read the catalog with `getCurrentTermOfferings()`, which filtered
+only on `terms.is_current` — so it returned the **whole university** catalog
+regardless of degree. Two consequences, one visible and one not:
+
+1. A Law student saw Computer Science courses.
+2. That list was non-empty, so the picker's `offerings.length === 0` guard was
+   false and `/api/courses` was **never called**. The generator looked broken
+   because the bug was hiding the condition that triggers it.
+
+The fix is `getDegreeOfferings(degreeId)`, which joins `courses` and constrains
+`courses.degree_id`. Client-side search narrows that same degree-scoped list and
+deliberately does not reach across degrees, which would reintroduce the bug in a
+subtler form. There is now an e2e test that signs up, picks Law, and asserts both
+that no CS course appears and that the student can still continue — the escape
+hatch matters, because a degree with no catalog must not trap anyone on step 2.
+
+### 11.4 Tenancy and cost, which are the two ways this endpoint could go wrong
+
+- **Tenancy:** the degree is read through the *caller's* Supabase client, so RLS
+  is the authorisation check rather than a hand-written `university_id`
+  comparison. A student cannot generate — or read — into another university's
+  degree. Writes then use elevated rights, since students have no insert
+  privilege on `courses`.
+- **Cost and abuse:** requests are recorded in `ai_generation_log` with
+  `task: 'course_generation'` and rate-limited per user from that table, so a
+  loop in a client cannot bill the project for an unbounded number of model
+  calls. Upserts use `onConflict: 'university_id,code'`, making a repeat request
+  idempotent instead of duplicating a catalog.
+- **Bad output:** the model's JSON is parsed against a zod schema (≤40 courses,
+  deduplicated by code) and discarded **whole** if any entry is invalid. A
+  partially-written catalog is worse than none, because the empty state is what
+  triggers a retry.
+- **No provider configured:** returns an empty catalog and a plain explanation,
+  never an error page. Onboarding must complete without an API key — a marker
+  requirement, since the graders will run this without our credentials.
+
+### 11.5 Step 1, as respecified
+
+Now: University (read-only, derived from the domain), Degree level, Degree, Year
+of study, City, Date of birth. Degree level filters the degree list. City and DOB
+feed the v0.9.0 proximity and age-gap bonuses; DOB is written to
+`profile_private`, so the date itself is never readable by classmates.
+
+The name field's placeholder is generic ("Jane Doe"). It had been a real name
+from testing, which reads to any other student as though the app expected them
+to be someone else.
+
+### 11.6 What removing tracks required
+
+Migration `20260809130000_remove_study_tracks.sql`, in order: a `do $$` guard
+that **refuses to run** while any course still derives its degree through
+`course_tracks` (dropping it first would orphan those courses); the three
+track-related triggers and their functions; `profiles.study_track_id`;
+`course_tracks`, then `study_tracks`; and a rebuild of `rpc_find_candidates`
+without `track_name`. `create or replace function` cannot change a return type,
+so the drop is explicit.
+
+`03_study_tracks.sql` became `03_degrees.sql` — 14 degrees, one of them a
+master's. Only Computer Science (Reichman) and the TAU degree carry courses; the
+rest are deliberately left empty, so the Smart Course API is exercised by the
+normal path rather than only in tests.
+
+### 11.7 Never an empty step 2 (v0.11.0)
+
+The Smart Course API could still hand a student an empty list — when no API key
+was configured, when the model failed, or when the daily cap was spent. The UI
+said so politely ("automatic course lookup is not switched on yet") and that was
+the end of the road.
+
+That is not a neutral outcome. Every downstream feature is built on shared
+courses: the score, the ranking, the reason printed on a match card. A student
+who leaves step 2 with no courses is unmatchable, and steps 3 and 4 cannot
+recover it. An empty catalog is a dead end dressed as a message.
+
+**D18 — when there is no model, store the stock curriculum for the degree.**
+`placeholderCatalog()` matches the degree name against a table of subjects and
+returns up to twelve conventional courses for it. Handwritten rather than
+generated on purpose: a fixed list costs nothing, is identical on every machine,
+is inspectable in review, and lets the whole flow be demonstrated and tested
+without an API key — which the graders will not have.
+
+**D19 — a placeholder is its own provenance value, not a kind of AI output.**
+`course_source` gained `'placeholder'` alongside `'ai_generated'`. Both are
+unverified and both are labelled in the UI, but they are different claims: a
+generated list is a model's attempt at *this* institution's syllabus, while a
+placeholder list is a generic curriculum that was never about this institution.
+Collapsing them would make it impossible to find and replace the placeholders
+later, once a key is configured, and would put the wrong sentence in front of the
+student. The picker words the two warnings differently.
+
+Three details worth recording, because each is a way this could have gone wrong:
+
+- **Codes are prefixed per degree** (`LAW-101`, `BCS-101`). `courses` is unique on
+  `(university_id, code)` and a row has one `degree_id`, so a code shared between
+  two degrees would be inserted once and then be silently missing from the second
+  degree's list. A test asserts uniqueness across every degree the app offers,
+  not just within one.
+- **The model is not called when no key is configured.** Previously every such
+  request still wrote a `not_configured` row to `ai_generation_log`, and the daily
+  cap counted it — an unconfigured deployment was rationing a student for calls
+  that never happened.
+- **The degree's own name is not always usable in a course title.** 'Other' is in
+  the default list a new institution is provisioned with, and the generic
+  template would have produced "Introduction to Other".
+
+**Also D20 — at least one course is required to leave step 2.** The server action
+already refused an empty selection whenever the degree had a catalog; the button
+now reflects it, disabled with the reason beside it and referenced by
+`aria-describedby`. The one exception is a catalog that is genuinely empty, which
+is now only reachable if the placeholder store itself fails: the requirement
+exists to keep a student matchable, and turning it into an unsatisfiable
+condition would trap them on step 2 with no action available. Client and server
+draw that line in the same place.
+
+**What is still true and unfixed.** A placeholder catalog is not the real
+syllabus. Two students at the same university on the same degree will match on
+these courses, which is the behaviour the product needs, but the names may not be
+what their registrar calls them. The path to correctness is a real syllabus
+import, and until then the warning has to stay on the screen. The placeholder
+path is also unrate-limited — it costs nothing, its upserts are idempotent, and
+it is reachable only while a degree's catalog is empty, which stops being true
+after the first call.
+
+---
+
+## 12. Phase 3 as built — conversations, icebreakers, realtime
+
+### 12.1 Decisions taken in this phase
+
+| # | Decision | Consequence |
+|---|----------|-------------|
+| D21 | **A conversation is per PAIR, not per course** | `conversations` has two participants and a nullable `course_offering_id` recording what brought them together. A connection request is per-course (D2) because that is the unit of interest when *looking* for a partner; once two people are talking, splitting them into a thread per shared course would fragment one human exchange. |
+| D22 | **The icebreaker is sent, not drafted** | As specified: `/api/icebreaker` creates the conversation and inserts the opener, so the student lands in a thread that already has a first message. See §12.5 for the concern this raises and how it is mitigated. |
+| D23 | **A generated message is labelled; a template one is not** | `messages.is_icebreaker` is true only for model output, and the chat shows "AI ICEBREAKER" above it. The keyless fallback is a sentence assembled from two facts the sender already knew, so it is *their* message — labelling it AI would be a lie in the other direction. |
+| D24 | **Messages can never be edited or deleted** | No DELETE grant, and a `freeze_message_content` trigger. A thread is a shared record: one side rewriting or erasing part of it rewrites the other side's history. |
+| D25 | **`read_at` is derived, never written by the application** | The requested column is `is_read`; the design also shows "Read 10:42", which a boolean cannot say. A trigger keeps the timestamp in step, so the two can never disagree. |
+
+### 12.2 Why the access rule here is not the usual one
+
+Every table before this one answers the same question: *is this row in your
+university?* Conversations do not. Every classmate shares a university and none
+of them may read this thread, so the condition is **you are one of exactly two
+people** — strictly narrower.
+
+The policy says exactly that and nothing else:
+
+```sql
+using (auth.uid() in (participant_a, participant_b))
+```
+
+There is deliberately no same-university clause beside it. It would be pure
+noise: two participants is already narrower, and a broader condition sitting next
+to it invites a future reader to think the tenant check is carrying weight it is
+not. Tenancy is enforced where it can still be got wrong — on INSERT, both in the
+policy (`university_id = app_current_university_id()`) and in a trigger that
+compares the two profiles' universities directly.
+
+Two write rules matter as much as the read rule:
+
+- `sender_id = auth.uid()` on INSERT. Without it, a legitimate participant could
+  forge a message attributed to the other person, inside a thread they are
+  entitled to write to.
+- `sender_id <> auth.uid()` on UPDATE. This is what makes "mark as read" safe: a
+  sender marking their own message read could clear their own badge and tell the
+  other person their message had been seen when it had not.
+
+**A denied UPDATE is silent, and the tests had to be rewritten to notice.** An
+UPDATE whose `USING` clause excludes a row matches nothing and returns success on
+zero rows — not an error. Two tests originally asserted "an error came back",
+passed for the wrong reason, and would have kept passing if the policy were
+loosened. They now assert that no row changed and the content is unchanged.
+
+### 12.3 Two triggers need SECURITY DEFINER, and one deliberately does not
+
+- `touch_conversation_on_message` maintains `last_message_at`. Students have no
+  UPDATE grant on `conversations` on purpose — a student who could write that
+  column could reorder their own Requests list or forge activity on a dormant
+  thread — so the trigger needs the owner's rights to do it for them.
+- `check_conversation_same_university` has to see **both** profiles to compare
+  them. Under invoker rights the other student's row is filtered out by the
+  profiles policy exactly when they are at another university, which is the case
+  the check exists to catch: one visible row, one distinct university, and a check
+  that passes by being blind.
+- `app_is_conversation_participant` is **invoker** rights, and that is the point.
+  It reads `conversations`, which is already behind the read policy, so a
+  non-participant asking about someone else's thread gets no row and the answer is
+  false. Definer rights would let it answer questions about threads the caller
+  cannot see, for no benefit. Unlike `app_current_university_id` there is no
+  recursion to escape — it is called from the messages policy, not the
+  conversations one.
+
+### 12.4 What Realtime does, and what it does not
+
+`messages` and `conversations` are in the `supabase_realtime` publication, and
+`messages` is `replica identity full` so an UPDATE payload carries the old row —
+without it a client cannot tell an unread-to-read transition from any other
+change.
+
+**RLS applies to the stream.** A student's socket only carries rows from their own
+conversations. That is why the unread badge can subscribe to `messages` with no
+filter: `postgres_changes` filters are single-column equality and the real
+condition is a join, but the database is already applying that join. A filter
+would be a second, weaker copy of a rule that is already enforced.
+
+Three implementation notes, each of which was a bug first:
+
+- **Channel names must be unique per component instance.** `createBrowserClient`
+  memoises its client and that client keeps one channel per name, so two
+  components asking for `channel('unread-messages')` get the *same object* — and
+  the second `.on()` lands after `subscribe()`, which throws and takes the page
+  down. Both navigation bars render a badge, so this happened immediately.
+- **The badge re-counts rather than increments.** An increment is only correct if
+  every event is received exactly once, and a socket that drops and reconnects
+  breaks that silently, leaving a badge stuck at 3 forever.
+- **The chat holds only socket arrivals in state, not the whole thread.** History
+  stays in the server-rendered prop and the two are merged by id at render time.
+  This removes the usual bug in this shape of component: seeding state from props
+  and then having to re-sync whenever the server sends a fresher list.
+
+### 12.5 The concern with D22, stated plainly
+
+The specification is that pressing "Send message" sends a generated opener. That
+means **words the student never read go out under their name.** It is recorded
+here rather than quietly changed, because it is a product decision and it was
+made deliberately:
+
+- The recipient is told: a generated opener carries the "AI ICEBREAKER" label, so
+  nobody is deceived about who wrote it.
+- The sender sees it immediately — they land in the thread with the message
+  visible, and can follow it with their own words at once.
+- Nothing is hidden: the message is an ordinary row with `model` recorded.
+
+Turning this into a draft the student approves before sending is a small change —
+the API would return the text instead of inserting it, and the design's "Send
+Suggestion" button would do the insert. If the behaviour ever feels wrong in use,
+that is the change to make.
+
+### 12.6 Deviations from the supplied chat design
+
+| Design | What was built | Why |
+|---|---|---|
+| Green status dot, "Psychology • Online" | Degree and course code | There is no presence tracking in this project (conflict C7). A green dot that means nothing is worse than no dot: a student would wait for a reply that was never coming |
+| Material Symbols icon font | lucide-react | Already a dependency. A second icon font is ~100 KB and a render-blocking request for glyphs we already have |
+| "Schedule Session" quick action | Not built | Session scheduling is C5/C7, still unresolved. A control that silently does nothing is worse than its absence |
+| Its own palette, Plus Jakarta + Be Vietnam Pro, its own spacing scale | The existing Kinetic Learning tokens | The layout is reproduced exactly — bubble shapes, the asymmetric corner that makes direction readable without reading the text, the inner top highlight, the date pill, the round composer and circular send button. The literal palette was not copied, because two colour systems in one app disagree the first time either changes |
+| An "AI Icebreaker" card with a "Send Suggestion" button | The label on the message itself | Given D22 the opener is already sent by the time the thread renders. A "send" button on a sent message would be a lie |
+| Mobile-only frame, bottom nav inside the chat | The existing app shell, responsive | The app already has a nav shell used by every other screen; a second one would drift |
+
+### 12.7 Still open after this phase
+
+- **A thread is not paginated.** Every message is read in one query. Correct for
+  two study partners and wrong for a year of history; the fix is a keyset page on
+  `(conversation_id, created_at)`, which the index already supports.
+- **No typing indicator, presence, or attachments.** None were specified, and
+  each needs its own store — presence in particular is the same C7 gap that
+  removed the green dot.
+- **The opener cannot be regenerated.** One conversation per pair means pressing
+  the button again opens the existing thread, which is the right behaviour but
+  leaves no way to ask for a different opening line.
+- **C4, C5, C8, C9** remain unresolved: study groups, session scheduling, course
+  meeting times and sections. The per-course dashboard still waits on C8 and C9.
+
+---
+
+## 13. Phase 4 as built — Profile, Courses, and per-course preferences
+
+### 13.1 Decisions taken in this phase
+
+| # | Decision | Consequence |
+|---|----------|-------------|
+| D26 | **Per-course overrides live on `enrollments`** | Four nullable columns on a table already keyed by `(profile_id, course_offering_id)`. No new table, no new policies, no extra join in the matching query. |
+| D27 | **NULL means inherit** | Not "no preference" — the global columns forbid that anyway. This is why the columns are nullable arrays rather than empty ones: an empty array would be a third state with no meaning, and a CHECK constraint rejects it. |
+| D28 | **An override equal to the global answer is stored as NULL** | `normaliseOverride` nulls any field that matches. Otherwise a later change to a global preference would silently skip that course. |
+| D29 | **The last course cannot be dropped** | Matching is anchored to a shared course, so a student with none is unmatchable. The same rule step 2 of onboarding enforces, and the control is hidden rather than offered and refused. |
+
+### 13.2 Why the overrides are not their own table
+
+The obvious shape is `course_preferences (profile_id, course_offering_id, …)`. It
+was rejected: that is the primary key `enrollments` already has. A separate table
+would duplicate the key, need its own four RLS policies, and add a join to the
+matching function — in exchange for nothing the existing row cannot hold.
+`enrollments` already carries a per-course *answer* in `intent`, so this is the
+second thing of that kind, not the first.
+
+The Phase 1a comment on `learning_preferences` called this out in advance:
+*"Per-course overrides are a planned extension; nothing here assumes these are
+global forever."* This is that extension, and it landed where that comment
+pointed.
+
+What the placement decides is **visibility**. `enrollments` is readable by you and
+by visible classmates, because that is how shared courses are computed — so the
+override columns are readable too. That is not a new disclosure:
+`learning_preferences` carries the identical policy, and a candidate's preferences
+are already shown on their match card as trait chips. A student's study style is
+not a secret in this product; their phone number and date of birth are, and both
+live in separate tables for exactly that reason. There is a test asserting that
+the two policies agree, so if preferences ever do become private it will fail and
+name both places that have to change.
+
+### 13.3 The resolution rule exists twice, and that is the risk worth naming
+
+`coalesce(override, global)` is implemented in SQL, in the matching function, to
+decide **who is shown**. It is implemented again in TypeScript,
+`resolveCoursePreferences`, to decide **what the screen says is in force**. Two
+implementations of one rule is a standing hazard: a screen that claims one thing
+while the ranking does another is worse than no screen at all.
+
+Three things hold them together:
+
+- The SQL resolves each side's preferences **once**, in an `effective` CTE, and
+  everything downstream reads only those columns. Inlining the coalesce at each
+  comparison would have meant repeating it a dozen times, and one missed
+  repetition would silently score a course against the global answer.
+- The unit tests pin the TypeScript half to exactly the SQL's behaviour, including
+  a round-trip property: normalise then resolve returns what the student
+  submitted, whether it was stored as a value or as null.
+- The integration tests assert the SQL half through the RPC — an in-person
+  override on one course removes a remote-only classmate from that course and
+  leaves them on every other.
+
+**v3 is behaviour-preserving with no overrides set.** All 18 Phase 2 matching
+tests passed unchanged after the rewrite, which is the evidence that the
+restructuring did not quietly alter the score.
+
+### 13.4 The matching function's return values now describe the course
+
+`preferred_time_blocks`, `study_environments`, `study_formats` and `group_sizes`
+on a returned row are the candidate's preferences **as they apply to that
+course**, not their global ones. A course page that showed a classmate's global
+answer while ranking them on their override would be explaining the wrong thing.
+
+### 13.5 Deviations from the course-dashboard design
+
+| Design | What was built | Why |
+|---|---|---|
+| "Mon, Wed, Fri 10:00–11:30", "Turing Hall, Room 402", "Prof. Alan Smith", "View Syllabus" | Code, faculty, classmate count | The schema has no columns for meeting times, rooms, lecturers or syllabus links — conflicts **C8** and **C9**, still open. Inventing a room for a course whose *name* may itself be unverified would compound one guess with three more |
+| "Study Groups — Join Next Session, Thu 6:00 PM" | Not built | Study groups are **C4**, session scheduling **C5**. A prominent CTA that does nothing is worse than its absence |
+| "All Students / Same Section / Project Partners / Filters" chips | Not built | Sections are **C9**. `intent` could power a project-partners filter today, but a row of four chips where one works reads as broken |
+| "High Match" badge; `Message` and `Connect` buttons | The existing score badge and "Send message" | Both already exist from Phases 2 and 3. A second visual language for the same two actions is precisely the drift this project keeps avoiding |
+| Material Symbols, the design's own palette, Plus Jakarta + Be Vietnam Pro | lucide-react, Kinetic Learning tokens | The *layout* is reproduced — breadcrumb, title block, sidebar beside a two-column student grid, card shapes and hover lift. The literal palette was not copied, for the reason given in §8.3 |
+| Moodle-style course cards with a coloured banner | Built, colour **derived from the course code** | A colour column would be one more thing to seed, migrate and keep distinct. Hashing the code gives a stable colour per course, identical on every student's screen, for free |
+
+### 13.6 Still open after this phase
+
+- **Saturday and spoken languages are not overridable.** Neither is a property of
+  a course: a student who does not study on Saturday does not study on Saturday
+  for Linear Algebra either, and the language you can work in does not change by
+  subject. Four more nullable columns nobody would set differently would be four
+  more states to reason about in the scoring function.
+- **An override cannot be set from the grid**, only from a course page. The grid
+  marks which courses carry one.
+- **Availability is still edited through the onboarding step**, which the Profile
+  tab links to rather than duplicating the grid.
+- **C4, C5, C8, C9 remain open**, and this phase is where their absence is most
+  visible: the course page has a sidebar shaped like the design's and can only
+  fill half of it.
+- **The Vitest suites now run serially.** Every integration suite creates real auth
+  users in one local Supabase, and a fourth suite was enough to make `createUser`
+  exceed the default 5s timeout — a failure that reads as a broken schema and is
+  really contention. Playwright already ran with a single worker for the same
+  reason. It costs wall-clock time on the unit tests, which is the right trade: a
+  suite that fails for reasons unrelated to the code teaches people to re-run
+  instead of read.
+
+---
+
+## 14. Phase 5 as built — study groups
+
+Closes **conflict C4**, open since §8.4: the source design showed study groups and
+the schema had nowhere to put them.
+
+### 14.1 Decisions taken in this phase
+
+| # | Decision | Consequence |
+|---|----------|-------------|
+| D30 | **A group belongs to one course offering** | `study_groups.course_offering_id`. The product's unit of interest is a partner for Computational Models, not a general club, and the same reasoning already shapes `connection_requests`. |
+| D31 | **Membership is its own table** | `study_group_members`, not an array on the group. An array of uuids cannot be constrained, cannot cascade when a student is deleted, and cannot be joined against without unnesting it on every read. |
+| D32 | **The group chat is a separate table** | `study_group_messages`, not `conversations`. See §14.3. |
+| D33 | **"Full" is not a status** | `status` is `open` or `closed`, set by the admin. Fullness is a count against `max_participants`; storing it would be a second copy of a number the members table already knows, free to drift the moment someone leaves. |
+| D34 | **Approval is one SQL function** | `rpc_approve_group_request`. See §14.4. |
+
+### 14.2 Discovery and privacy are two different rules
+
+This is the distinction the whole feature turns on, and it is the reason there are
+two separate policies rather than one:
+
+- **The class can see a group exists**, who is in it and how full it is. Without
+  that there is no discovery, and a group nobody can find has nobody to join it.
+- **Only members can read the chat.** What the group says to each other is theirs.
+
+So `study_groups` and `study_group_members` are readable by anyone enrolled in the
+course, and `study_group_messages` is readable only by members. The integration
+suite tests both halves from the position of a classmate who *can* see the group
+and must not read a word of its conversation.
+
+Two write rules carry as much weight:
+
+- **An admin cannot add someone who never asked.** The members insert policy
+  requires an `approved` row in `group_requests` for that person. Without it an
+  admin could sweep any classmate into a group they never applied to — joining has
+  to be consensual, not something done to you.
+- **A member cannot forge a system message.** `not is_system` in the insert policy
+  means the "Welcome X to the group!" line can only come from the approval
+  function. A system message looks official; a member faking one could imply a
+  decision the admin never made.
+
+### 14.3 Why the group chat is not `conversations`
+
+`conversations` is strictly one-to-one: two `NOT NULL` participants, a no-self
+CHECK, and a unique index on the unordered pair. Phase 3's policies — the tightest
+RLS in the project — lean on exactly that shape. Widening the table to hold N
+participants would mean rewriting those policies to serve a second use case, and
+the failure mode of getting it wrong is private messages leaking.
+
+A separate table costs some duplication in the chat component and leaves
+one-to-one messages exactly as private as they were. That trade is not close.
+
+### 14.4 Why approval is one function and not three statements
+
+The members insert policy requires an already-approved request. So an application
+doing this in steps must approve first and insert second — and the insert can fail,
+because the capacity trigger rejects a group that filled up in between. That leaves
+the request `approved` with no membership, and the freeze trigger deliberately
+forbids re-deciding it: an unrecoverable state reachable by two admins clicking at
+the same moment.
+
+`rpc_approve_group_request` does all three writes in one transaction, so capacity
+failing rolls the whole thing back and the request stays pending. There is a test
+that fills a group to its limit, tries to approve one more, and asserts both that
+the approval failed and that the request is still `pending`.
+
+Being SECURITY DEFINER, it restates its own authorisation — caller must be the
+group's admin, request must be pending. That WHERE clause is the only thing
+standing between any signed-in student and approving anyone into any group, so two
+tests attack it directly: once as an unrelated classmate, once as the requester
+trying to let themselves in.
+
+### 14.5 The rejection flow, and why it is canned by default
+
+The admin picks from four polite messages or writes their own, and the text is
+shown in full before it is sent. Two reasons for the list:
+
+- The alternative is an admin typing something in a hurry to a classmate they will
+  sit beside for the rest of the semester.
+- A rejection with no message is worse than the feature not existing: the request
+  simply vanishes and the student is left guessing. The schema refuses an empty
+  one, and the action refuses a custom reason with nothing written in it.
+
+It is delivered as an ordinary one-to-one message from the admin, reusing Phase 3.
+It is attributed to them because the decision was theirs — the wording is canned,
+the choice is not. The text is also kept on `group_requests.decision_note`, so the
+group's own history records what was said rather than only that a rejection
+happened.
+
+### 14.6 A bug a test found in the read policy
+
+The `study_groups` SELECT policy was first written as
+`using (public.app_can_see_group(id))`. That helper is STABLE and re-reads
+`study_groups` to find the row it is being asked about — so during an
+`insert ... returning` it evaluated against the snapshot from before the insert,
+could not find the new row, and the statement failed with a policy violation.
+
+Any client doing `insert().select()` on the table would have hit it. The
+application happened not to, which is exactly why it is worth recording: it would
+have sat there until someone added a `.select()` and lost an afternoon to it. The
+policy is now written against the row's own `course_offering_id`, with no self-read
+and no snapshot to be caught by. The helper is still correct — and still used — for
+the other three tables, where the group id is a foreign key to a row that already
+exists.
+
+### 14.7 Deviations from the design, and what is still open
+
+| Design | What was built | Why |
+|---|---|---|
+| "Join Next Session · Thu, 6:00 PM" | No schedule | Session scheduling is **C5** and the group has no calendar. A time that is not real is worse than no time |
+| A single "Join" button | "Request to join", then admin approval | The spec for this phase is a request flow, and it is also the only version that makes joining consensual on both sides |
+
+Still open after this phase:
+
+- **Group membership does not feed the match score.** Two students in the same
+  study group are not ranked closer to each other, which is arguably what the
+  score is for.
+- **The admin cannot leave or hand over a group.** Leaving would orphan it, so the
+  delete policy excludes them; closing it to new requests is the available exit.
+- **No group size limit interacts with `group_sizes`** — a student who prefers
+  small groups is not warned when asking to join a group of twelve.
+- **C5, C8, C9** remain open: session scheduling, course meeting times, sections.
+
+---
+
+## 15. Phase 6 as built — profiles and ratings
+
+### 15.1 Decisions taken in this phase
+
+| # | Decision | Consequence |
+|---|----------|-------------|
+| D35 | **The positive/negative asymmetry is enforced by RLS, not by a query** | The `study_ratings` SELECT policy admits a negative row only to its author. See §15.2. |
+| D36 | **No stored reputation column** | The score effect is computed from the rows. A denormalised counter would be a second copy of what the rows already say, and the matching function has to read them anyway for the exclusion. |
+| D37 | **Rating requires an existing conversation** | Enforced by the insert policy. Without it, any student could quietly mark any classmate as one to avoid. |
+| D38 | **A negative rating excludes the pair symmetrically** | The rated student is never told, but they stop seeing that person too. |
+| D39 | **Age is disclosed; the birth date is not** | `app_profile_age_years` returns whole years, and only for a student the caller may already see. See §15.4. |
+
+### 15.2 The privacy rule, and why it is in the schema
+
+The requirement is *"only positive connections are publicly displayed"*. That is a
+promise to the person being rated, and the question is where a promise like that
+should live.
+
+A `WHERE sentiment = 'positive'` in the profile query would satisfy it today and be
+one refactor away from breaking silently — a new feature reads the table, forgets
+the filter, and someone learns that a partner rated them badly. So it is a policy:
+
+```sql
+using (
+  rater_id = auth.uid()
+  or (sentiment = 'positive' and public.app_can_see_profile(ratee_id))
+)
+```
+
+Note what is **absent**: no clause admitting the ratee to negative rows about
+themselves. That is the point, not an oversight.
+
+Three things reinforce it, and each is tested:
+
+- **The view model has no field** a negative rating could occupy, so no component
+  can render one even by mistake.
+- **The public summary never implies a denominator.** "Studied with 3 classmates"
+  discloses nothing; "3 of 5 partners rated this well" would disclose two
+  negatives. A unit test asserts the wording contains no "of", no percentage and no
+  mention of rating.
+- **The application filter is still there** as a second layer. Both are present so
+  that changing either one leaves the promise intact.
+
+The integration suite attacks it from the rated student's own session: by ratee id,
+by row id, through an unfiltered read of the whole table, and through a `count`
+(which would otherwise disclose existence). The e2e suite repeats the check from
+their browser after a rating is flipped from positive to negative.
+
+### 15.3 What "avoid similar profiles" turned into
+
+The specification also asked to avoid matching someone with *profiles similar to* a
+negative interaction. The concrete half — never pairing that pair again — is built
+and tested. The similarity half is **not**, deliberately.
+
+To act on it the system would need a model of *what* made the session fail, and the
+schema records only that it did. The available signals are the ones both students
+share, which is exactly what the score already rewards — so "avoid similar" would
+mean penalising the traits that make a good match, on the strength of one bad
+afternoon. It would quietly shrink a student's candidate pool for reasons nobody
+could explain to them, including us.
+
+If it is wanted later, the honest version needs a reason on the rating — a small
+fixed set, not free text — and a rule that only penalises the trait actually named.
+`study_ratings.note` exists and is private, so the data could be collected first
+and the rule written once there is something real to look at.
+
+### 15.4 The age disclosure
+
+§9 put `date_of_birth` in `profile_private` precisely so classmates could not read
+it, and matching only ever derived an age *gap* through a definer function. A
+profile showing an age discloses more than a gap.
+
+It is built because it is what the specification asks for and what a reader expects
+a profile to show, and because a year is far less identifying than a date. The trade
+is made explicit in code: `app_profile_age_years` returns an integer, checks
+`app_can_see_profile` before returning anything, and there is a test asserting that
+`profile_private` itself remains unreadable to the same viewer. The date never
+leaves the database.
+
+### 15.5 Connections are ratings, not `connection_requests`
+
+`connection_requests` (D2) models an accept/decline flow that was never built —
+Phase 3 replaced its purpose with conversations, and §13 freed the name "Requests"
+for it. So "connections" on a profile are positive ratings: people who studied with
+you and said it went well. That has a property the request table lacks — it can
+only be earned by someone else's action, so it cannot be gamed by sending requests.
+
+### 15.6 Still open
+
+- **One rating per pair, not per session.** A second study session replaces the
+  first answer. Enough for the signal; wrong if the product ever wants a history.
+- **Nothing expires.** A bad session in first year still excludes a pair in third.
+- **The rating prompt is passive.** Nothing asks after a session, because nothing
+  knows a session happened — that is conflict C5, still open.
+- **A student cannot see who has rated them positively before it appears**, and
+  cannot decline a public connection. Worth revisiting if anyone treats the list as
+  something to curate.

@@ -4,15 +4,21 @@
  * Description: The best candidate, given the bento treatment from the source
  *              design: large avatar, score badge, trait chips, shared
  *              availability, and the primary call to action.
- * Version:     0.8.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Courses are named, not coded
+ *     0.18.0 - 2026-08-10 - The name links to the student's profile (Phase 6)
+ *     0.12.0 - 2026-08-10 - Send message opens a conversation (Phase 3)
+ *     0.10.0 - 2026-08-09 - Study track no longer shown
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
  */
 
-import { Flame, HandHeart, Stars } from 'lucide-react';
+import Link from 'next/link';
+import { Flame, Stars } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { MessageButton } from '@/components/matching/message-button';
 import { describeScore, traitChipsFor } from '@/components/matching/traits';
 import { Chip } from '@/components/ui/chip';
 import { formatSharedAvailability, type MatchView } from '@/features/matching/match-view';
@@ -69,9 +75,16 @@ export function TopMatchCard({ match }: TopMatchCardProps) {
         </div>
 
         <div className="z-10 w-full grow">
-          <h3 className="font-heading text-headline-md">{match.fullName}</h3>
+          <h3 className="font-heading text-headline-md">
+            <Link
+              href={`/students/${match.candidateId}`}
+              className="hover:text-brand focus-visible:ring-brand/35 rounded-md transition-colors focus-visible:ring-4 focus-visible:outline-none"
+            >
+              {match.fullName}
+            </Link>
+          </h3>
           <p className="text-on-surface-variant text-body-md">
-            {[match.trackName, match.yearOfStudy ? `Year ${match.yearOfStudy}` : null]
+            {[match.degreeName, match.yearOfStudy ? `Year ${match.yearOfStudy}` : null]
               .filter(Boolean)
               .join(' · ') || 'Classmate'}
           </p>
@@ -79,7 +92,7 @@ export function TopMatchCard({ match }: TopMatchCardProps) {
           <ul className="mt-3 mb-4 flex flex-wrap gap-2">
             <li>
               <Chip tone="brand" icon="📘">
-                {match.bestCourseCode}
+                {match.bestCourseName}
               </Chip>
             </li>
             {chips.map((chip) => (
@@ -96,31 +109,27 @@ export function TopMatchCard({ match }: TopMatchCardProps) {
             <p className="text-body-md font-semibold">
               {availability ?? 'No overlapping free time yet — add more to your week'}
             </p>
-            {match.sharedCourseCodes.length > 1 ? (
+            {match.sharedCourseNames.length > 1 ? (
               <p className="text-outline mt-2 text-label-sm font-normal">
-                Also together in {match.sharedCourseCodes.slice(1).join(', ')}
+                Also together in {match.sharedCourseNames.slice(1).join(', ')}
               </p>
             ) : null}
           </div>
 
           {/*
-           * Disabled rather than absent. Sending a request is Phase 3a and the
-           * icebreaker itself Phase 3c; showing the button conveys where this
-           * screen is going, and disabling it is more honest than wiring a
-           * control that silently does nothing.
+           * Live as of Phase 3. It opens a conversation with an opener already
+           * written, which is why the label is "Send message" and not "Send
+           * smart icebreaker": the opener is generated when a model is
+           * configured and hand-built when one is not, and the button should not
+           * promise which.
            */}
-          <button
-            type="button"
-            disabled
-            aria-describedby="icebreaker-pending"
-            className="clay-btn-primary flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 text-label-md disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
-          >
-            <HandHeart className="size-5" aria-hidden="true" />
-            Send smart icebreaker
-          </button>
-          <p id="icebreaker-pending" className="text-outline mt-2 text-label-sm font-normal">
-            Requests and AI icebreakers arrive in the next phase.
-          </p>
+          <MessageButton
+            partnerId={match.candidateId}
+            courseOfferingId={match.bestCourseOfferingId}
+            partnerName={match.fullName}
+            tone="primary"
+            className="w-full md:w-auto"
+          />
         </div>
       </div>
     </section>

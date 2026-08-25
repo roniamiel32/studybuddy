@@ -68,7 +68,7 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed/01_universities.sql", "./seed/02_course_catalog.sql", "./seed/03_study_tracks.sql"]
+sql_paths = ["./seed/01_universities.sql", "./seed/02_course_catalog.sql", "./seed/03_degrees.sql", "./seed/04_degree_catalogs.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -160,7 +160,23 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+#
+# /auth/callback has to be listed or the password-reset link silently ignores the
+# redirectTo it was given and falls back to site_url — which drops the student on
+# the landing page with an unspent code in the query string, looking exactly like
+# a broken link.
+#
+# The port wildcards are LOCAL ONLY, like the rate limits below: the e2e suite
+# serves a production build on whichever port is free, and an allow-list pinned
+# to 3000 would fail every run that did not get it. A hosted project sets its own
+# list in the dashboard, where it should name the real origin exactly.
+additional_redirect_urls = [
+  "https://127.0.0.1:3000",
+  "http://127.0.0.1:3000/**",
+  "http://localhost:3000/**",
+  "http://127.0.0.1:*/**",
+  "http://localhost:*/**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -204,9 +220,30 @@ anonymous_users = 30
 # Number of sessions that can be refreshed in a 5 minute interval per IP address.
 token_refresh = 150
 # Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
-sign_in_sign_ups = 30
+#
+# Raised from the default 30 for the test suite. The e2e suite signs in once or
+# twice per test, across two browser projects — every test starts from the login
+# page on purpose, because a session carried between tests hides bugs in the route
+# guards. When the limit is hit the sign-in silently leaves the browser on /login,
+# which looks exactly like a broken guard and is really a throttle.
+#
+# 300 was still not enough once the suite passed eighty tests: the failure moved to
+# whichever spec happened to run last. 1000 leaves headroom for the suite to keep
+# growing, and the alternative — sharing one session across tests — would give up
+# the guard coverage that motivates signing in every time.
+#
+# LOCAL ONLY. A hosted Supabase project sets its own limits in the dashboard, and
+# this file does not touch them.
+sign_in_sign_ups = 1000
 # Number of OTP / Magic link verifications that can be made in a 5 minute interval per IP address.
-token_verifications = 30
+#
+# Raised from the default 30 for the same reason sign_in_sign_ups was. Since
+# Phase 9A every registration ends in a verifyOtp, so the suite now spends one of
+# these per account it creates, across two browser projects. At 30 the failure
+# arrives as an unverifiable account and looks exactly like a broken code.
+#
+# LOCAL ONLY, like the limit above it.
+token_verifications = 1000
 # Number of Web3 logins that can be made in a 5 minute interval per IP address.
 web3 = 30
 
@@ -223,7 +260,12 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+#
+# ON since Phase 9A. Registration is not finished until the student types the
+# code from their inbox, which is what makes "university email" mean anything —
+# without it the address is a string anyone can claim, and the institution it
+# resolves to is unverified.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
@@ -242,6 +284,16 @@ otp_expiry = 3600
 # pass = "env(SENDGRID_API_KEY)"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
+
+# The sign-up email.
+#
+# Custom so that it carries {{ .Token }} — the six-digit code — rather than the
+# default {{ .ConfirmationURL }} link. The verification screen is already open in
+# the tab the student registered from; a link would send them somewhere else to
+# finish a job they are standing in front of.
+[auth.email.template.confirmation]
+subject = "Your StudyBuddy confirmation code"
+content_path = "./supabase/templates/confirmation.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

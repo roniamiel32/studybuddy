@@ -6,9 +6,10 @@
  *              on, so a missing or malformed value fails immediately and
  *              loudly rather than surfacing as a confusing runtime error
  *              deep inside a Supabase or AI call.
- * Version:     0.2.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Anthropic provider; per-task course generation cap
  *     0.2.0 - 2026-08-03 - Initial implementation (Phase 0.5 scaffold)
  */
 
@@ -36,7 +37,12 @@ const serverSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z
     .string()
     .min(20, 'looks too short to be a Supabase service role key'),
-  AI_PROVIDER: z.enum(['openai', 'gemini']).default('openai'),
+  /*
+   * 'anthropic' added for the Smart Course API. The PRD named OpenAI and Gemini;
+   * Claude was explicitly permitted later, and the provider module speaks to the
+   * Anthropic Messages API over plain fetch.
+   */
+  AI_PROVIDER: z.enum(['openai', 'gemini', 'anthropic']).default('anthropic'),
   /*
    * Optional: absent means AI features are switched off and matching falls
    * back to the deterministic SQL ranking. An empty assignment (`AI_API_KEY=`)
@@ -60,8 +66,44 @@ const serverSchema = z.object({
   AI_RERANK_DAILY_LIMIT: z.coerce.number().int().positive().default(20),
   /** Per-user daily cap on AI icebreaker generations. */
   AI_ICEBREAKER_DAILY_LIMIT: z.coerce.number().int().positive().default(30),
+  /*
+   * Per-user daily cap on course work, counted separately from the other two.
+   *
+   * Covers both flows that log `course_generation`: building a degree's catalog,
+   * and reading a course out of an uploaded schedule or a typed name. Building a
+   * catalog happens about once per degree, but importing does not — a student
+   * adding four missing courses one at a time is four calls — which is why the
+   * cap is 20 rather than the handful the catalog alone needed.
+   */
+  AI_COURSE_GENERATION_DAILY_LIMIT: z.coerce.number().int().positive().default(20),
   /** Hours a cached row in `match_scores` stays fresh. */
   MATCH_CACHE_TTL_HOURS: z.coerce.number().int().positive().default(24),
+  /*
+   * Google Calendar — optional, and both halves are needed together.
+   *
+   * Absent means the integration is switched off: the Connect button explains
+   * that instead of appearing broken, and nothing else in the app changes.
+   * Empty assignments normalise to absent for the same reason AI_API_KEY does.
+   */
+  GOOGLE_CLIENT_ID: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(10, 'looks too short to be a Google client id').optional(),
+  ),
+  GOOGLE_CLIENT_SECRET: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(10, 'looks too short to be a Google client secret').optional(),
+  ),
+  /*
+   * How far ahead the read sync looks. Two weeks gives two of every weekday,
+   * which is the minimum that lets "free on Mondays" mean more than one Monday.
+   */
+  GOOGLE_CALENDAR_HORIZON_DAYS: z.coerce.number().int().min(7).max(60).default(14),
+  /*
+   * NEXT_PUBLIC_SITE_URL is read on the server too, because the OAuth redirect
+   * URI has to be absolute and has to match the Google Cloud entry exactly.
+   * Declared here so a server-side typo fails at boot rather than at consent.
+   */
+  NEXT_PUBLIC_SITE_URL: z.url('must be a full URL, e.g. http://localhost:3000'),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -163,6 +205,20 @@ export function serverEnv(): ServerEnv {
 export function isAiConfigured(): boolean {
   const env = serverEnv();
   return Boolean(env.AI_API_KEY && env.AI_MODEL);
+}
+
+/**
+ * Reports whether the Google Calendar integration is configured.
+ *
+ * Both halves or neither: a client id without a secret cannot complete an
+ * exchange, and letting a student through the consent screen only to fail on the
+ * callback is worse than telling them up front that it is off.
+ *
+ * @returns True when the integration can be used.
+ */
+export function isGoogleCalendarConfigured(): boolean {
+  const env = serverEnv();
+  return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 }
 
 /**

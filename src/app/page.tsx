@@ -6,19 +6,21 @@
  *              output — a stack of ranked matches — rather than describing it,
  *              because "we rank study partners for you" is the whole claim and
  *              showing it is more convincing than asserting it.
- * Version:     0.4.0
+ * Version:     0.4.1
  *
  * Modifications:
  *     0.2.0 - 2026-08-03 - Initial implementation (Phase 0.5 scaffold)
  *     0.4.0 - 2026-08-03 - Rebuilt to the Stitch design
+ *     0.4.1 - 2026-08-10 - Replaced old wordmark with the branded Logo component
  */
 
 import Link from 'next/link';
 import { ArrowRight, CalendarSync, HeartHandshake, Sparkles, Target, Users } from 'lucide-react';
 
 import { PhoneShowcase } from '@/components/marketing/phone-showcase';
-import { Wordmark } from '@/components/marketing/wordmark';
+import { Logo } from '@/components/ui/logo';
 import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 /** The four claims, each tied to something the system actually does. */
 const FEATURES = [
@@ -44,7 +46,7 @@ const FEATURES = [
     icon: HeartHandshake,
     tint: 'bg-[#f6ebf0] text-grape',
     title: 'The first message, written',
-    body: 'Accept a request and StudyBuddy opens WhatsApp with an opener that already mentions your shared course.',
+    body: 'Accept a request and StudyBuddy opens a chat with an opener that already mentions your shared course.',
   },
 ] as const;
 
@@ -55,10 +57,16 @@ const FEATURES = [
  */
 export default function LandingPage() {
   return (
-    <div className="bg-dotted flex min-h-full flex-col">
+    <div className=" flex min-h-full flex-col">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-        <Wordmark />
-        <Link href="/login" className={buttonVariants({ variant: 'outline', size: 'sm', pill: true })}>
+        <Logo />
+        <Link
+          href="/login"
+          className={cn(
+            buttonVariants({ variant: 'outline', size: 'sm', pill: false }),
+            "transition-colors hover:!bg-[var(--color-brand-fixed)] hover:!text-brand hover:!border-[var(--color-brand-fixed)]"
+          )}
+        >
           Sign in
         </Link>
       </header>
@@ -88,7 +96,7 @@ export default function LandingPage() {
             </div>
 
             <p className="text-on-surface-variant mt-5 text-body-md">
-              Already have an account?{' '}
+             Already have an account?{' '}
               <Link
                 href="/login"
                 className="text-brand rounded-sm font-semibold underline underline-offset-4 focus-visible:ring-4 focus-visible:ring-brand/35 focus-visible:outline-none"
@@ -126,14 +134,7 @@ export default function LandingPage() {
         </section>
 
         {/* ------------------------------------------------------------- Closing */}
-        {/* Grows to fill any leftover viewport, so a tall screen ends in the
-            brand colour rather than a strip of stranded background. */}
         <section className="relative flex flex-1 flex-col">
-          {/*
-           * The wave. Purely structural: it separates the closing statement
-           * from the page without a rule, which would be far too hard an edge
-           * for a system whose whole premise is soft.
-           */}
           <svg
             className="text-brand block h-12 w-full sm:h-20"
             viewBox="0 0 1440 100"
@@ -167,8 +168,6 @@ export default function LandingPage() {
                 </p>
               </div>
 
-              {/* Part of the same purple field — a separate footer block would
-                  leave a seam, or a gap on a tall viewport. */}
               <footer className="mt-14 border-t border-white/20 pt-6 text-label-md text-white/70">
                 A Full-Stack course final project by Roni Amiel &amp; Eden Bitran.
               </footer>

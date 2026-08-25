@@ -2,33 +2,87 @@
  * File:        src/features/auth/academic-email.ts
  * Authors:     Roni Amiel & Eden Bitran
  * Description: Recognising academic email addresses, and deriving readable
- *              names from them. Pure functions with no database access, so the
- *              rules can be tested exhaustively without a running stack.
- * Version:     0.6.1
+ *              names from them. Pure functions with no database access.
+ * Version:     0.6.3
  *
  * Modifications:
+ *     0.6.3 - 2026-08-10 - Expanded institution mapping to include all Israeli universities and major colleges
+ *     0.6.2 - 2026-08-10 - Added explicit institution name mapping for known domains
  *     0.6.1 - 2026-08-05 - Initial implementation
  */
 
-/**
- * Suffixes that identify a university address.
- *
- * `.ac.il` covers Israeli institutions and `.edu` the American convention.
- * Both are restricted registries rather than open ones, which is what makes
- * them usable as a proxy for "is a student" without a separate verification
- * step.
- */
 export const ACADEMIC_SUFFIXES = ['.ac.il', '.edu'] as const;
 
 /**
+ * Explicit mapping for known academic domains to ensure official full names.
+ */
+export const KNOWN_INSTITUTIONS: Record<string, string> = {
+  // Universities
+  'post.runi.ac.il': 'Reichman University',
+  'runi.ac.il': 'Reichman University',
+  'idc.ac.il': 'Reichman University',
+  
+  'tau.ac.il': 'Tel Aviv University',
+  'mail.tau.ac.il': 'Tel Aviv University',
+  
+  'technion.ac.il': 'Technion - Israel Institute of Technology',
+  'campus.technion.ac.il': 'Technion - Israel Institute of Technology',
+  
+  'bgu.ac.il': 'Ben-Gurion University of the Negev',
+  'post.bgu.ac.il': 'Ben-Gurion University of the Negev',
+  
+  'huji.ac.il': 'Hebrew University of Jerusalem',
+  'mail.huji.ac.il': 'Hebrew University of Jerusalem',
+  
+  'biu.ac.il': 'Bar-Ilan University',
+  'stu.biu.ac.il': 'Bar-Ilan University',
+  
+  'haifa.ac.il': 'University of Haifa',
+  'campus.haifa.ac.il': 'University of Haifa',
+  
+  'ariel.ac.il': 'Ariel University',
+  'ms.ariel.ac.il': 'Ariel University',
+  
+  'openu.ac.il': 'Open University of Israel',
+  'mail.openu.ac.il': 'Open University of Israel',
+  
+  'weizmann.ac.il': 'Weizmann Institute of Science',
+
+  // Major Colleges
+  'colman.ac.il': 'College of Management Academic Studies',
+  'stu.colman.ac.il': 'College of Management Academic Studies',
+  
+  'mta.ac.il': 'Academic College of Tel Aviv-Yaffo',
+  's.mta.ac.il': 'Academic College of Tel Aviv-Yaffo',
+  
+  'hit.ac.il': 'Holon Institute of Technology',
+  
+  'shenkar.ac.il': 'Shenkar College of Engineering, Design and Art',
+  
+  'afeka.ac.il': 'Afeka College of Engineering',
+  
+  'sce.ac.il': 'SCE - Shamoon College of Engineering',
+  
+  'ruppin.ac.il': 'Ruppin Academic Center',
+  
+  'sapir.ac.il': 'Sapir Academic College',
+  
+  'telhai.ac.il': 'Tel-Hai College',
+  
+  'hac.ac.il': 'Hadassah Academic College',
+  
+  'kinneret.ac.il': 'Kinneret College on the Sea of Galilee',
+  
+  'wgalil.ac.il': 'Western Galilee College',
+  
+  'braude.ac.il': 'Braude College of Engineering',
+  
+  'bezalel.ac.il': 'Bezalel Academy of Arts and Design',
+  'post.bezalel.ac.il': 'Bezalel Academy of Arts and Design'
+};
+
+/**
  * Normalises an email address for storage and comparison.
- *
- * Trimming and lower-casing matters more than it looks: without it,
- * "Roni@Post.RUNI.ac.il " and "roni@post.runi.ac.il" resolve to different
- * domains, and a student could end up with two accounts, or none.
- *
- * @param email - Raw input, possibly padded or mixed case.
- * @returns The normalised address.
  */
 export function normaliseEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -36,9 +90,6 @@ export function normaliseEmail(email: string): string {
 
 /**
  * Extracts the domain from an address.
- *
- * @param email - Any address.
- * @returns The lowercase domain, or an empty string when there is no '@'.
  */
 export function emailDomain(email: string): string {
   const parts = normaliseEmail(email).split('@');
@@ -47,9 +98,6 @@ export function emailDomain(email: string): string {
 
 /**
  * Reports whether an address belongs to an academic institution.
- *
- * @param email - Any address.
- * @returns True when the domain ends in a recognised academic suffix.
  */
 export function isAcademicEmail(email: string): boolean {
   const domain = emailDomain(email);
@@ -63,30 +111,26 @@ export function isAcademicEmail(email: string): boolean {
 
 /**
  * Derives a readable institution name from a domain.
- *
- * Takes the label immediately before the academic suffix, which is the
- * institution in both conventions: "post.runi.ac.il" and "runi.ac.il" both give
- * "Runi", and "harvard.edu" gives "Harvard".
- *
- * A generated name is a placeholder, not a fact — the institution's real name
- * should replace it once someone from there actually enrols.
- *
- * @param domain - A lowercase academic domain.
- * @returns A title-cased institution name, or the domain itself if nothing
- *          sensible can be derived.
+ * Checks the explicit mapping first, and falls back to dynamic derivation.
  */
 export function institutionNameFromDomain(domain: string): string {
-  const suffix = ACADEMIC_SUFFIXES.find((candidate) => domain.endsWith(candidate));
+  const normalisedDomain = domain.toLowerCase();
 
-  if (!suffix) {
-    return domain;
+  if (KNOWN_INSTITUTIONS[normalisedDomain]) {
+    return KNOWN_INSTITUTIONS[normalisedDomain];
   }
 
-  const labels = domain.slice(0, -suffix.length).split('.').filter(Boolean);
+  const suffix = ACADEMIC_SUFFIXES.find((candidate) => normalisedDomain.endsWith(candidate));
+
+  if (!suffix) {
+    return normalisedDomain;
+  }
+
+  const labels = normalisedDomain.slice(0, -suffix.length).split('.').filter(Boolean);
   const institution = labels.at(-1);
 
   if (!institution) {
-    return domain;
+    return normalisedDomain;
   }
 
   return institution.charAt(0).toUpperCase() + institution.slice(1);
@@ -94,9 +138,6 @@ export function institutionNameFromDomain(domain: string): string {
 
 /**
  * Builds a URL-safe slug from a domain.
- *
- * @param domain - A lowercase academic domain.
- * @returns A slug matching the `universities.slug` constraint.
  */
 export function slugFromDomain(domain: string): string {
   return domain
@@ -107,14 +148,6 @@ export function slugFromDomain(domain: string): string {
 
 /**
  * Guesses a student's name from the local part of their address.
- *
- * "roni.amiel@post.runi.ac.il" becomes "Roni Amiel". This is a starting point
- * the student can correct, never a value written without them seeing it —
- * plenty of addresses are "ra4839" and would produce nonsense.
- *
- * @param email - The student's address.
- * @returns A best-effort display name, or an empty string when the local part
- *          yields nothing name-like.
  */
 export function nameFromEmail(email: string): string {
   const [localPart] = normaliseEmail(email).split('@');
@@ -124,17 +157,10 @@ export function nameFromEmail(email: string): string {
   }
 
   const words = localPart
-    /* Strip trailing digits: "roni.amiel2024" is a person, not a year. */
     .replace(/\d+$/g, '')
     .split(/[._\-+]+/)
     .filter((word) => word.length > 1 && /^[a-z]+$/.test(word));
 
-  /*
-   * A single short fragment is almost always a handle rather than a name:
-   * "ra4839" reduces to "ra", and offering "Ra" as someone's name is worse
-   * than offering nothing. Two or more words look like a real name even when
-   * short, so only the single-word case needs the extra length.
-   */
   const looksLikeAName = words.length > 1 || (words[0]?.length ?? 0) >= 3;
 
   if (!looksLikeAName) {

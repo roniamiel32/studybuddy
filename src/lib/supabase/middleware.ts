@@ -8,6 +8,7 @@
  * Version:     0.2.0
  *
  * Modifications:
+ *     0.23.0 - 2026-08-12 - Honour the "keep me signed in" choice (Phase 9A)
  *     0.2.0 - 2026-08-03 - Initial implementation, not yet wired up
  *                          (Phase 0.5 scaffold)
  */
@@ -17,6 +18,8 @@ import { createServerClient } from '@supabase/ssr';
 
 import { clientEnv } from '@/lib/env';
 import type { Database } from '@/types/database.types';
+
+import { readRememberChoice, withSessionPersistence } from './session-persistence';
 
 /**
  * Refreshes the Supabase session for an incoming request.
@@ -35,6 +38,13 @@ export async function updateSession(request: NextRequest) {
 
   const env = clientEnv();
 
+  /*
+   * Read once, from the incoming request. This runs on every navigation, and it
+   * is the rotation here — not the sign-in — that would quietly turn a session
+   * cookie back into a persistent one if the choice were not reapplied.
+   */
+  const remember = readRememberChoice((name) => request.cookies.get(name));
+
   const supabase = createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -51,7 +61,7 @@ export async function updateSession(request: NextRequest) {
           response = NextResponse.next({ request });
 
           for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, options);
+            response.cookies.set(name, value, withSessionPersistence(options, remember));
           }
         },
       },

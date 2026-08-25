@@ -3,18 +3,10 @@
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The hero's centrepiece — a phone showing the product's actual
  *              output, a stack of ranked matches.
- *
- *              The Stitch design renders this as a 3D illustration. It is built
- *              here as real DOM instead, for three reasons: it stays sharp at
- *              any density, it reflows on a phone where a fixed image cannot,
- *              and it is styled from the same tokens as the real match cards,
- *              so the marketing page cannot drift away from the product.
- * Version:     0.4.0
- *
- * Modifications:
- *     0.4.0 - 2026-08-03 - Initial implementation (design system)
+ * Version:     0.4.2
  */
 
+import Image from 'next/image';
 import { Sparkles } from 'lucide-react';
 
 import { Chip } from '@/components/ui/chip';
@@ -53,10 +45,6 @@ const SAMPLE_MATCHES = [
 /**
  * Renders the hero phone mockup.
  *
- * Entirely decorative: the surrounding section already states what the product
- * does in text, so the whole block is hidden from assistive technology rather
- * than read out as a list of fictional people.
- *
  * @returns The phone showcase element.
  */
 export function PhoneShowcase() {
@@ -67,11 +55,16 @@ export function PhoneShowcase() {
 
       <div className="border-outline-variant/40 shadow-clay-lifted rounded-[2.5rem] border-8 border-white bg-white p-3">
         <div className="from-surface rounded-[1.75rem] bg-gradient-to-b to-[#f2f0ff] p-4">
-          <p className="text-label-sm text-outline mb-3 text-center">Welcome to</p>
-          <p className="font-heading mb-4 text-center text-lg tracking-tight">
-            <span className="text-foreground">Study</span>
-            <span className="text-sunset">Buddy</span>
-          </p>
+          <p className="text-label-sm text-outline mb-2 text-center">Welcome to</p>
+          <div className="mb-4 flex justify-center">
+            <Image
+              src="/logo.png"
+              alt="StudyBuddy Icon"
+              width={36}
+              height={36}
+              className="object-contain"
+            />
+          </div>
 
           <ul className="space-y-2.5">
             {SAMPLE_MATCHES.map((match) => (
@@ -114,11 +107,6 @@ export function PhoneShowcase() {
         </div>
       </div>
 
-      {/*
-       * Two floating accents, no more. The source design surrounds the phone
-       * with a crowd of 3D props; at this fidelity that reads as clutter, so
-       * the budget goes on one shape per brand colour.
-       */}
       <span className="bg-sunset/90 shadow-clay-sunset absolute -top-4 -right-3 flex size-12 rotate-12 items-center justify-center rounded-xl text-xl">
         💬
       </span>

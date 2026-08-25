@@ -55,7 +55,7 @@ const buttonVariants = cva(
         /* Ghost with a hairline brand border — the quiet half of a pair. */
         outline: [
           'border-[1.5px] border-brand bg-white text-brand shadow-clay-soft',
-          'hover:bg-grape-fixed',
+          'hover:bg-brand hover:text-white',
           'active:translate-y-0.5',
         ],
         /* Neutral action inside a card, where colour would be noise. */

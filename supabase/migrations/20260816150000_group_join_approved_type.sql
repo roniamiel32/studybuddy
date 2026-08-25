@@ -1,0 +1,29 @@
+-- =============================================================================
+-- File:        supabase/migrations/20260816150000_group_join_approved_type.sql
+-- Authors:     Roni Amiel & Eden Bitran
+-- Description: The notification type for "your request to join was accepted".
+--
+--              ITS OWN MIGRATION, AND THAT IS NOT TIDINESS. PostgreSQL refuses
+--              to USE a new enum value in the transaction that added it —
+--              SQLSTATE 55P04, "unsafe use of new value". The CLI runs each
+--              migration file in one transaction, so adding the value and then
+--              naming it in the notifications CHECK constraint has to happen in
+--              two files or a fresh `db reset` stops here.
+--
+--              Applying the two statements by hand hides this completely: psql
+--              autocommits each one, so the pair succeeds interactively and
+--              fails only when somebody rebuilds the schema from scratch. It was
+--              the shadow-database replay that caught it, not the live database.
+--
+--              NOT REUSED FROM group_invite, which the failing server action was
+--              borrowing. That type means "somebody invited you to a group" and
+--              the feed renders it as such, so an approval arriving under it told
+--              the student they had been invited to a group they had asked to
+--              join and were already a member of.
+-- Version:     0.38.0
+--
+-- Modifications:
+--     0.38.0 - 2026-08-16 - Initial implementation (Phase 10F)
+-- =============================================================================
+
+alter type notification_type add value if not exists 'group_join_approved';

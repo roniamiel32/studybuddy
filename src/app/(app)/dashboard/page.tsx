@@ -86,7 +86,15 @@ export default async function MatchesPage() {
            * scramble the score ranking, and rank order is the whole point of
            * this screen.
            */}
-          <ul className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {/*
+            NO `items-start` HERE, deliberately. It reads as a harmless default
+            and is `align-items: flex-start`, which stops grid items stretching —
+            so a card with one more trait chip than its neighbours was taller than
+            them and its "Send message" button sat lower than theirs. Letting the
+            default `stretch` apply is what squares the row up; MatchCard's
+            `h-full` and `mt-auto` do the rest.
+          */}
+          <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {others.map((match) => (
               <MatchCard key={match.candidateId} match={match} />
             ))}

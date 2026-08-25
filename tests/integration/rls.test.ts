@@ -11,9 +11,10 @@
  *              of a student deliberately asking for data they should not have,
  *              and asserts they get nothing. A policy that merely "looks right"
  *              is not evidence; an attack that returns zero rows is.
- * Version:     0.5.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Degree-based fixtures; profile_private
  *     0.5.0 - 2026-08-03 - Initial policy tests (Phase 1b)
  */
 
@@ -239,16 +240,16 @@ describeDb('Row Level Security', () => {
       expect(error!.message).toMatch(/cannot move between institutions/i);
     });
 
-    it('cannot see another university study tracks', async () => {
-      const { data } = await self.from('study_tracks').select('id, university_id');
+    it('cannot see another university degrees', async () => {
+      const { data } = await self.from('degrees').select('id, university_id');
 
       expect(data!.length).toBeGreaterThan(0);
-      expect(data!.every((track) => track.university_id === RUNI_ID)).toBe(true);
+      expect(data!.every((degree) => degree.university_id === RUNI_ID)).toBe(true);
     });
 
-    it('cannot put itself on another university study track', async () => {
-      const { data: tauTrack } = await admin
-        .from('study_tracks')
+    it('cannot put itself on another university degree', async () => {
+      const { data: tauDegree } = await admin
+        .from('degrees')
         .select('id')
         .eq('university_id', TAU_ID)
         .limit(1)
@@ -256,25 +257,25 @@ describeDb('Row Level Security', () => {
 
       const { error } = await self
         .from('profiles')
-        .update({ study_track_id: tauTrack!.id })
+        .update({ degree_id: tauDegree!.id })
         .eq('id', ids.runiSelf);
 
       expect(error).not.toBeNull();
       expect(error!.message).toMatch(/must belong to the student's own university/i);
     });
 
-    it('cannot see course-track links belonging to another university', async () => {
-      const { data: tauCourse } = await admin
-        .from('courses')
+    it('cannot read a course belonging to another university degree', async () => {
+      const { data: tauDegree } = await admin
+        .from('degrees')
         .select('id')
         .eq('university_id', TAU_ID)
         .limit(1)
         .single();
 
       const { data } = await self
-        .from('course_tracks')
-        .select('course_id')
-        .eq('course_id', tauCourse!.id);
+        .from('courses')
+        .select('id')
+        .eq('degree_id', tauDegree!.id);
 
       expect(data).toEqual([]);
     });

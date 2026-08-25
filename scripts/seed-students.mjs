@@ -12,10 +12,12 @@
  *
  *              Run with `npm run seed:students`. Idempotent — existing demo
  *              accounts are left alone.
- * Version:     0.8.0
+ * Version:     0.10.0
  *
  * Modifications:
- *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
+ *     0.10.0 - 2026-08-09 - Study tracks removed; cities, birth years and study
+ *                           formats so every v2 bonus is demonstrable
+ *     0.8.0  - 2026-08-05 - Initial implementation (Phase 2)
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -32,9 +34,7 @@ const PASSWORD = 'demo-student-1234';
 
 const RUNI = '11111111-1111-4111-8111-111111111111';
 const TAU = '22222222-2222-4222-8222-222222222222';
-const RUNI_CS_TRACK = '7ac00001-0000-4000-8000-000000000001';
 const RUNI_CS_DEGREE = 'de600001-0000-4000-8000-000000000001';
-const TAU_CS_TRACK = '7ac00101-0000-4000-8000-000000000101';
 const TAU_CS_DEGREE = 'de600101-0000-4000-8000-000000000101';
 
 if (!URL || !SERVICE_KEY) {
@@ -247,13 +247,13 @@ async function currentOfferingsByCode(universityId) {
  *
  * @param spec         - The student definition.
  * @param email        - Their address; the domain decides the tenant.
- * @param trackId      - Study track, or null.
- * @param degreeId     - Degree the course catalog hangs off.
+ * @param degreeId     - Degree the course catalog hangs off, and the student's
+ *                       only academic classification now that tracks are gone.
  * @param offerings    - Course code to offering id map.
  * @param existing     - Emails already present, to stay idempotent.
  * @returns 'created' or 'skipped'.
  */
-async function seedStudent(spec, email, trackId, degreeId, offerings, existing) {
+async function seedStudent(spec, email, degreeId, offerings, existing) {
   if (existing.has(email)) {
     return 'skipped';
   }
@@ -275,7 +275,6 @@ async function seedStudent(spec, email, trackId, degreeId, offerings, existing) 
     .from('profiles')
     .update({
       full_name: spec.name,
-      study_track_id: trackId,
       degree_id: degreeId,
       city: spec.city,
       year_of_study: spec.year,
@@ -370,7 +369,6 @@ async function main() {
     const result = await seedStudent(
       spec,
       email,
-      RUNI_CS_TRACK,
       RUNI_CS_DEGREE,
       runiOfferings,
       existing,
@@ -387,7 +385,6 @@ async function main() {
   const tauResult = await seedStudent(
     TAU_STUDENT,
     tauEmail,
-    TAU_CS_TRACK,
     TAU_CS_DEGREE,
     tauOfferings,
     existing,

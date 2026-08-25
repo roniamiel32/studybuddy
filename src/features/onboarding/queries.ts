@@ -4,41 +4,56 @@
  * Description: Reads backing the onboarding flow. Every query here runs as the
  *              signed-in student, so RLS has already scoped the results to
  *              their university before this code sees a row.
- * Version:     0.6.0
+ * Version:     0.14.0
  *
  * Modifications:
+ *     0.14.0 - 2026-08-10 - isDiscoverable and degreeName for the Profile tab
+ *     0.11.0 - 2026-08-09 - CourseSource shared with the courses feature
+ *     0.10.0 - 2026-08-09 - getDegreeOfferings replaces the university-wide read
  *     0.6.0 - 2026-08-05 - Initial implementation (Phase 1c)
  */
 
 import 'server-only';
 
+import type { CourseSource } from '@/features/courses/catalog-schema';
 import { createClient, requireUser } from '@/lib/supabase/server';
 
-export interface TrackOption {
+export interface DegreeOption {
   id: string;
-  code: string;
   name: string;
+  level: 'bachelors' | 'masters' | 'phd';
 }
 
 export interface OfferingOption {
   offeringId: string;
   courseId: string;
-  code: string;
   name: string;
   faculty: string | null;
-  /** Tracks this course belongs to; a course can belong to several. */
-  trackIds: string[];
+  /** Where the course came from; see UNVERIFIED_SOURCES. */
+  source: CourseSource;
 }
 
 export interface OnboardingProfile {
   fullName: string | null;
-  studyTrackId: string | null;
+  degreeId: string | null;
+  city: string | null;
+  /** Read from the private table; only ever the owner's own. */
+  dateOfBirth: string | null;
   yearOfStudy: number | null;
   avatarUrl: string | null;
   universityName: string;
   onboardingCompletedAt: string | null;
   /** The signed-in address, used to suggest a display name on step 1. */
   email: string;
+  /** Whether classmates can see them at all. Editable from the Profile tab. */
+  isDiscoverable: boolean;
+  /** Shown read-only on the Profile tab; the degree decides the course catalog. */
+  degreeName: string | null;
+  /**
+   * When they were last asked whether they had moved up a year, null if never.
+   * Drives the autumn prompt — see features/profile/academic-year.ts.
+   */
+  lastYearPromptDate: string | null;
 }
 
 /**
@@ -54,7 +69,7 @@ export async function getOnboardingProfile(): Promise<OnboardingProfile> {
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'full_name, study_track_id, year_of_study, avatar_url, onboarding_completed_at, universities(name)',
+      'full_name, degree_id, city, year_of_study, avatar_url, onboarding_completed_at, is_discoverable, universities(name), degrees(name)',
     )
     .eq('id', user.id)
     .single();
@@ -63,73 +78,87 @@ export async function getOnboardingProfile(): Promise<OnboardingProfile> {
     throw new Error(`Profile not found for ${user.id}: ${error?.message}`);
   }
 
+  /* Separate table, and readable only by its owner. */
+  const { data: privateRow } = await supabase
+    .from('profile_private')
+    .select('date_of_birth')
+    .eq('profile_id', user.id)
+    .maybeSingle();
+
   return {
     fullName: data.full_name,
-    studyTrackId: data.study_track_id,
+    degreeId: data.degree_id,
+    city: data.city,
+    dateOfBirth: privateRow?.date_of_birth ?? null,
     yearOfStudy: data.year_of_study,
     avatarUrl: data.avatar_url,
     universityName: data.universities?.name ?? 'your university',
     onboardingCompletedAt: data.onboarding_completed_at,
     email: user.email ?? '',
+    isDiscoverable: data.is_discoverable,
+    degreeName: data.degrees?.name ?? null,
+    lastYearPromptDate: null,
   };
 }
 
 /**
- * Lists the study tracks offered by the student's own university.
+ * Lists the degrees offered by the student's own university.
  *
- * The university itself is never asked for — it is derived from the email
- * domain at signup — so this list is already narrowed to one institution by
- * RLS.
+ * RLS has already narrowed this to one institution, so no filter is needed here
+ * — and none can be forgotten.
  *
- * @returns Tracks, alphabetically.
+ * @returns Degrees, ordered by level then name.
  */
-export async function getStudyTracks(): Promise<TrackOption[]> {
+export async function getDegrees(): Promise<DegreeOption[]> {
   const supabase = await createClient();
 
   const { data } = await supabase
-    .from('study_tracks')
-    .select('id, code, name')
+    .from('degrees')
+    .select('id, name, level')
+    .order('level')
     .order('name');
 
   return data ?? [];
 }
 
 /**
- * Lists every course offered in the current term at the student's university,
- * with the tracks each belongs to.
+ * Lists the current-term courses belonging to ONE degree.
  *
- * Deliberately returns the whole current-term catalog in one query and lets the
- * picker filter it in the browser. At a realistic catalog size that is a single
- * round trip and instant filtering as the student types, rather than a request
- * per keystroke. A catalog of thousands would want this pushed into SQL.
+ * The degree filter is the fix for step 2 showing every course at the
+ * university: the previous version filtered only on the current term, so a Law
+ * student was shown the Computer Science catalog. An unrecognised or absent
+ * degree returns nothing, which is what lets the picker ask the Smart Course API
+ * to generate a list rather than silently falling back to someone else's.
  *
- * Note what is NOT filtered here: year of study. A student extending their
+ * Note what is still NOT filtered: year of study. A student extending their
  * degree or taking a course off-sequence must still find it.
  *
- * @returns Offerings for the current term.
+ * @param degreeId - The student's degree, or null before step 1 is done.
+ * @returns Offerings for that degree in the current term.
  */
-export async function getCurrentTermOfferings(): Promise<OfferingOption[]> {
+export async function getDegreeOfferings(degreeId: string | null): Promise<OfferingOption[]> {
+  if (!degreeId) {
+    return [];
+  }
+
   const supabase = await createClient();
 
   const { data } = await supabase
     .from('course_offerings')
-    .select(
-      `id,
-       terms!inner(is_current),
-       courses!inner(id, code, name, faculty, course_tracks(track_id))`,
-    )
+    .select('id, terms!inner(is_current), courses!inner(id, name, faculty, degree_id, source)')
+    .eq('courses.degree_id', degreeId)
     .eq('terms.is_current', true);
 
   return (data ?? [])
     .map((offering) => ({
       offeringId: offering.id,
       courseId: offering.courses.id,
-      code: offering.courses.code,
       name: offering.courses.name,
       faculty: offering.courses.faculty,
-      trackIds: (offering.courses.course_tracks ?? []).map((link) => link.track_id),
+      source: offering.courses.source,
     }))
-    .sort((a, b) => a.code.localeCompare(b.code));
+    /* By name: the codes are unverified and no longer shown anywhere. */
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -164,7 +193,7 @@ export async function getMyPreferences() {
   const { data } = await supabase
     .from('learning_preferences')
     .select(
-      'preferred_time_blocks, study_environments, group_sizes, studies_on_saturday, spoken_languages',
+      'preferred_time_blocks, study_environments, study_formats, group_sizes, studies_on_saturday, spoken_languages',
     )
     .eq('profile_id', user.id)
     .maybeSingle();

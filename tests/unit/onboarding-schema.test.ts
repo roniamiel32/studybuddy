@@ -5,9 +5,10 @@
  *              server actually enforces, so the tests cover the rejections as
  *              carefully as the happy paths — a form can be bypassed, a schema
  *              cannot.
- * Version:     0.6.0
+ * Version:     0.10.0
  *
  * Modifications:
+ *     0.10.0 - 2026-08-09 - Track removal and study format cases
  *     0.6.0 - 2026-08-05 - Initial tests (Phase 1c)
  */
 
@@ -21,7 +22,7 @@ import {
 } from '@/features/onboarding/schema';
 import { emailDomain, signUpSchema } from '@/features/auth/schema';
 
-const TRACK_ID = '7ac00001-0000-4000-8000-000000000001';
+const DEGREE_ID = 'de600001-0000-4000-8000-000000000001';
 const OFFERING_ID = 'c0000001-0000-4000-8000-000000000001';
 
 describe('signUpSchema', () => {
@@ -53,30 +54,86 @@ describe('basicsSchema', () => {
   it('accepts a complete step 1', () => {
     const parsed = basicsSchema.parse({
       fullName: '  Roni Amiel  ',
-      studyTrackId: TRACK_ID,
+      degreeId: DEGREE_ID,
       yearOfStudy: '3',
+      city: '  Tel Aviv ',
     });
 
     expect(parsed.fullName).toBe('Roni Amiel');
     expect(parsed.yearOfStudy).toBe(3);
+    expect(parsed.city).toBe('Tel Aviv');
+    /* Optional: a student who skips it still gets through. */
+    expect(parsed.dateOfBirth).toBeUndefined();
+  });
+
+  it('accepts a date of birth, and rejects an implausible one', () => {
+    const base = {
+      fullName: 'Ada',
+      degreeId: DEGREE_ID,
+      yearOfStudy: 1,
+      city: 'Haifa',
+    };
+
+    expect(() => basicsSchema.parse({ ...base, dateOfBirth: '2003-06-15' })).not.toThrow();
+    /* A five-year-old is a typo, not a student. */
+    expect(() => basicsSchema.parse({ ...base, dateOfBirth: '2021-06-15' })).toThrow();
+    expect(() => basicsSchema.parse({ ...base, dateOfBirth: '1890-06-15' })).toThrow();
+  });
+
+  it('requires a degree, since the course list is fetched per degree', () => {
+    expect(() =>
+      basicsSchema.parse({
+        fullName: 'Ada',
+          yearOfStudy: 1,
+        city: 'Haifa',
+      }),
+    ).toThrow();
   });
 
   it('accepts year 8, because extended degrees are real', () => {
     expect(() =>
-      basicsSchema.parse({ fullName: 'Ada', studyTrackId: TRACK_ID, yearOfStudy: 8 }),
+      basicsSchema.parse({
+        fullName: 'Ada',
+        degreeId: DEGREE_ID,
+          yearOfStudy: 8,
+        city: 'Haifa',
+      }),
     ).not.toThrow();
   });
 
   it('rejects a year outside 1-8', () => {
     expect(() =>
-      basicsSchema.parse({ fullName: 'Ada', studyTrackId: TRACK_ID, yearOfStudy: 9 }),
+      basicsSchema.parse({
+        fullName: 'Ada',
+        degreeId: DEGREE_ID,
+          yearOfStudy: 9,
+        city: 'Haifa',
+      }),
     ).toThrow();
   });
 
-  it('rejects a track that is not a uuid, which a tampered form would send', () => {
+  it('rejects a degree that is not a uuid, which a tampered form would send', () => {
     expect(() =>
-      basicsSchema.parse({ fullName: 'Ada', studyTrackId: 'computer-science', yearOfStudy: 1 }),
+      basicsSchema.parse({
+        fullName: 'Ada',
+        degreeId: 'law',
+        yearOfStudy: 1,
+        city: 'Haifa',
+      }),
     ).toThrow();
+  });
+
+  it('no longer accepts a study track, which was removed', () => {
+    const parsed = basicsSchema.parse({
+      fullName: 'Ada',
+      degreeId: DEGREE_ID,
+      yearOfStudy: 1,
+      city: 'Haifa',
+      studyTrackId: '7ac00001-0000-4000-8000-000000000001',
+    });
+
+    /* Degree level and degree are the only academic classification now. */
+    expect('studyTrackId' in parsed).toBe(false);
   });
 });
 
@@ -101,6 +158,7 @@ describe('preferencesSchema', () => {
     studyEnvironments: ['quiet'],
     groupSizes: ['small'],
     studiesOnSaturday: false,
+    studyFormats: ['in_person'],
     spokenLanguages: ['he', 'en'],
   };
 
@@ -115,6 +173,16 @@ describe('preferencesSchema', () => {
     expect(() => preferencesSchema.parse({ ...valid, studyEnvironments: [] })).toThrow();
     expect(() => preferencesSchema.parse({ ...valid, groupSizes: [] })).toThrow();
     expect(() => preferencesSchema.parse({ ...valid, spokenLanguages: [] })).toThrow();
+    expect(() => preferencesSchema.parse({ ...valid, studyFormats: [] })).toThrow();
+  });
+
+  it('accepts both study formats, which matches everyone', () => {
+    const parsed = preferencesSchema.parse({
+      ...valid,
+      studyFormats: ['in_person', 'remote'],
+    });
+
+    expect(parsed.studyFormats).toEqual(['in_person', 'remote']);
   });
 
   it('rejects a value outside the enum', () => {

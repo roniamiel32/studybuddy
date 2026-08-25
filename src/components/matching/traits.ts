@@ -119,3 +119,29 @@ export function describeScore(score: number): string {
   }
   return 'Weak match — you share a course, but your schedules do not overlap';
 }
+
+/**
+ * The colour a match percentage is written in.
+ *
+ * THREE BANDS, AND THE HEXES ARE DELIBERATE. They were picked by hand rather
+ * than taken from the palette — the score is the one number in the app that has
+ * to read as good, middling or bad at a glance, and the brand colours do not
+ * carry that meaning.
+ *
+ * MOVED HERE FROM THE STUDY-INFO PAGE so the group review screen shows the same
+ * bands. Two copies of a threshold is two thresholds eventually, and a score
+ * that means "strong" on one screen and "middling" on another is worse than no
+ * colour at all.
+ *
+ *   0-40   #FF6B7D
+ *   41-79  #FF8A50
+ *   80-100 #4f7b58ff
+ *
+ * @param score - The score, 0-100.
+ * @returns A CSS colour.
+ */
+export function getCompatibilityColor(score: number): string {
+  if (score <= 40) return '#FF6B7D';
+  if (score <= 79) return '#FF8A50';
+  return '#4f7b58ff';
+}

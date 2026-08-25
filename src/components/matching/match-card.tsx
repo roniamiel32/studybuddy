@@ -7,18 +7,24 @@
  *              profile route yet. Rather than ship a control that goes nowhere,
  *              it expands the card in place to show why this person was matched
  *              — which is the question a student actually has at that moment.
- * Version:     0.8.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Courses are named, not coded
+ *     0.18.0 - 2026-08-10 - The name links to the student's profile (Phase 6)
+ *     0.12.0 - 2026-08-10 - Send message button (Phase 3)
+ *     0.10.0 - 2026-08-09 - Study track no longer shown
  *     0.8.0 - 2026-08-05 - Initial implementation (Phase 2)
  */
 
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { CalendarClock, ChevronDown } from 'lucide-react';
 
 import { MatchAvatar } from '@/components/matching/match-avatar';
+import { MessageButton } from '@/components/matching/message-button';
 import { describeScore, traitChipsFor } from '@/components/matching/traits';
 import { Chip } from '@/components/ui/chip';
 import { formatSharedAvailability, type MatchView } from '@/features/matching/match-view';
@@ -41,8 +47,18 @@ export function MatchCard({ match }: MatchCardProps) {
   const availability = formatSharedAvailability(match.sharedDays, match.overlapMinutes);
   const detailsId = `match-details-${match.candidateId}`;
 
+  /*
+   * h-full IS THE HALF THAT MAKES THE BUTTONS LINE UP. `mt-auto` on the action
+   * area below can only push against space the card actually has, and a grid item
+   * is only as tall as its own content unless it is told to fill the row. With
+   * both, a card carrying an extra trait chip grows the row and every card in it
+   * grows with it, so the buttons stay on one line.
+   *
+   * The grid must also not say `items-start`: that is `align-items: flex-start`,
+   * which overrides the stretch this relies on. See dashboard/page.tsx.
+   */
   return (
-    <li className="clay-card relative flex flex-col items-center p-5 text-center">
+    <li className="clay-card relative flex h-full flex-col items-center p-5 text-center">
       <span
         title={describeScore(match.score)}
         className="border-brand-fixed text-brand absolute top-4 right-4 rounded-full border bg-white px-2 py-1 text-label-sm shadow-sm"
@@ -57,14 +73,23 @@ export function MatchCard({ match }: MatchCardProps) {
         className="mb-3 border-[3px]"
       />
 
-      <h3 className="text-label-md text-lg">{match.fullName}</h3>
+      {/* The name is the way into their profile — the convention every social app
+          uses, and it saves adding a second control to a card that already has two. */}
+      <h3 className="text-label-md text-lg">
+        <Link
+          href={`/students/${match.candidateId}`}
+          className="hover:text-brand focus-visible:ring-brand/35 rounded-md transition-colors focus-visible:ring-4 focus-visible:outline-none"
+        >
+          {match.fullName}
+        </Link>
+      </h3>
       <p className="text-outline mb-3 text-label-sm font-normal">
-        {match.trackName ?? 'Classmate'}
+        {match.degreeName ?? 'Classmate'}
       </p>
 
       <ul className="mb-4 flex flex-wrap justify-center gap-1.5">
         <li>
-          <Chip tone="brand">{match.bestCourseCode}</Chip>
+          <Chip tone="brand">{match.bestCourseName}</Chip>
         </li>
         {chips.map((chip) => (
           <li key={chip.label}>
@@ -75,12 +100,19 @@ export function MatchCard({ match }: MatchCardProps) {
         ))}
       </ul>
 
+      <MessageButton
+        partnerId={match.candidateId}
+        courseOfferingId={match.bestCourseOfferingId}
+        partnerName={match.fullName}
+        className="mt-auto w-full"
+      />
+
       <button
         type="button"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
         aria-controls={detailsId}
-        className="clay-btn-secondary focus-visible:ring-brand/35 mt-auto flex w-full items-center justify-center gap-1.5 rounded-md py-2 text-label-sm focus-visible:ring-4 focus-visible:outline-none"
+        className="text-on-surface-variant hover:text-brand focus-visible:ring-brand/35 mt-2 flex w-full items-center justify-center gap-1.5 rounded-md py-1 text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none"
       >
         {expanded ? 'Hide details' : 'Why this match?'}
         <ChevronDown
@@ -99,9 +131,9 @@ export function MatchCard({ match }: MatchCardProps) {
             {availability ?? 'No overlapping free hours yet'}
           </p>
           <p className="text-on-surface-variant text-label-sm font-normal">
-            Shares {match.sharedCourseCodes.length}{' '}
-            {match.sharedCourseCodes.length === 1 ? 'course' : 'courses'} with you:{' '}
-            {match.sharedCourseCodes.join(', ')}
+            Shares {match.sharedCourseNames.length}{' '}
+            {match.sharedCourseNames.length === 1 ? 'course' : 'courses'} with you:{' '}
+            {match.sharedCourseNames.join(', ')}
           </p>
           <p className="text-outline text-label-sm font-normal">{describeScore(match.score)}</p>
         </div>

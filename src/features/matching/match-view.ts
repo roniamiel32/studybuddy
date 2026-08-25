@@ -9,9 +9,11 @@
  *              importing a type from it drags `next/headers` into the browser
  *              bundle and the build fails. Types and pure functions live here
  *              where both sides can reach them.
- * Version:     0.8.0
+ * Version:     0.48.0
  *
  * Modifications:
+ *     0.48.0 - 2026-08-19 - Shared courses are named, not coded
+ *     0.10.0 - 2026-08-09 - track_name dropped from the view model
  *     0.8.0 - 2026-08-05 - Split out of queries.ts (Phase 2)
  */
 
@@ -21,15 +23,14 @@ export interface MatchView {
   candidateId: string;
   fullName: string;
   avatarUrl: string | null;
-  trackName: string | null;
+  degreeName: string | null;
   yearOfStudy: number | null;
   score: number;
   overlapMinutes: number;
   sharedDays: number[];
-  /** Course codes both students are taking, best-scoring first. */
-  sharedCourseCodes: string[];
+  /** Courses both students are taking, named, best-scoring first. */
+  sharedCourseNames: string[];
   /** The course this candidate scored highest on. */
-  bestCourseCode: string;
   bestCourseName: string;
   bestCourseOfferingId: string;
   preferredTimeBlocks: string[];

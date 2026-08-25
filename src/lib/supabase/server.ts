@@ -8,6 +8,7 @@
  * Version:     0.2.0
  *
  * Modifications:
+ *     0.23.0 - 2026-08-12 - Honour the "keep me signed in" choice (Phase 9A)
  *     0.2.0 - 2026-08-03 - Initial implementation (Phase 0.5 scaffold)
  */
 
@@ -17,6 +18,8 @@ import { createServerClient } from '@supabase/ssr';
 import { clientEnv } from '@/lib/env';
 import { AppError, ERROR_CODES } from '@/lib/errors';
 import type { Database } from '@/types/database.types';
+
+import { readRememberChoice, withSessionPersistence } from './session-persistence';
 
 /**
  * Creates a request-scoped Supabase client.
@@ -31,6 +34,7 @@ import type { Database } from '@/types/database.types';
 export async function createClient() {
   const env = clientEnv();
   const cookieStore = await cookies();
+  const remember = readRememberChoice((name) => cookieStore.get(name));
 
   return createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -43,7 +47,7 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options);
+              cookieStore.set(name, value, withSessionPersistence(options, remember));
             }
           } catch {
             /*
