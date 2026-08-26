@@ -521,6 +521,66 @@ export function buildSlotGrid(
 }
 
 /**
+ * One run of back-to-back offered slots, as the list view draws it.
+ *
+ * WHY THE COVERED SLOTS ARE CARRIED. The list shows a merged range — "10:00 –
+ * 14:00" reads far better than two buttons two hours apart — but selection is
+ * per slot, because that is the unit the grid works in and the unit
+ * mergeSelectedSlots re-merges. A block that displayed a two-slot range and then
+ * handed one `startsAt` to the toggle would advertise four hours and book two.
+ */
+export interface MeetingSlotBlock {
+  /** Where the block opens — the first covered slot's start. */
+  startsAt: string;
+  /** Where it closes — the last covered slot's end. */
+  endsAt: string;
+  /** The `startsAt` of every slot inside it, in order. Never empty. */
+  slotStarts: string[];
+}
+
+/**
+ * Merges back-to-back offered slots into the blocks the list draws.
+ *
+ * ADJACENCY IS EXACT TIMESTAMP EQUALITY: a block continues only where one slot's
+ * end IS the next one's start. That is what makes this safe to show beside the
+ * grid — an hour somebody has already booked leaves a real gap between two
+ * slots, the equality fails, and the afternoon is drawn as two blocks rather
+ * than one that spans a time nobody can book.
+ *
+ * THIS WAS BRIEFLY REMOVED, and the reason it came back is worth recording. The
+ * list and the grid disagreed, and merging looked like the culprit; the actual
+ * fault was in rpc_meeting_slots, which phased its blocks from the end of the
+ * previous booking so the slots either side of a gap were mis-timed. With the
+ * blocks phased to the wall clock, adjacency means what it says and merging is
+ * simply the friendlier way to show the same times.
+ *
+ * @param slots - Offered slots, in any order.
+ * @returns One entry per contiguous run, in chronological order.
+ */
+export function mergeSlotsIntoBlocks(slots: MeetingSlotView[]): MeetingSlotBlock[] {
+  const ordered = [...slots].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const blocks: MeetingSlotBlock[] = [];
+
+  for (const slot of ordered) {
+    const open = blocks.at(-1);
+
+    if (open && open.endsAt === slot.startsAt) {
+      open.endsAt = slot.endsAt;
+      open.slotStarts.push(slot.startsAt);
+      continue;
+    }
+
+    blocks.push({
+      startsAt: slot.startsAt,
+      endsAt: slot.endsAt,
+      slotStarts: [slot.startsAt],
+    });
+  }
+
+  return blocks;
+}
+
+/**
  * How long a session actually runs, in words.
  *
  * The picker offers availability and books a meeting, and those are different

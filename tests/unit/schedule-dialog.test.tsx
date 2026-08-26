@@ -293,57 +293,87 @@ describe('the list view', () => {
     expect(times[1]).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('shows one button per grid cell, not merged runs', async () => {
+  it('merges back-to-back slots into one button', async () => {
     /*
-     * THE DESYNC THIS REPLACED. The list used to merge contiguous slots into one
-     * button, so Sunday's 14–16 and 16–18 appeared as a single "14:00 – 18:00"
-     * while the grid drew two separate cells. Whichever view a student read
-     * second contradicted the first, with nothing to say which was the truth.
+     * A free afternoon is one press, not one per two-hour cell. Sunday's 14–16
+     * and 16–18 touch exactly, so they are drawn as a single 14:00 – 18:00.
      */
     const user = await openPicker();
 
     const cellCount = gridCells().length;
 
     await user.click(screen.getByRole('button', { name: 'List' }));
-    /* The list paginates by day; expand it so both views show the same week. */
     await user.click(screen.getByRole('button', { name: /Load more/ }));
 
     const times = screen
       .getAllByRole('button')
       .filter((button) => /\d{2}:\d{2} – \d{2}:\d{2}/.test(button.textContent ?? ''));
 
-    expect(times).toHaveLength(cellCount);
+    /* Five cells, four buttons: the two touching ones became one. */
+    expect(times).toHaveLength(cellCount - 1);
+    expect(times.some((button) => /14:00 – 18:00/.test(button.textContent ?? ''))).toBe(true);
   });
 
-  it('books exactly the slot the button names', async () => {
+  it('shows only the time range, with no duration beside it', async () => {
+    /* The blocks carry a range and nothing else — a "4h" subtitle made every
+       button two lines tall for information the panel below already gives. */
     const user = await openPicker();
 
     await user.click(screen.getByRole('button', { name: 'List' }));
 
-    const twoHours = screen
+    const block = screen
       .getAllByRole('button')
-      .find((button) => /14:00 – 16:00/.test(button.textContent ?? ''))!;
+      .find((button) => /14:00 – 18:00/.test(button.textContent ?? ''))!;
 
-    await user.click(twoHours);
-
-    /* Two hours on the button, two hours in the panel. */
-    expect(screen.getByText('Session hours · 2h')).toBeInTheDocument();
+    expect(block.textContent?.trim()).toBe('14:00 – 18:00');
   });
 
-  it('clears a slot on a second press', async () => {
+  it('books the whole run the button names', async () => {
     const user = await openPicker();
 
     await user.click(screen.getByRole('button', { name: 'List' }));
 
-    const slot = screen
+    const block = screen
       .getAllByRole('button')
-      .find((button) => /14:00 – 16:00/.test(button.textContent ?? ''))!;
+      .find((button) => /14:00 – 18:00/.test(button.textContent ?? ''))!;
 
-    await user.click(slot);
-    await user.click(slot);
+    await user.click(block);
+
+    /* Four hours on the button, four hours in the panel. A block that selected
+       only its first slot would say 2h here. */
+    expect(screen.getByText('Session hours · 4h')).toBeInTheDocument();
+  });
+
+  it('clears the whole run on a second press', async () => {
+    const user = await openPicker();
+
+    await user.click(screen.getByRole('button', { name: 'List' }));
+
+    const block = screen
+      .getAllByRole('button')
+      .find((button) => /14:00 – 18:00/.test(button.textContent ?? ''))!;
+
+    await user.click(block);
+    await user.click(block);
 
     expect(screen.getByRole('button', { name: /Schedule it/ })).toBeDisabled();
     expect(screen.getByText('Pick a time first')).toBeInTheDocument();
+  });
+
+  it('marks a run only part of which was picked in the grid', async () => {
+    const user = await openPicker();
+
+    await user.click(gridCells()[0]);
+    await user.click(screen.getByRole('button', { name: 'List' }));
+
+    const block = screen
+      .getAllByRole('button')
+      .find((button) => /14:00 – 18:00/.test(button.textContent ?? ''))!;
+
+    /* Pressed, because something in it is chosen — and said out loud, because
+       the fill alone cannot tell a screen reader which of the two it is. */
+    expect(block).toHaveAttribute('aria-pressed', 'true');
+    expect(block).toHaveAttribute('aria-label', '14:00 – 18:00, partly selected');
   });
 
   it('shows three days, then loads the rest, then folds back', async () => {

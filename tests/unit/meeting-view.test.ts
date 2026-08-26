@@ -35,6 +35,7 @@ import {
   formatSlotRange,
   isBannerMeeting,
   mergeSelectedSlots,
+  mergeSlotsIntoBlocks,
   type MeetingSlotView,
   type MeetingView,
 } from '@/features/meetings/meeting-view';
@@ -595,6 +596,62 @@ describe('mergeSelectedSlots, on slots that do not sit on the grid', () => {
     );
 
     expect(runs).toHaveLength(2);
+  });
+});
+
+describe('mergeSlotsIntoBlocks', () => {
+  it('joins back-to-back slots and keeps every one it covered', () => {
+    /*
+     * The covered starts are the point of the type. The list draws the merged
+     * range and selects per slot, so a block that forgot which slots it was made
+     * of could only ever select one of them.
+     */
+    const blocks = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(0, 16), slotAt(0, 18)]);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].slotStarts).toHaveLength(3);
+    expect(formatSlotRange(blocks[0].startsAt, blocks[0].endsAt)).toBe('14:00 – 20:00');
+  });
+
+  it('BREAKS where a booking has taken the time between', () => {
+    /*
+     * THE ASSERTION THIS HELPER LIVES OR DIES BY. 14–16 and 18–20 with nothing
+     * at 16: that hour is somebody else's session, and a block spanning it would
+     * offer a time that cannot be booked. Adjacency is exact equality precisely
+     * so this cannot happen.
+     */
+    const blocks = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(0, 18)]);
+
+    expect(blocks).toHaveLength(2);
+    expect(formatSlotRange(blocks[0].startsAt, blocks[0].endsAt)).toBe('14:00 – 16:00');
+    expect(formatSlotRange(blocks[1].startsAt, blocks[1].endsAt)).toBe('18:00 – 20:00');
+  });
+
+  it('does not join across a gap of even a minute', () => {
+    /* A 45-minute booking leaves a ragged edge rather than a clean hour. The
+       rule has to be equality, not "close enough". */
+    const first = slotAt(0, 14);
+    const later = {
+      ...slotAt(0, 16),
+      startsAt: new Date(new Date(first.endsAt).getTime() + 60_000).toISOString(),
+    };
+
+    expect(mergeSlotsIntoBlocks([first, later])).toHaveLength(2);
+  });
+
+  it('keeps different days apart', () => {
+    expect(mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(1, 14)])).toHaveLength(2);
+  });
+
+  it('sorts before merging, so input order does not matter', () => {
+    const forwards = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(0, 16)]);
+    const backwards = mergeSlotsIntoBlocks([slotAt(0, 16), slotAt(0, 14)]);
+
+    expect(backwards).toEqual(forwards);
+  });
+
+  it('has nothing to merge in an empty week', () => {
+    expect(mergeSlotsIntoBlocks([])).toEqual([]);
   });
 });
 
