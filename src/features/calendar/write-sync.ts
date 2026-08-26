@@ -26,7 +26,10 @@
 import 'server-only';
 
 import { loadUsableConnection } from '@/features/calendar/connection';
-import { defaultMeetingTitle, isDefaultMeetingTitle } from '@/features/meetings/meeting-view';
+import {
+  isDefaultMeetingTitle,
+  sessionTitleWithPartner,
+} from '@/features/meetings/meeting-view';
 import { createEvent, deleteEvent } from '@/lib/google/calendar';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -117,7 +120,7 @@ async function titleForRecipient(
 
   /* No readable partner — a deleted account, most likely. The stored title is
      still a true sentence about the session, so it goes across unchanged. */
-  return name ? defaultMeetingTitle(name) : meeting.title;
+  return name ? sessionTitleWithPartner(name) : meeting.title;
 }
 
 /**

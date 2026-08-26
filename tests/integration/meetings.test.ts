@@ -196,6 +196,121 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
   });
 
   // ===========================================================================
+  // The end-of-session prompt, on a schedule rather than on a page visit.
+  // ===========================================================================
+
+  describe('sync_session_prompts', () => {
+    /*
+     * WHY THIS EXISTS. rate_partner notifications were only ever created by
+     * rpc_sync_notifications, which reads auth.uid() and runs when a student
+     * opens /notifications. A student who never opened that page never got the
+     * prompt, and the bell could not tell them it was waiting because the unread
+     * count deliberately does not sync. This function is the same rule with no
+     * caller, so a scheduler can run it for everybody.
+     */
+    let pastMeetingId = '';
+
+    afterAll(async () => {
+      if (pastMeetingId) {
+        await admin.from('meetings').delete().eq('id', pastMeetingId);
+      }
+    });
+
+    it('creates the prompt for both attendees of a finished session', async () => {
+      /* Inserted ahead and then moved back: check_meeting_consistency refuses a
+         meeting created in the past, but not one updated into it. */
+      const created = await admin
+        .from('meetings')
+        .insert({
+          university_id: RUNI_ID,
+          conversation_id: conversationId,
+          created_by: ids.ada,
+          title: 'Finished session',
+          starts_at: new Date(Date.now() + 86_400_000).toISOString(),
+          ends_at: new Date(Date.now() + 90_000_000).toISOString(),
+        })
+        .select('id')
+        .single();
+
+      expect(created.error).toBeNull();
+      pastMeetingId = created.data!.id;
+
+      await admin.from('meeting_attendees').insert([
+        { meeting_id: pastMeetingId, profile_id: ids.ada, rsvp: 'going' },
+        { meeting_id: pastMeetingId, profile_id: ids.ben, rsvp: 'going' },
+      ]);
+
+      await admin
+        .from('meetings')
+        .update({
+          starts_at: new Date(Date.now() - 7_200_000).toISOString(),
+          ends_at: new Date(Date.now() - 3_600_000).toISOString(),
+        })
+        .eq('id', pastMeetingId);
+
+      /* Nobody has opened a page. The scheduler is the only actor. */
+      const { error } = await admin.rpc('sync_session_prompts' as never);
+
+      expect(error).toBeNull();
+
+      const { data: prompts } = await admin
+        .from('notifications')
+        .select('recipient_id, actor_id')
+        .eq('meeting_id', pastMeetingId)
+        .eq('type', 'rate_partner');
+
+      const pairs = (prompts ?? []).map((row) => `${row.recipient_id}->${row.actor_id}`).sort();
+
+      expect(pairs).toEqual([`${ids.ada}->${ids.ben}`, `${ids.ben}->${ids.ada}`].sort());
+    });
+
+    it('writes nothing on a second run', async () => {
+      /*
+       * The property that makes a fifteen-minute schedule safe. Idempotency is
+       * the partial unique index, not bookkeeping in the function.
+       */
+      const { data: written, error } = await admin.rpc('sync_session_prompts' as never);
+
+      expect(error).toBeNull();
+      expect(written).toBe(0);
+    });
+
+    it('does not prompt about a session that has not finished', async () => {
+      const ahead = await admin
+        .from('meetings')
+        .insert({
+          university_id: RUNI_ID,
+          conversation_id: conversationId,
+          created_by: ids.ada,
+          title: 'Still to come',
+          starts_at: new Date(Date.now() + 172_800_000).toISOString(),
+          ends_at: new Date(Date.now() + 176_400_000).toISOString(),
+        })
+        .select('id')
+        .single();
+
+      await admin.from('meeting_attendees').insert([
+        { meeting_id: ahead.data!.id, profile_id: ids.ada, rsvp: 'going' },
+        { meeting_id: ahead.data!.id, profile_id: ids.ben, rsvp: 'going' },
+      ]);
+
+      await admin.rpc('sync_session_prompts' as never);
+
+      /* Scoped to the prompt. Booking the session legitimately produced a
+         meeting_scheduled notification of its own, which is a different rule. */
+      const { count } = await admin
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('meeting_id', ahead.data!.id)
+        .eq('type', 'rate_partner');
+
+      expect(count).toBe(0);
+
+      await admin.from('meetings').delete().eq('id', ahead.data!.id);
+    });
+  });
+
+  // ===========================================================================
   // The intersection.
   // ===========================================================================
 

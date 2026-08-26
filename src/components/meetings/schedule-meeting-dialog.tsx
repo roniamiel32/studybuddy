@@ -64,7 +64,6 @@ import {
   formatSlotRange,
   groupSlotsByDay,
   mergeSelectedSlots,
-  mergeSlotsIntoBlocks,
   type MeetingSlotView,
   type SelectedRun,
 } from '@/features/meetings/meeting-view';
@@ -237,25 +236,6 @@ export function ScheduleMeetingDialog({
     setEdits({});
   };
 
-  /**
-   * Selects or clears every slot inside one list block at once.
-   *
-   * THE LIST DRAWS A BLOCK AND BOOKS SLOTS, and this is the join between them.
-   * The block used to hand its FIRST slot's start to `toggle`, so a button
-   * reading "13:30 – 21:30" selected two hours and the panel underneath then
-   * disagreed with it by six. Selection is still per slot — the grid depends on
-   * that, and so does mergeSelectedSlots — but a press on a block now moves all
-   * of them together.
-   */
-  const toggleBlock = (slotStarts: string[], select: boolean) => {
-    setSelected((current) => {
-      const rest = current.filter((key) => !slotStarts.includes(key));
-
-      return select ? [...rest, ...slotStarts] : rest;
-    });
-    setEdits({});
-  };
-
   /** The run as it will be booked, with any fine-tuning applied. */
   const bookable = runs.map((run) => ({
     run,
@@ -376,7 +356,7 @@ export function ScheduleMeetingDialog({
             ) : (
               <SlotListView
                 days={days}
-                onToggleBlock={toggleBlock}
+                onToggle={toggle}
                 visibleDays={visibleDays}
                 onShowMore={() =>
                   setVisibleDays((current) =>
@@ -402,7 +382,7 @@ export function ScheduleMeetingDialog({
               <Input
                 id="meeting-title"
                 name="title"
-                defaultValue={defaultMeetingTitle(withLabel)}
+                defaultValue={defaultMeetingTitle()}
                 maxLength={120}
                 required
               />
@@ -629,14 +609,14 @@ function SlotListView({
   onShowMore,
   onShowLess,
   selected,
-  onToggleBlock,
+  onToggle,
 }: {
   days: ReturnType<typeof groupSlotsByDay>;
   visibleDays: number;
   onShowMore: () => void;
   onShowLess: () => void;
   selected: string[];
-  onToggleBlock: (slotStarts: string[], select: boolean) => void;
+  onToggle: (startsAt: string) => void;
 }) {
   const showing = days.slice(0, visibleDays);
   const hiddenDays = days.length - showing.length;
@@ -647,69 +627,51 @@ function SlotListView({
         <div key={day.date}>
           <p className="text-on-surface-variant mb-2 text-label-sm">{day.label}</p>
 
+          {/*
+            * ONE BUTTON PER SLOT, MIRRORING THE GRID EXACTLY.
+            *
+            * These used to be merged into one button per contiguous run, which
+            * read well — "13:30 – 21:30" is friendlier than four buttons — and
+            * described something the grid did not draw. A student who compared
+            * the two views saw one long block here and four discrete cells
+            * there, with no way to tell which was the truth. The grid is the
+            * primary view and its cells are what actually gets booked, so the
+            * list follows it. Selecting several is still one press each, and
+            * touching runs still merge into a single session on booking.
+            */}
           <div className="flex flex-wrap gap-2">
-            {mergeSlotsIntoBlocks(day.slots).map((block) => {
-              const chosen = block.slotStarts.filter((start) => selected.includes(start));
-              const isOn = chosen.length > 0;
-              const isWhole = chosen.length === block.slotStarts.length;
-
-              /*
-               * A PARTLY-CHOSEN BLOCK SHOWS WHAT IS CHOSEN, not the whole block.
-               * Picking two hours out of an eight-hour afternoon in the grid and
-               * then switching to the list used to show the button lit with the
-               * full range on it, which claimed a booking six hours longer than
-               * the one about to be made.
-               */
-              const shownStart = isOn ? chosen[0] : block.startsAt;
-              const shownEnd = isOn
-                ? (day.slots.find((slot) => slot.startsAt === chosen.at(-1))?.endsAt ??
-                  block.endsAt)
-                : block.endsAt;
+            {day.slots.map((slot) => {
+              const isOn = selected.includes(slot.startsAt);
 
               return (
                 <button
-                  key={block.startsAt}
+                  key={slot.startsAt}
                   type="button"
-                  /* Pressing a block that is wholly on clears it; anything else
-                     fills it. Two presses always return you to where you were. */
-                  onClick={() => onToggleBlock(block.slotStarts, !isWhole)}
+                  onClick={() => onToggle(slot.startsAt)}
                   aria-pressed={isOn}
-                  aria-label={
-                    isOn && !isWhole
-                      ? `${formatSlotRange(shownStart, shownEnd)} of ${formatSlotRange(
-                          block.startsAt,
-                          block.endsAt,
-                        )} selected`
-                      : formatSlotRange(block.startsAt, block.endsAt)
-                  }
+                  aria-label={formatSlotRange(slot.startsAt, slot.endsAt)}
                   className={cn(
                     'flex flex-col items-start rounded-md border px-3 py-2 text-label-sm transition-colors',
                     'focus-visible:ring-brand/35 focus-visible:ring-4 focus-visible:outline-none',
-                    isWhole
+                    isOn
                       ? 'border-brand bg-brand text-white'
-                      : isOn
-                        ? 'border-brand bg-brand-fixed text-brand'
-                        : 'border-outline-variant/60 hover:bg-brand-fixed/60 bg-white',
+                      : 'border-outline-variant/60 hover:bg-brand-fixed/60 bg-white',
                   )}
                 >
                   <span className="flex items-center">
                     {isOn ? (
                       <Check className="mr-1 inline size-3.5" aria-hidden="true" />
                     ) : null}
-                    {formatSlotRange(shownStart, shownEnd)}
+                    {formatSlotRange(slot.startsAt, slot.endsAt)}
                   </span>
 
-                  {/* The length of the session, not of the availability. */}
                   <span
                     className={cn(
                       'text-[11px] font-normal',
-                      isWhole ? 'text-white/80' : 'text-outline',
+                      isOn ? 'text-white/80' : 'text-outline',
                     )}
                   >
-                    {formatDuration(shownStart, shownEnd)}
-                    {isOn && !isWhole
-                      ? ` of ${formatDuration(block.startsAt, block.endsAt)}`
-                      : null}
+                    {formatDuration(slot.startsAt, slot.endsAt)}
                   </span>
                 </button>
               );

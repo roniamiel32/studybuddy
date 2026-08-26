@@ -27,6 +27,7 @@ import {
   formatMeetingPartners,
   isDefaultMeetingTitle,
   meetingChatHref,
+  sessionTitleWithPartner,
   splitMeetingHistory,
   summariseMeetingHistory,
   type MeetingHistoryEntry,
@@ -71,25 +72,41 @@ function entry(overrides: Partial<MeetingHistoryEntry> = {}): MeetingHistoryEntr
 }
 
 describe('defaultMeetingTitle', () => {
-  it('names the study partner', () => {
-    expect(defaultMeetingTitle('Dana Levi')).toBe('Study session with Dana Levi');
+  it('is nameless, whatever the session is with', () => {
+    /*
+     * The form already sits inside the chat with the person, so the name is
+     * noise there — and this is also the string stored on the row, which BOTH
+     * people read. Only one of them is Dana Levi.
+     */
+    expect(defaultMeetingTitle()).toBe('Study session');
   });
 
-  it('falls back to a bare title when there is no name to use', () => {
-    /* Three characters minimum, or createMeetingSchema rejects it. */
-    expect(defaultMeetingTitle(null)).toBe('Study session');
-    expect(defaultMeetingTitle('   ')).toBe('Study session');
+  it('satisfies the schema on its own', () => {
+    /* createMeetingSchema wants at least three characters. */
+    expect(defaultMeetingTitle().length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('sessionTitleWithPartner', () => {
+  it('names the reader’s partner, for their calendar', () => {
+    expect(sessionTitleWithPartner('Dana Levi')).toBe('Study session with Dana Levi');
   });
 
   it('trims, so a stray space cannot produce a double one', () => {
-    expect(defaultMeetingTitle(' Omer Katz ')).toBe('Study session with Omer Katz');
+    expect(sessionTitleWithPartner(' Omer Katz ')).toBe('Study session with Omer Katz');
+  });
+
+  it('falls back to the bare title when the name is empty', () => {
+    expect(sessionTitleWithPartner('   ')).toBe('Study session');
   });
 });
 
 describe('isDefaultMeetingTitle', () => {
-  it('recognises what defaultMeetingTitle produces', () => {
-    expect(isDefaultMeetingTitle(defaultMeetingTitle('Dana Levi'))).toBe(true);
-    expect(isDefaultMeetingTitle(defaultMeetingTitle(null))).toBe(true);
+  it('recognises both titles this app generates', () => {
+    /* Both, because rows written before the form stopped naming the partner
+       still carry the longer form and must stay rewritable. */
+    expect(isDefaultMeetingTitle(defaultMeetingTitle())).toBe(true);
+    expect(isDefaultMeetingTitle(sessionTitleWithPartner('Dana Levi'))).toBe(true);
   });
 
   it('leaves a title a student typed alone', () => {

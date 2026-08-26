@@ -98,56 +98,6 @@ export async function findMeetingSlots(input: {
 }
 
 /**
- * Who a chat is with, for the default session title.
- *
- * A conversation answers with the other student; a group answers with its own
- * name. Read as the caller, so it can only ever name a chat they are in — the
- * conversations and study_groups policies have already said so.
- *
- * @param supabase - The caller's client.
- * @param scope    - The conversation or the group the session is booked from.
- * @param viewerId - The signed-in student, so the other participant can be picked out.
- * @returns The label, or null when it cannot be read.
- */
-async function scopePartnerLabel(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  scope: { conversationId?: string; groupId?: string },
-  viewerId: string,
-): Promise<string | null> {
-  if (scope.groupId) {
-    const { data } = await supabase
-      .from('study_groups')
-      .select('name')
-      .eq('id', scope.groupId)
-      .maybeSingle();
-
-    return data?.name ?? null;
-  }
-
-  if (!scope.conversationId) {
-    return null;
-  }
-
-  const { data } = await supabase
-    .from('conversations')
-    .select(
-      `participant_a,
-       a:profiles!conversations_participant_a_fkey ( full_name ),
-       b:profiles!conversations_participant_b_fkey ( full_name )`,
-    )
-    .eq('id', scope.conversationId)
-    .maybeSingle();
-
-  if (!data) {
-    return null;
-  }
-
-  const partner = data.participant_a === viewerId ? data.b : data.a;
-
-  return partner?.full_name ?? null;
-}
-
-/**
  * Books every session the picker selected, for everyone in the chat.
  *
  * ONE RPC FOR THE WHOLE SELECTION, NOT ONE CALL PER SESSION. Looping here would
@@ -193,7 +143,7 @@ export async function createMeeting(
      * student was never asked to fill in.
      */
    const typedTitle = String(formData.get('title') ?? '').trim();
-    const title = typedTitle || defaultMeetingTitle((await scopePartnerLabel(supabase, scope, user.id)) ?? undefined);
+    const title = typedTitle || defaultMeetingTitle();
 
     const raw = {
       ...scope,

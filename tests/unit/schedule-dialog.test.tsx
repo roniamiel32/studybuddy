@@ -153,15 +153,17 @@ describe('the picker opens on the grid', () => {
     expect(within(screen.getByRole('table')).getAllByRole('columnheader')).toHaveLength(8);
   });
 
-  it('offers a title naming the study partner, and no course code', async () => {
+  it('offers a nameless default title', async () => {
     await openPicker();
 
     const title = screen.getByLabelText('What is it for?');
 
-    /* The exact string the server falls back to, so a form posted with the
-       field untouched and one posted without it produce the same row. */
-    expect(title).toHaveValue('Study session with Pat Partner');
-    expect(title).not.toHaveValue(expect.stringContaining('CS-'));
+    /*
+     * No partner name and no course code. The form is already inside the chat
+     * with the person, and this string is what lands on the row — which both
+     * people read. The name is added per recipient by the calendar sync.
+     */
+    expect(title).toHaveValue('Study session');
   });
 
   it('makes unavailable cells not controls at all', async () => {
@@ -291,60 +293,57 @@ describe('the list view', () => {
     expect(times[1]).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('selects every slot in a block, not just the first', async () => {
+  it('shows one button per grid cell, not merged runs', async () => {
     /*
-     * THE BUG THIS FILE EXISTS TO STOP COMING BACK. The list merges contiguous
-     * slots into one button so an afternoon reads as "14:00 – 18:00" rather than
-     * as two buttons — and it used to hand only the FIRST slot's start to the
-     * toggle, so the button advertised four hours and booked two.
+     * THE DESYNC THIS REPLACED. The list used to merge contiguous slots into one
+     * button, so Sunday's 14–16 and 16–18 appeared as a single "14:00 – 18:00"
+     * while the grid drew two separate cells. Whichever view a student read
+     * second contradicted the first, with nothing to say which was the truth.
      */
     const user = await openPicker();
 
+    const cellCount = gridCells().length;
+
     await user.click(screen.getByRole('button', { name: 'List' }));
+    /* The list paginates by day; expand it so both views show the same week. */
+    await user.click(screen.getByRole('button', { name: /Load more/ }));
 
-    const sunday = screen
+    const times = screen
       .getAllByRole('button')
-      .find((button) => /14:00 – 18:00/.test(button.textContent ?? ''));
+      .filter((button) => /\d{2}:\d{2} – \d{2}:\d{2}/.test(button.textContent ?? ''));
 
-    expect(sunday, 'Sunday 14–16 and 16–18 should merge into one block').toBeDefined();
-
-    await user.click(sunday!);
-
-    /* Both slots of the block are now selected, so the panel books all four
-       hours the button named. */
-    expect(screen.getByText('Session hours · 4h')).toBeInTheDocument();
+    expect(times).toHaveLength(cellCount);
   });
 
-  it('clears a whole block on a second press', async () => {
+  it('books exactly the slot the button names', async () => {
     const user = await openPicker();
 
     await user.click(screen.getByRole('button', { name: 'List' }));
 
-    const sunday = screen
+    const twoHours = screen
       .getAllByRole('button')
-      .find((button) => /14:00 – 18:00/.test(button.textContent ?? ''))!;
+      .find((button) => /14:00 – 16:00/.test(button.textContent ?? ''))!;
 
-    await user.click(sunday);
-    await user.click(sunday);
+    await user.click(twoHours);
+
+    /* Two hours on the button, two hours in the panel. */
+    expect(screen.getByText('Session hours · 2h')).toBeInTheDocument();
+  });
+
+  it('clears a slot on a second press', async () => {
+    const user = await openPicker();
+
+    await user.click(screen.getByRole('button', { name: 'List' }));
+
+    const slot = screen
+      .getAllByRole('button')
+      .find((button) => /14:00 – 16:00/.test(button.textContent ?? ''))!;
+
+    await user.click(slot);
+    await user.click(slot);
 
     expect(screen.getByRole('button', { name: /Schedule it/ })).toBeDisabled();
     expect(screen.getByText('Pick a time first')).toBeInTheDocument();
-  });
-
-  it('shows what is chosen when only part of a block is', async () => {
-    /* Picked in the grid, read in the list: the button must describe the two
-       hours actually selected, not the four the block covers. */
-    const user = await openPicker();
-
-    await user.click(gridCells()[0]);
-    await user.click(screen.getByRole('button', { name: 'List' }));
-
-    const partly = screen
-      .getAllByRole('button', { pressed: true })
-      .find((button) => /\d{2}:\d{2} – \d{2}:\d{2}/.test(button.textContent ?? ''))!;
-
-    expect(partly.textContent).toContain('14:00 – 16:00');
-    expect(partly.textContent).toContain('2h of 4h');
   });
 
   it('shows three days, then loads the rest, then folds back', async () => {

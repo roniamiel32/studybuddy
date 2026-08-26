@@ -35,7 +35,6 @@ import {
   formatSlotRange,
   isBannerMeeting,
   mergeSelectedSlots,
-  mergeSlotsIntoBlocks,
   type MeetingSlotView,
   type MeetingView,
 } from '@/features/meetings/meeting-view';
@@ -596,47 +595,6 @@ describe('mergeSelectedSlots, on slots that do not sit on the grid', () => {
     );
 
     expect(runs).toHaveLength(2);
-  });
-});
-
-describe('mergeSlotsIntoBlocks', () => {
-  it('joins back-to-back slots and keeps every one it covered', () => {
-    /*
-     * The covered starts are the whole point of the type. The list draws the
-     * merged range and selects per slot, so a block that forgot which slots it
-     * was made of could only ever select one of them.
-     */
-    const blocks = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(0, 16), slotAt(0, 18)]);
-
-    expect(blocks).toHaveLength(1);
-    expect(blocks[0].slotStarts).toHaveLength(3);
-    expect(formatSlotRange(blocks[0].startsAt, blocks[0].endsAt)).toBe('14:00 – 20:00');
-  });
-
-  it('splits where a slot is missing, rather than spanning the gap', () => {
-    /* 14–16 and 18–20 with nothing at 16: the hour between is somebody else's
-       booking, and a block spanning it would offer a time that is not free. */
-    const blocks = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(0, 18)]);
-
-    expect(blocks).toHaveLength(2);
-    expect(blocks.map((block) => block.slotStarts.length)).toEqual([1, 1]);
-  });
-
-  it('keeps different days apart', () => {
-    const blocks = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(1, 14)]);
-
-    expect(blocks).toHaveLength(2);
-  });
-
-  it('sorts before merging, so input order does not matter', () => {
-    const forwards = mergeSlotsIntoBlocks([slotAt(0, 14), slotAt(0, 16)]);
-    const backwards = mergeSlotsIntoBlocks([slotAt(0, 16), slotAt(0, 14)]);
-
-    expect(backwards).toEqual(forwards);
-  });
-
-  it('has nothing to merge in an empty week', () => {
-    expect(mergeSlotsIntoBlocks([])).toEqual([]);
   });
 });
 
