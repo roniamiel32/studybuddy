@@ -35,35 +35,46 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import type { MeetingSlotView } from '@/features/meetings/meeting-view';
+import {
+  withCampusTime,
+  type MeetingSlotView,
+} from '@/features/meetings/meeting-view';
 
 /**
- * A slot on a weekday of THE CURRENT WEEK, in the reader's own zone.
+ * A slot on a weekday of the current week, at an Israeli wall-clock hour.
  *
- * ANCHORED ON SUNDAY RATHER THAN ON TODAY, and that is what stops the calendar
- * deciding whether this suite passes. buildSlotGrid draws Sunday to Saturday of
- * the week it is called in, so fixtures written as "today plus four days" fall
- * off the end of the grid from Wednesday onwards — the run would find three
- * cells where it expected five, on three days out of seven. Written as weekdays,
- * every fixture lands in the window whatever day the suite runs on.
+ * ANCHORED ON SUNDAY AND ON THE CAMPUS CLOCK, and it needs both. Sunday, because
+ * buildSlotGrid draws the current Sunday-to-Saturday week and "today plus four
+ * days" falls off the end of it from Wednesday onwards. The campus clock,
+ * because a fixture built from the machine's zone moves with the machine — so
+ * the suite passed everywhere while the product was three hours out on a UTC
+ * server, the fixture and the assertion having shifted together.
  *
  * @param dayOfWeek - 0 = Sunday, the numbering the grid uses.
- * @param hour      - Local start hour.
+ * @param hour      - Israeli wall-clock hour.
  * @returns The slot.
  */
 function slotAt(dayOfWeek: number, hour: number): MeetingSlotView {
-  const now = new Date();
-  const sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-  const start = new Date(
-    sunday.getFullYear(),
-    sunday.getMonth(),
-    sunday.getDate() + dayOfWeek,
-    hour,
-  );
+  /* Today, on the Israeli calendar. */
+  const [year, month, day] = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(new Date())
+    .split('-')
+    .map(Number);
+
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  /* Midday UTC on the wanted date is the same date in Israel either way. */
+  const onDate = new Date(Date.UTC(year, month - 1, day - weekday + dayOfWeek, 12));
+
+  const startsAt = withCampusTime(onDate.toISOString(), `${String(hour).padStart(2, '0')}:00`);
 
   return {
-    startsAt: start.toISOString(),
-    endsAt: new Date(start.getTime() + 7_200_000).toISOString(),
+    startsAt,
+    endsAt: new Date(new Date(startsAt).getTime() + 7_200_000).toISOString(),
     participantCount: 2,
   };
 }

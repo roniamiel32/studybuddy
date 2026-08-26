@@ -35,6 +35,103 @@
  */
 
 /**
+ * The clock this product runs on.
+ *
+ * HARDCODED, AND THAT IS THE DECISION. Every student is at an Israeli
+ * institution, availability is drawn on an Israeli academic week, and
+ * universities.timezone holds this string in every row. The alternative — asking
+ * each rendering context what zone it is in — is what produced the bug this
+ * constant exists to end: the same session read 14:00–16:00 on a laptop in Tel
+ * Aviv and 11:00–13:00 on a Vercel server, because Vercel runs in UTC and these
+ * formatters used whatever zone they happened to execute in. A student saw one
+ * time in the server-rendered HTML and a different one a moment later.
+ *
+ * Every conversion in this module names it. Nothing here reads the ambient zone.
+ */
+export const CAMPUS_TIMEZONE = 'Asia/Jerusalem';
+
+/** An instant broken into campus wall-clock parts. */
+interface CampusParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+}
+
+const CAMPUS_PARTS_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  timeZone: CAMPUS_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+/**
+ * Reads an instant as a campus wall clock.
+ *
+ * @param instant - Any moment.
+ * @returns What a clock in Israel would show at that moment.
+ */
+function campusParts(instant: Date): CampusParts {
+  const parts = Object.fromEntries(
+    CAMPUS_PARTS_FORMAT.formatToParts(instant)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, Number(part.value)]),
+  ) as Record<string, number>;
+
+  return {
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
+    /* h23 renders midnight as 24 in some engines. */
+    hour: parts.hour % 24,
+    minute: parts.minute,
+  };
+}
+
+/**
+ * The instant at which the campus clock reads a given wall-clock time.
+ *
+ * The inverse of campusParts, and the harder direction: an offset cannot be
+ * looked up without knowing the instant, and the instant is what we are solving
+ * for. Guess that the wall clock is UTC, measure how far the guess lands from
+ * where it should, and correct — twice, because a correction that crosses a
+ * daylight-saving boundary changes the offset it was computed from.
+ *
+ * Out-of-range values normalise the way Date.UTC does, so hour 24 is midnight
+ * tomorrow and day 0 is the last of the previous month.
+ *
+ * @param parts - Campus wall-clock parts.
+ * @returns The instant.
+ */
+function campusInstant(parts: CampusParts): Date {
+  const wanted = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute);
+  let instant = wanted;
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    const shown = campusParts(new Date(instant));
+    const rendered = Date.UTC(shown.year, shown.month - 1, shown.day, shown.hour, shown.minute);
+
+    instant += wanted - rendered;
+  }
+
+  return new Date(instant);
+}
+
+/** The day of the week of a campus calendar date. 0 = Sunday. */
+function campusWeekday(parts: CampusParts): number {
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+}
+
+/** `2026-08-16`, on the campus clock. */
+function campusDayKey(parts: CampusParts): string {
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
+/**
  * A bookable window every participant of a chat is free for.
  *
  * Two hours as a rule, and shorter at the edges: the last block of a free span
@@ -117,9 +214,7 @@ export function groupSlotsByDay(slots: MeetingSlotView[]): MeetingSlotDay[] {
 
   for (const slot of slots) {
     const start = new Date(slot.startsAt);
-    const date = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(
-      start.getDate(),
-    ).padStart(2, '0')}`;
+    const date = campusDayKey(campusParts(start));
 
     const existing = days.get(date);
 
@@ -131,6 +226,7 @@ export function groupSlotsByDay(slots: MeetingSlotView[]): MeetingSlotDay[] {
     days.set(date, {
       date,
       label: start.toLocaleDateString(undefined, {
+        timeZone: CAMPUS_TIMEZONE,
         weekday: 'long',
         day: 'numeric',
         month: 'long',
@@ -158,6 +254,7 @@ export function groupSlotsByDay(slots: MeetingSlotView[]): MeetingSlotDay[] {
 export function formatSlotRange(startsAt: string, endsAt: string): string {
   const time = (iso: string) =>
     new Date(iso).toLocaleTimeString(undefined, {
+      timeZone: CAMPUS_TIMEZONE,
       hour: '2-digit',
       minute: '2-digit',
       hourCycle: 'h23',
@@ -175,12 +272,47 @@ export function formatSlotRange(startsAt: string, endsAt: string): string {
  */
 export function formatMeetingWhen(startsAt: string, endsAt: string): string {
   const day = new Date(startsAt).toLocaleDateString(undefined, {
+    timeZone: CAMPUS_TIMEZONE,
     weekday: 'short',
     day: 'numeric',
     month: 'short',
   });
 
   return `${day}, ${formatSlotRange(startsAt, endsAt)}`;
+}
+
+/**
+ * `14:00` for a `<input type="time">`, on the campus clock.
+ *
+ * @param iso - The instant.
+ * @returns Its campus wall-clock time.
+ */
+export function campusTimeValue(iso: string): string {
+  return localTimeKey(iso);
+}
+
+/**
+ * Moves an instant to a wall-clock time on its own campus day.
+ *
+ * The picker's trim controls hand back `HH:mm` with no date attached, and the
+ * date they belong to is the one the campus clock was showing — not the one the
+ * reader's machine was showing, which after 21:00 Israel time is yesterday in
+ * UTC.
+ *
+ * @param iso   - The instant whose campus day is kept.
+ * @param value - `HH:mm` from a time input.
+ * @returns The new instant, as ISO. Unchanged if the value is empty or unparseable.
+ */
+export function withCampusTime(iso: string, value: string): string {
+  const [hours, minutes] = value.split(':').map(Number);
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return iso;
+  }
+
+  const parts = campusParts(new Date(iso));
+
+  return campusInstant({ ...parts, hour: hours, minute: minutes }).toISOString();
 }
 
 /** How far back the banner keeps showing a session after it has ended. */
@@ -283,20 +415,14 @@ export const MEETING_MAX_HOURS = 24;
 
 /** A local calendar day key — `2026-08-16` in the READER's zone, never UTC. */
 function localDayKey(iso: string): string {
-  const date = new Date(iso);
-
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
-    date.getDate(),
-  ).padStart(2, '0')}`;
+  return campusDayKey(campusParts(new Date(iso)));
 }
 
-/** The time of day a slot starts, as `14:00` in the reader's zone. */
+/** `14:00`, on the campus clock. */
 function localTimeKey(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  });
+  const parts = campusParts(new Date(iso));
+
+  return `${String(parts.hour).padStart(2, '0')}:${String(parts.minute).padStart(2, '0')}`;
 }
 
 /** How wide one row of the picker's grid is. */
@@ -312,16 +438,13 @@ const MIN_SLOT_MINUTES = 15;
  * @returns The boundary. 14:00 gives 16:00; 15:20 also gives 16:00.
  */
 function nextRowBoundary(from: Date): Date {
-  const boundary = new Date(from);
+  const parts = campusParts(from);
 
-  boundary.setHours(
-    Math.floor(from.getHours() / GRID_ROW_HOURS) * GRID_ROW_HOURS + GRID_ROW_HOURS,
-    0,
-    0,
-    0,
-  );
-
-  return boundary;
+  return campusInstant({
+    ...parts,
+    hour: Math.floor(parts.hour / GRID_ROW_HOURS) * GRID_ROW_HOURS + GRID_ROW_HOURS,
+    minute: 0,
+  });
 }
 
 /**
@@ -458,21 +581,26 @@ export function buildSlotGrid(
 ): SlotGrid {
   const columns: SlotGridColumn[] = [];
 
-  const startOfWeek = new Date(baseDate);
-  startOfWeek.setDate(baseDate.getDate() - baseDate.getDay());
+  /* The Sunday of baseDate's week, on the campus calendar. */
+  const base = campusParts(baseDate);
+  const sunday = { ...base, day: base.day - campusWeekday(base), hour: 12, minute: 0 };
 
   for (let offset = 0; offset < days; offset += 1) {
-    const day = new Date(
-      startOfWeek.getFullYear(),
-      startOfWeek.getMonth(),
-      startOfWeek.getDate() + offset
-    );
+    /* Midday, so a column can never be nudged onto the wrong date by a
+       daylight-saving change at midnight. Only the date is read from it. */
+    const day = campusInstant({ ...sunday, day: sunday.day + offset });
+
     columns.push({
-      date: `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(
-        day.getDate(),
-      ).padStart(2, '0')}`,
-      weekday: day.toLocaleDateString(undefined, { weekday: 'short' }),
-      dayLabel: day.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+      date: campusDayKey(campusParts(day)),
+      weekday: day.toLocaleDateString(undefined, {
+        timeZone: CAMPUS_TIMEZONE,
+        weekday: 'short',
+      }),
+      dayLabel: day.toLocaleDateString(undefined, {
+        timeZone: CAMPUS_TIMEZONE,
+        day: 'numeric',
+        month: 'short',
+      }),
       slotsByTime: {},
     });
   }

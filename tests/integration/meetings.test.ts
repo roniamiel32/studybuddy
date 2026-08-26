@@ -77,6 +77,38 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
   let groupId = '';
 
   /** The next Sunday strictly in the future, as a yyyy-mm-dd date. */
+  /**
+   * The Israeli wall-clock hour of an instant.
+   *
+   * NOT the ambient-zone getter, which reads whichever zone the suite happens to
+   * run in — so these assertions passed on a laptop in Israel and failed on a
+   * UTC build server, against an RPC that was returning the right instants all
+   * along. The function under test computes in Asia/Jerusalem; the test has to
+   * read in Asia/Jerusalem too.
+   *
+   * @param iso - The instant.
+   * @returns Its hour on the campus clock.
+   */
+  function campusHour(iso: string): number {
+    return Number(
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Jerusalem',
+        hour: '2-digit',
+        hourCycle: 'h23',
+      }).format(new Date(iso)),
+    );
+  }
+
+  /** The Israeli weekday of an instant, as the schema numbers them. */
+  function campusWeekday(iso: string): number {
+    const short = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jerusalem',
+      weekday: 'short',
+    }).format(new Date(iso));
+
+    return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(short);
+  }
+
   function nextSunday(): string {
     const date = new Date();
     date.setUTCHours(0, 0, 0, 0);
@@ -324,7 +356,7 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
 
       expect(error).toBeNull();
 
-      const hours = (data ?? []).map((row) => new Date(row.starts_at).getHours());
+      const hours = (data ?? []).map((row) => campusHour(row.starts_at));
 
       /* 12-14 and 14-16: the overlap, as two bookable blocks. */
       expect(hours).toEqual([12, 14]);
@@ -342,7 +374,7 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
         p_days: 1,
       });
 
-      const hours = (data ?? []).map((row) => new Date(row.starts_at).getHours());
+      const hours = (data ?? []).map((row) => campusHour(row.starts_at));
 
       expect(hours).not.toContain(10);
       expect(hours).not.toContain(16);
@@ -365,10 +397,10 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
 
       expect(error).toBeNull();
 
-      const monday = (data ?? []).filter((row) => new Date(row.starts_at).getDay() === MONDAY);
+      const monday = (data ?? []).filter((row) => campusWeekday(row.starts_at) === MONDAY);
 
       expect(monday).toHaveLength(1);
-      expect(new Date(monday[0].starts_at).getHours()).toBe(12);
+      expect(campusHour(monday[0].starts_at)).toBe(12);
       /* And it is one hour, not two — the block is clamped to the span it came
          from rather than running past the end of the shared time. */
       expect(
@@ -469,7 +501,7 @@ describeDb('Meetings: scheduling, blocking and attendance', () => {
         p_days: 1,
       });
 
-      const hours = (data ?? []).map((row) => new Date(row.starts_at).getHours());
+      const hours = (data ?? []).map((row) => campusHour(row.starts_at));
 
       expect(hours).not.toContain(12);
       /* The other shared block is still on offer. */

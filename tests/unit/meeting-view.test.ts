@@ -33,6 +33,7 @@ import {
   formatDuration,
   formatMeetingWhen,
   formatSlotRange,
+  groupSlotsByDay,
   isBannerMeeting,
   mergeSelectedSlots,
   mergeSlotsIntoBlocks,
@@ -192,13 +193,35 @@ describe('buildChatFeed', () => {
  * hard-coded as "2026-08-16T14:00:00Z" would land on a different row, and
  * sometimes a different day, depending on the machine running the suite.
  */
-const GRID_ANCHOR = new Date(2026, 7, 16, 9, 0, 0, 0);
+/**
+ * An instant at a given Israeli wall-clock time in August/September 2026.
+ *
+ * WRITTEN IN CAMPUS TIME ON PURPOSE, and this is what makes the file a guard
+ * rather than a mirror. Fixtures used to be built with `new Date(2026, 7, 16,
+ * 14, 0)`, which means "14:00 wherever this machine happens to be" — so the
+ * fixture and the assertion moved together and the suite passed in every zone
+ * while the product was three hours out on a UTC server. Stating the offset
+ * pins the instant, so these tests fail if the code ever goes back to reading
+ * the ambient zone.
+ *
+ * +03:00 is Israel Daylight Time, which covers every date used here.
+ *
+ * @param day    - Day of August 2026. Values past 31 roll into September.
+ * @param hour   - Israeli wall-clock hour.
+ * @param minute - Israeli wall-clock minute.
+ * @returns The instant.
+ */
+function campus(day: number, hour: number, minute = 0): Date {
+  return new Date(Date.UTC(2026, 7, day, hour - 3, minute));
+}
+
+const GRID_ANCHOR = campus(16, 9);
 
 /* The same week, seen from the Wednesday. The grid must snap back to the 16th. */
-const MIDWEEK_ANCHOR = new Date(2026, 7, 19, 9, 0, 0, 0);
+const MIDWEEK_ANCHOR = campus(19, 9);
 
 /* One page forward — what the picker passes when "Next week >" is pressed. */
-const NEXT_WEEK_ANCHOR = new Date(2026, 7, 23, 9, 0, 0, 0);
+const NEXT_WEEK_ANCHOR = campus(23, 9);
 
 /*
  * The grid's rows are FIXED — 08:00 to 20:00 in two-hour steps — rather than
@@ -216,12 +239,7 @@ const GRID_TIMES = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00
  * @returns The slot.
  */
 function slotAt(daysAhead: number, hour: number): MeetingSlotView {
-  const start = new Date(
-    GRID_ANCHOR.getFullYear(),
-    GRID_ANCHOR.getMonth(),
-    GRID_ANCHOR.getDate() + daysAhead,
-    hour,
-  );
+  const start = campus(16 + daysAhead, hour);
 
   return {
     startsAt: start.toISOString(),
@@ -229,6 +247,50 @@ function slotAt(daysAhead: number, hour: number): MeetingSlotView {
     participantCount: 2,
   };
 }
+
+describe('the campus clock', () => {
+  /*
+   * ABSOLUTE INSTANTS, ASSERTED AGAINST ISRAELI WALL-CLOCK TIMES. Nothing here
+   * is built from the machine's zone, so these expectations hold whether the
+   * suite runs on a laptop in Tel Aviv or on a UTC build server — which is
+   * exactly the difference that made a session read 14:00 locally and 11:00 on
+   * Vercel. If anybody reintroduces an ambient-zone formatter, this fails first.
+   */
+  const elevenUtc = '2026-09-01T11:00:00.000Z';
+  const thirteenUtc = '2026-09-01T13:00:00.000Z';
+
+  it('formats an instant as Israel sees it', () => {
+    expect(formatSlotRange(elevenUtc, thirteenUtc)).toBe('14:00 – 16:00');
+  });
+
+  it('stamps a session with the Israeli day and time', () => {
+    expect(formatMeetingWhen(elevenUtc, thirteenUtc)).toContain('14:00 – 16:00');
+  });
+
+  it('buckets into the Israeli grid row, not the ambient one', () => {
+    /* 11:00 UTC is 14:00 in Israel, so it belongs to the 14:00 row. Read in
+       UTC it would land in the 10:00 row — three hours and two rows out. */
+    const grid = buildSlotGrid(
+      [{ startsAt: elevenUtc, endsAt: thirteenUtc, participantCount: 2 }],
+      7,
+      new Date('2026-09-01T09:00:00.000Z'),
+    );
+
+    const filled = grid.columns.filter((column) => Object.keys(column.slotsByTime).length > 0);
+
+    expect(filled).toHaveLength(1);
+    expect(Object.keys(filled[0].slotsByTime)).toEqual(['14:00']);
+  });
+
+  it('groups onto the Israeli calendar day', () => {
+    /* 21:30 UTC on the 1st is 00:30 on the 2nd in Israel — a different day. */
+    const days = groupSlotsByDay([
+      { startsAt: '2026-09-01T21:30:00.000Z', endsAt: '2026-09-01T23:30:00.000Z', participantCount: 2 },
+    ]);
+
+    expect(days[0].date).toBe('2026-09-02');
+  });
+});
 
 describe('buildSlotGrid', () => {
   it('gives every day in the window a column, free or not', () => {
@@ -453,7 +515,7 @@ describe('formatMeetingWhen', () => {
 describe('clampSlotsToGridRows', () => {
   /* Local components: the rows are the reader's hours, not UTC's. */
   const slot = (fromHour: number, fromMinute: number, hours: number): MeetingSlotView => {
-    const start = new Date(2026, 7, 16, fromHour, fromMinute);
+    const start = campus(16, fromHour, fromMinute);
 
     return {
       startsAt: start.toISOString(),
@@ -526,13 +588,7 @@ describe('clampSlotsToGridRows', () => {
 
 describe('buildSlotGrid, when a row holds more than one fragment', () => {
   const slot = (fromHour: number, fromMinute: number, hours: number): MeetingSlotView => {
-    const start = new Date(
-      GRID_ANCHOR.getFullYear(),
-      GRID_ANCHOR.getMonth(),
-      GRID_ANCHOR.getDate(),
-      fromHour,
-      fromMinute,
-    );
+    const start = campus(16, fromHour, fromMinute);
 
     return {
       startsAt: start.toISOString(),
@@ -540,6 +596,7 @@ describe('buildSlotGrid, when a row holds more than one fragment', () => {
       participantCount: 2,
     };
   };
+
 
   it('offers the longer of the two', () => {
     /* The cell draws one slot, and half an hour is a worse offer than a full
@@ -560,7 +617,7 @@ describe('mergeSelectedSlots, on slots that do not sit on the grid', () => {
    * 13:30–14:00 and contiguous slots stopped being contiguous.
    */
   const offset = (hour: number, minute: number): MeetingSlotView => {
-    const start = new Date(2026, 7, 16, hour, minute);
+    const start = campus(16, hour, minute);
 
     return {
       startsAt: start.toISOString(),
@@ -656,8 +713,7 @@ describe('mergeSlotsIntoBlocks', () => {
 });
 
 describe('formatDuration', () => {
-  const at = (hour: number, minute = 0) =>
-    new Date(2026, 7, 16, hour, minute).toISOString();
+  const at = (hour: number, minute = 0) => campus(16, hour, minute).toISOString();
 
   it('reads whole hours as hours', () => {
     expect(formatDuration(at(14), at(16))).toBe('2h');
