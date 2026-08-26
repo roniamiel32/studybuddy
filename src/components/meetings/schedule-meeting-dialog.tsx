@@ -240,12 +240,10 @@ export function ScheduleMeetingDialog({
   /**
    * Selects or clears every slot inside one list block at once.
    *
-   * THE LIST DRAWS A BLOCK AND BOOKS SLOTS, and this is the join between them.
-   * The block used to hand its FIRST slot's start to `toggle`, so a button
-   * reading "13:30 – 21:30" selected two hours and the panel underneath then
-   * disagreed with it by six. Selection is still per slot — the grid depends on
-   * that, and so does mergeSelectedSlots — but a press on a block now moves all
-   * of them together.
+   * THE JOIN BETWEEN WHAT THE LIST DRAWS AND WHAT GETS BOOKED. The list shows a
+   * merged range; selection is still per slot, because that is what the grid
+   * works in and what mergeSelectedSlots re-merges. A press moves all of the
+   * block's slots together so the two never disagree.
    */
   const toggleBlock = (slotStarts: string[], select: boolean) => {
     setSelected((current) => {
@@ -253,6 +251,8 @@ export function ScheduleMeetingDialog({
 
       return select ? [...rest, ...slotStarts] : rest;
     });
+    /* Merging can reshape every run, so hand-trimmed hours no longer describe
+       anything. Cheaper to re-tune than to guess which edits survived. */
     setEdits({});
   };
 
@@ -402,7 +402,7 @@ export function ScheduleMeetingDialog({
               <Input
                 id="meeting-title"
                 name="title"
-                defaultValue={defaultMeetingTitle(withLabel)}
+                defaultValue={defaultMeetingTitle()}
                 maxLength={120}
                 required
               />
@@ -647,70 +647,53 @@ function SlotListView({
         <div key={day.date}>
           <p className="text-on-surface-variant mb-2 text-label-sm">{day.label}</p>
 
+          {/*
+            * ONE BUTTON PER UNBROKEN RUN OF FREE TIME.
+            *
+            * A free afternoon is one press here, not four — which is the whole
+            * reason the list exists beside the grid. The grid is the precise
+            * instrument; this is the quick one.
+            *
+            * IT CANNOT SPAN A BOOKING. Adjacency is exact timestamp equality, so
+            * an hour somebody has already taken leaves a gap the merge stops at.
+            * The times shown are therefore always times that can actually be
+            * booked, end to end.
+            */}
           <div className="flex flex-wrap gap-2">
             {mergeSlotsIntoBlocks(day.slots).map((block) => {
               const chosen = block.slotStarts.filter((start) => selected.includes(start));
               const isOn = chosen.length > 0;
               const isWhole = chosen.length === block.slotStarts.length;
 
-              /*
-               * A PARTLY-CHOSEN BLOCK SHOWS WHAT IS CHOSEN, not the whole block.
-               * Picking two hours out of an eight-hour afternoon in the grid and
-               * then switching to the list used to show the button lit with the
-               * full range on it, which claimed a booking six hours longer than
-               * the one about to be made.
-               */
-              const shownStart = isOn ? chosen[0] : block.startsAt;
-              const shownEnd = isOn
-                ? (day.slots.find((slot) => slot.startsAt === chosen.at(-1))?.endsAt ??
-                  block.endsAt)
-                : block.endsAt;
-
               return (
                 <button
                   key={block.startsAt}
                   type="button"
-                  /* Pressing a block that is wholly on clears it; anything else
-                     fills it. Two presses always return you to where you were. */
+                  /* A block that is wholly on clears; anything else fills. Two
+                     presses always return you to where you started. */
                   onClick={() => onToggleBlock(block.slotStarts, !isWhole)}
                   aria-pressed={isOn}
                   aria-label={
                     isOn && !isWhole
-                      ? `${formatSlotRange(shownStart, shownEnd)} of ${formatSlotRange(
-                          block.startsAt,
-                          block.endsAt,
-                        )} selected`
+                      ? `${formatSlotRange(block.startsAt, block.endsAt)}, partly selected`
                       : formatSlotRange(block.startsAt, block.endsAt)
                   }
                   className={cn(
-                    'flex flex-col items-start rounded-md border px-3 py-2 text-label-sm transition-colors',
+                    'rounded-md border px-3 py-2 text-label-sm transition-colors',
                     'focus-visible:ring-brand/35 focus-visible:ring-4 focus-visible:outline-none',
                     isWhole
                       ? 'border-brand bg-brand text-white'
                       : isOn
-                        ? 'border-brand bg-brand-fixed text-brand'
+                        ? /* Part of it came from the grid. Tinted rather than
+                             filled, so the two states are not the same shape. */
+                          'border-brand bg-brand-fixed text-brand'
                         : 'border-outline-variant/60 hover:bg-brand-fixed/60 bg-white',
                   )}
                 >
-                  <span className="flex items-center">
-                    {isOn ? (
-                      <Check className="mr-1 inline size-3.5" aria-hidden="true" />
-                    ) : null}
-                    {formatSlotRange(shownStart, shownEnd)}
-                  </span>
-
-                  {/* The length of the session, not of the availability. */}
-                  <span
-                    className={cn(
-                      'text-[11px] font-normal',
-                      isWhole ? 'text-white/80' : 'text-outline',
-                    )}
-                  >
-                    {formatDuration(shownStart, shownEnd)}
-                    {isOn && !isWhole
-                      ? ` of ${formatDuration(block.startsAt, block.endsAt)}`
-                      : null}
-                  </span>
+                  {isOn ? (
+                    <Check className="mr-1 inline size-3.5" aria-hidden="true" />
+                  ) : null}
+                  {formatSlotRange(block.startsAt, block.endsAt)}
                 </button>
               );
             })}

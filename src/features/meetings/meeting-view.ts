@@ -523,12 +523,11 @@ export function buildSlotGrid(
 /**
  * One run of back-to-back offered slots, as the list view draws it.
  *
- * WHY THE COVERED SLOTS ARE CARRIED. The list shows a merged block — "13:30 –
- * 21:30" reads far better than four buttons two hours apart — but selection is
+ * WHY THE COVERED SLOTS ARE CARRIED. The list shows a merged range — "10:00 –
+ * 14:00" reads far better than two buttons two hours apart — but selection is
  * per slot, because that is the unit the grid works in and the unit
- * mergeSelectedSlots re-merges. A block that displayed a four-slot range and
- * then handed one `startsAt` to the toggle is exactly the mismatch this type
- * exists to prevent: the button said eight hours and the booking was two.
+ * mergeSelectedSlots re-merges. A block that displayed a two-slot range and then
+ * handed one `startsAt` to the toggle would advertise four hours and book two.
  */
 export interface MeetingSlotBlock {
   /** Where the block opens — the first covered slot's start. */
@@ -542,11 +541,18 @@ export interface MeetingSlotBlock {
 /**
  * Merges back-to-back offered slots into the blocks the list draws.
  *
- * ADJACENCY IS EXACT TIMESTAMP EQUALITY, the same rule mergeSelectedSlots uses:
- * a block continues only where one slot's end is the next one's start. An hour
- * somebody else has already booked in the middle of an afternoon therefore
- * splits the afternoon in two rather than being swallowed, which is the whole
- * point — the gap is not bookable and a block spanning it would say it was.
+ * ADJACENCY IS EXACT TIMESTAMP EQUALITY: a block continues only where one slot's
+ * end IS the next one's start. That is what makes this safe to show beside the
+ * grid — an hour somebody has already booked leaves a real gap between two
+ * slots, the equality fails, and the afternoon is drawn as two blocks rather
+ * than one that spans a time nobody can book.
+ *
+ * THIS WAS BRIEFLY REMOVED, and the reason it came back is worth recording. The
+ * list and the grid disagreed, and merging looked like the culprit; the actual
+ * fault was in rpc_meeting_slots, which phased its blocks from the end of the
+ * previous booking so the slots either side of a gap were mis-timed. With the
+ * blocks phased to the wall clock, adjacency means what it says and merging is
+ * simply the friendlier way to show the same times.
  *
  * @param slots - Offered slots, in any order.
  * @returns One entry per contiguous run, in chronological order.
@@ -700,17 +706,39 @@ const DEFAULT_TITLE_PREFIX = 'Study session with ';
 /**
  * A default title for a session, so the field is never empty on open.
  *
- * The schema requires three characters, and a student who has just found a time
- * should not have to invent a name for it before they can book.
+ * DELIBERATELY NAMELESS. It used to read "Study session with Dana Levi", which
+ * is the right sentence in a calendar and the wrong one in the form: the student
+ * is looking at a picker that already says who they are booking with, and the
+ * name is noise there. It is also the title that ends up in the database, where
+ * one row is read by both people — and only one of them is Dana Levi.
  *
- * THE SAME STRING IS USED BY THE SERVER. `createMeeting` falls back to this when
- * the field arrives empty, so the title in the database is the one the picker
- * offered rather than a second, differently-worded default.
+ * THE NAME IS ADDED AT THE EDGE INSTEAD, per recipient, when the session is
+ * written into somebody's Google Calendar. See sessionTitleWithPartner.
+ *
+ * Takes no argument, because there is no longer anything to build it from.
  *
  * @returns A title they can accept or replace.
  */
-export function defaultMeetingTitle(partnerName?: string): string {
+export function defaultMeetingTitle(): string {
   return BARE_MEETING_TITLE;
+}
+
+/**
+ * The same session, titled for one particular reader.
+ *
+ * ONLY THE CALENDAR USES THIS. A Google Calendar entry sits among a person's
+ * other commitments with no context around it, so "Study session" alone is
+ * nearly useless — whereas in StudyBuddy the session is already inside the chat
+ * with the person it is with. The two surfaces genuinely want different strings,
+ * which is why this is a second function rather than an argument to the first.
+ *
+ * @param partnerName - The OTHER person, from this reader's point of view.
+ * @returns "Study session with Dana Levi".
+ */
+export function sessionTitleWithPartner(partnerName: string): string {
+  const name = partnerName.trim();
+
+  return name ? `${DEFAULT_TITLE_PREFIX}${name}` : BARE_MEETING_TITLE;
 }
 
 /**
