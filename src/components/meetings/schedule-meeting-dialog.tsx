@@ -58,6 +58,7 @@ import { createMeeting, findMeetingSlots } from '@/features/meetings/actions';
 import {
   SCHEDULER_WINDOW_DAYS,
   buildSlotGrid,
+  campusTimeValue,
   clampSlotsToGridRows,
   defaultMeetingTitle,
   formatDuration,
@@ -65,6 +66,7 @@ import {
   groupSlotsByDay,
   mergeSelectedSlots,
   mergeSlotsIntoBlocks,
+  withCampusTime,
   type MeetingSlotView,
   type SelectedRun,
 } from '@/features/meetings/meeting-view';
@@ -93,34 +95,6 @@ type PickerView = 'grid' | 'list';
 
 /** A fine-tuned start/end for one run, keyed by the run's id. */
 type RunEdits = Record<string, { startsAt: string; endsAt: string }>;
-
-/** `14:00`, for a time input, in the reader's zone. */
-function toTimeValue(iso: string): string {
-  const date = new Date(iso);
-
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
-/**
- * Moves an instant to a wall-clock time on its own day.
- *
- * @param iso   - The instant whose day is kept.
- * @param value - `HH:mm` from a time input.
- * @returns The new instant, as ISO.
- */
-function withTime(iso: string, value: string): string {
-  if (!value) return iso;
-
-  const [hours, minutes] = value.split(':').map(Number);
-
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return iso;
-
-  const date = new Date(iso);
-
-  date.setHours(hours, minutes, 0, 0);
-
-  return date.toISOString();
-}
 
 /**
  * Renders the scheduler.
@@ -575,7 +549,7 @@ function SlotGridView({
                  */
                 const rowEnd = `${String(Number(time.slice(0, 2)) + 2).padStart(2, '0')}:00`;
                 const partial =
-                  toTimeValue(slot.startsAt) !== time || toTimeValue(slot.endsAt) !== rowEnd;
+                  campusTimeValue(slot.startsAt) !== time || campusTimeValue(slot.endsAt) !== rowEnd;
 
                 return (
                   <td key={column.date}>
@@ -604,7 +578,7 @@ function SlotGridView({
                             isOn ? 'text-white' : 'text-outline',
                           )}
                         >
-                          {toTimeValue(slot.startsAt)}–{toTimeValue(slot.endsAt)}
+                          {campusTimeValue(slot.startsAt)}–{campusTimeValue(slot.endsAt)}
                         </span>
                       ) : null}
                     </button>
@@ -770,7 +744,7 @@ function totalDuration(sessions: TunedSession[]): string {
 function trimStart(session: TunedSession, value: string): { startsAt: string; endsAt: string } {
   const runStart = new Date(session.run.startsAt).getTime();
   const end = new Date(session.endsAt).getTime();
-  const wanted = new Date(withTime(session.run.startsAt, value)).getTime();
+  const wanted = new Date(withCampusTime(session.run.startsAt, value)).getTime();
 
   const startsAt = new Date(
     Math.min(Math.max(wanted, runStart), end - MIN_SESSION_MS),
@@ -791,7 +765,7 @@ function trimEnd(session: TunedSession, value: string): { startsAt: string; ends
   const start = new Date(session.startsAt).getTime();
   /* Anchored to the run's END day, so a block that crosses midnight trims
      against the day it actually finishes on. */
-  const wanted = new Date(withTime(session.run.endsAt, value)).getTime();
+  const wanted = new Date(withCampusTime(session.run.endsAt, value)).getTime();
 
   const endsAt = new Date(
     Math.max(Math.min(wanted, runEnd), start + MIN_SESSION_MS),
@@ -863,7 +837,7 @@ function FineTune({
                 <input
                   id={startId}
                   type="time"
-                  value={toTimeValue(session.startsAt)}
+                  value={campusTimeValue(session.startsAt)}
                   /*
                    * BOUNDED BY THE RUN, NOT BY THE OTHER INPUT. These used to
                    * read `max={session.endsAt}` and `min={session.startsAt}` —
@@ -872,8 +846,8 @@ function FineTune({
                    * and a half-typed hour could put the pair somewhere neither
                    * of them agreed with. The run's own edges do not move.
                    */
-                  min={toTimeValue(session.run.startsAt)}
-                  max={toTimeValue(session.run.endsAt)}
+                  min={campusTimeValue(session.run.startsAt)}
+                  max={campusTimeValue(session.run.endsAt)}
                   step={STEP_SECONDS}
                   onChange={(event) => onChange(session.run.id, trimStart(session, event.target.value))}
                   className="border-outline-variant bg-surface rounded-md border px-2.5 py-1.5 text-sm"
@@ -885,9 +859,9 @@ function FineTune({
                 <input
                   id={endId}
                   type="time"
-                  value={toTimeValue(session.endsAt)}
-                  min={toTimeValue(session.run.startsAt)}
-                  max={toTimeValue(session.run.endsAt)}
+                  value={campusTimeValue(session.endsAt)}
+                  min={campusTimeValue(session.run.startsAt)}
+                  max={campusTimeValue(session.run.endsAt)}
                   step={STEP_SECONDS}
                   onChange={(event) => onChange(session.run.id, trimEnd(session, event.target.value))}
                   className="border-outline-variant bg-surface rounded-md border px-2.5 py-1.5 text-sm"
@@ -896,7 +870,7 @@ function FineTune({
             ) : (
               <span className="flex items-baseline gap-2">
                 <span className="text-on-surface text-label-sm font-medium">
-                  {toTimeValue(session.startsAt)} – {toTimeValue(session.endsAt)}
+                  {campusTimeValue(session.startsAt)} – {campusTimeValue(session.endsAt)}
                 </span>
                 <span className="text-outline text-[11px] font-normal">
                   {formatDuration(session.startsAt, session.endsAt)}
