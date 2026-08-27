@@ -198,7 +198,7 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-brand hover:bg-brand/90 text-white rounded-xl text-label-sm font-medium transition shadow-sm"
           >
-             Add to Google Calendar 📅
+            📅 Add to Google Calendar 📅
           </a>
         </div>
 
