@@ -19,7 +19,10 @@ import { Nunito, Plus_Jakarta_Sans } from 'next/font/google';
 
 import { ToastProvider } from '@/components/ui/toast';
 
+import { RegisterSW } from '@/components/RegisterSW';
+
 import './globals.css';
+
 
 const headingFont = Nunito({
   variable: '--font-heading-family',
@@ -42,14 +45,14 @@ export const metadata: Metadata = {
   },
   description:
     'StudyBuddy matches you with students in your own courses who are free when you are and study the way you do.',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'StudyBuddy',
+  },
 };
 
-/**
- * Wraps every page in the application shell.
- *
- * @param children - The route being rendered.
- * @returns The html document shell.
- */
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -62,7 +65,9 @@ export default function RootLayout({
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <ToastProvider>{children}</ToastProvider>
+        <RegisterSW /> {/* <-- הוספת הרכיב ממש כאן */}
       </body>
     </html>
   );
 }
+

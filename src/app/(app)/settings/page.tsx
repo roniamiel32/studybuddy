@@ -35,6 +35,8 @@ import {
 import { signOut } from '@/features/auth/actions';
 import { Button } from '@/components/ui/button';
 
+import { EnablePushNotifications } from '@/components/notifications/EnablePushNotifications';
+
 export const metadata: Metadata = { title: 'Profile' };
 
 /**
@@ -125,6 +127,16 @@ export default async function SettingsPage() {
           {/* Reuses the onboarding grid rather than duplicating it. The editor
               is the same editor; only the way out of it differs. */}
           <AvailabilityDialog defaultSelected={selectedSlots} />
+        </section>
+
+<section aria-labelledby="notifications-heading" className="clay-card p-6">
+          <h2 id="notifications-heading" className="font-heading text-headline-md">
+            Notifications
+          </h2>
+          <p className="text-on-surface-variant mt-1 mb-4 text-body-md text-pretty">
+            Manage your push notifications to stay updated on matches and messages.
+          </p>
+          <EnablePushNotifications />
         </section>
 
         <ChangePasswordForm />

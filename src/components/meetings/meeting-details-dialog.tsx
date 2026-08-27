@@ -33,6 +33,11 @@ import { formatMeetingWhen, type MeetingView } from '@/features/meetings/meeting
 import { useHasFinished } from '@/lib/use-has-finished';
 import { cn } from '@/lib/utils';
 
+const formatGoogleCalendarDate = (startsAt: string | Date, endsAt: string | Date) => {
+  const format = (d: string | Date) => new Date(d).toISOString().replace(/-|:|\.\d+/g, '');
+  return `${format(startsAt)}/${format(endsAt)}`;
+};
+
 export interface MeetingDetailsDialogProps {
   open: boolean;
   onClose: () => void;
@@ -180,6 +185,23 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
           </div>
         </dl>
 
+        {/* <<< וכאן תוסיפי את כפתור ההוספה ליומן: >>> */}
+        <div className="pt-2">
+          <a
+            href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
+              meeting.title,
+            )}&dates=${formatGoogleCalendarDate(
+              meeting.startsAt,
+              meeting.endsAt,
+            )}&details=${encodeURIComponent('Study session via StudyBuddy')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-brand hover:bg-brand/90 text-white rounded-xl text-label-sm font-medium transition shadow-sm"
+          >
+             Add to Google Calendar 📅
+          </a>
+        </div>
+
         {error ? (
           <p role="alert" className="text-destructive flex items-start gap-2 text-label-sm">
             <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -224,6 +246,8 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
     </dialog>
   );
 }
+
+
 
 /**
  * One of the two RSVP answers, marked when it is the current one.

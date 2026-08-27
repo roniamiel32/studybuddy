@@ -1,0 +1,21 @@
+{
+  "name": "StudyBuddy",
+  "short_name": "StudyBuddy",
+  "description": "StudyBuddy matches you with students in your own courses who are free when you are.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fcf8fb",
+  "theme_color": "#493ee5",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
