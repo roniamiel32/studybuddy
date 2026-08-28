@@ -8,16 +8,18 @@
  * Version:     0.43.0
  *
  * Modifications:
- *     0.43.0 - 2026-08-17 - ToastProvider, mounted here so both the onboarding
- *                           and the app route groups can reach it
- *     0.2.1 - 2026-08-10 - Added ThemeProvider for dark mode support
- *     0.2.0 - 2026-08-03 - Initial implementation (Phase 0.5 scaffold)
+ *      0.43.0 - 2026-08-17 - ToastProvider, mounted here so both the onboarding
+ *                            and the app route groups can reach it
+ *      0.2.1 - 2026-08-10 - Added ThemeProvider for dark mode support
+ *      0.2.0 - 2026-08-03 - Initial implementation (Phase 0.5 scaffold)
  */
 
 import type { Metadata } from 'next';
 import { Nunito, Plus_Jakarta_Sans } from 'next/font/google';
 
 import { ToastProvider } from '@/components/ui/toast';
+
+import { RegisterSW } from '@/components/RegisterSW';
 
 import './globals.css';
 
@@ -42,14 +44,17 @@ export const metadata: Metadata = {
   },
   description:
     'StudyBuddy matches you with students in your own courses who are free when you are and study the way you do.',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'StudyBuddy',
+  },
+  verification: {
+    google: '9yvqGGKiCryPCPZnZCln2fBSTMrhjkM5lfWEMadnoZw',
+  },
 };
 
-/**
- * Wraps every page in the application shell.
- *
- * @param children - The route being rendered.
- * @returns The html document shell.
- */
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -62,6 +67,7 @@ export default function RootLayout({
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <ToastProvider>{children}</ToastProvider>
+        <RegisterSW />
       </body>
     </html>
   );
