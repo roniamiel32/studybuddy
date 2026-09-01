@@ -64,6 +64,7 @@ function meeting(overrides: Partial<MeetingView> = {}): MeetingView {
     hasFinished: true,
     createdAt: '2026-08-13T09:00:00Z',
     bannerDismissed: false,
+    seriesId: null,
     ...overrides,
   };
 }

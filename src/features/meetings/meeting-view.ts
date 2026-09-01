@@ -14,9 +14,11 @@
  *
  *              No 'server-only' here: the dialog is a client component and needs
  *              these formatters.
- * Version:     1.1.0
+ * Version:     1.2.0
  *
  * Modifications:
+ *     1.2.0  - 2026-09-01 - MeetingView carries seriesId, so a session can say
+ *                           that it repeats
  *     1.1.0  - 2026-09-01 - The picker asks for two weeks, so its second page
  *                           has slots to draw; campusToday, for marking today
  *     1.0.0  - 2026-08-25 - clampSlotsToGridRows: an offered slot never crosses
@@ -211,6 +213,15 @@ export interface MeetingView {
    * by tidying a header.
    */
   bannerDismissed: boolean;
+  /**
+   * The series this session is one sitting of, or null for a one-off.
+   *
+   * AN ID RATHER THAN A BOOLEAN, because two different questions are asked of
+   * it: whether to say "repeats weekly" and offer to stop the series, and — in
+   * the calendar link — which rule to hand Google. A boolean would answer the
+   * first and lose the second.
+   */
+  seriesId: string | null;
 }
 
 /** Slots for one calendar day, as the picker groups them. */

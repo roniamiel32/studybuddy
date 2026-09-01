@@ -284,4 +284,89 @@ test.describe('scheduling a session from a chat', () => {
       timeout: 20_000,
     });
   });
+
+  /*
+   * LAST IN THE FILE, DELIBERATELY. These run serially against one shared
+   * conversation, and a series leaves eight weeks of rows in it — enough to
+   * change what `sessions[0]` means for any test that came after. Booking the
+   * horizon is the one act here big enough to disturb its neighbours, so it goes
+   * where it has none.
+   */
+  test('a repeating session books the whole horizon, and stops on request', async ({
+    page,
+  }) => {
+    /*
+     * THE WIRING TEST. The database side is covered in
+     * tests/integration/recurring-meetings.test.ts and the two controls in the
+     * unit suite; what only a real browser can prove is that the checkbox
+     * reaches the series RPC rather than the one-off one — a mis-named input
+     * would book a single session and fail nowhere.
+     */
+    await signIn(page, meEmail);
+    await page.goto(`/messages/${conversationId}`);
+
+    await page.getByRole('button', { name: 'Schedule a meeting' }).click();
+
+    const dialog = page.getByRole('dialog');
+    const slot = dialog.getByRole('button', { name: /14:00/ }).first();
+    await expect(slot).toBeVisible({ timeout: 20_000 });
+    await slot.click();
+
+    await dialog.getByLabel('What is it for?').fill('Every week, please');
+    await dialog.getByRole('checkbox', { name: /Repeat weekly/ }).check();
+    await dialog.getByRole('button', { name: 'Schedule it' }).click();
+
+    await expect(dialog).toBeHidden({ timeout: 20_000 });
+
+    const { data: booked } = await db
+      .from('meetings')
+      .select('id, series_id, starts_at, status')
+      .eq('conversation_id', conversationId)
+      .eq('title', 'Every week, please')
+      .order('starts_at');
+
+    const occurrences = booked ?? [];
+
+    /* Eight weeks of horizon, all of them on one series. */
+    expect(occurrences.length).toBeGreaterThanOrEqual(8);
+    expect(new Set(occurrences.map((row) => row.series_id)).size).toBe(1);
+    expect(occurrences[0].series_id).not.toBeNull();
+
+    /*
+     * Reached through the CARD IN THE THREAD rather than the banner. That is how
+     * a student opens a sitting that is days away, and it is the path the two
+     * endings had to be added to.
+     *
+     * WHICHEVER CARD COMES FIRST, deliberately. The occurrences are booked in
+     * one act and ordered by id, so this samples an arbitrary one of the eight —
+     * and every one of them must behave the same. That is how this test caught
+     * the setTimeout overflow in useHasFinished: the sittings past the first
+     * month were drawing themselves as already attended.
+     */
+    await page.getByRole('button', { name: /Every week, please/ }).first().click();
+
+    const details = page.getByRole('dialog').filter({ hasText: 'Every week, please' });
+    await expect(details.getByText('Repeats weekly')).toBeVisible();
+    await expect(
+      details.getByRole('link', { name: /Add weekly to Google Calendar/ }),
+    ).toBeVisible();
+
+    await details.getByRole('button', { name: 'Stop repeating' }).click();
+
+    /* From now on: every future sitting is called off in one press. */
+    await expect
+      .poll(
+        async () => {
+          const { data } = await db
+            .from('meetings')
+            .select('status')
+            .eq('series_id', occurrences[0].series_id!)
+            .eq('status', 'scheduled');
+
+          return data?.length ?? -1;
+        },
+        { timeout: 20_000 },
+      )
+      .toBe(0);
+  });
 });

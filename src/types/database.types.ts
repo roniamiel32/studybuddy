@@ -1247,6 +1247,106 @@ export type Database = {
           },
         ]
       }
+      meeting_series: {
+        Row: {
+          booked_through: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          conversation_id: string | null
+          course_offering_id: string | null
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          frequency: Database["public"]["Enums"]["meeting_frequency"]
+          group_id: string | null
+          id: string
+          location: string | null
+          starts_at: string
+          status: Database["public"]["Enums"]["meeting_series_status"]
+          title: string
+          university_id: string
+        }
+        Insert: {
+          booked_through: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          conversation_id?: string | null
+          course_offering_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          frequency?: Database["public"]["Enums"]["meeting_frequency"]
+          group_id?: string | null
+          id?: string
+          location?: string | null
+          starts_at: string
+          status?: Database["public"]["Enums"]["meeting_series_status"]
+          title: string
+          university_id: string
+        }
+        Update: {
+          booked_through?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          conversation_id?: string | null
+          course_offering_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          frequency?: Database["public"]["Enums"]["meeting_frequency"]
+          group_id?: string | null
+          id?: string
+          location?: string | null
+          starts_at?: string
+          status?: Database["public"]["Enums"]["meeting_series_status"]
+          title?: string
+          university_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_series_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_series_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_series_course_offering_id_fkey"
+            columns: ["course_offering_id"]
+            isOneToOne: false
+            referencedRelation: "course_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_series_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_series_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_series_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meetings: {
         Row: {
           cancelled_at: string | null
@@ -1259,6 +1359,7 @@ export type Database = {
           group_id: string | null
           id: string
           location: string | null
+          series_id: string | null
           starts_at: string
           status: Database["public"]["Enums"]["meeting_status"]
           title: string
@@ -1275,6 +1376,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           location?: string | null
+          series_id?: string | null
           starts_at: string
           status?: Database["public"]["Enums"]["meeting_status"]
           title: string
@@ -1291,6 +1393,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           location?: string | null
+          series_id?: string | null
           starts_at?: string
           status?: Database["public"]["Enums"]["meeting_status"]
           title?: string
@@ -1330,6 +1433,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_series"
             referencedColumns: ["id"]
           },
           {
@@ -2137,6 +2247,7 @@ export type Database = {
         Args: { p_a: string; p_b: string }
         Returns: number
       }
+      app_extend_series: { Args: { p_series_id: string }; Returns: number }
       app_group_week_spans: { Args: { p_group_id: string }; Returns: unknown }
       app_is_connected_to: {
         Args: { other_profile_id: string }
@@ -2170,6 +2281,10 @@ export type Database = {
         Args: { target_meeting_id: string }
         Returns: boolean
       }
+      app_materialise_series_occurrence: {
+        Args: { p_ends_at: string; p_series_id: string; p_starts_at: string }
+        Returns: string
+      }
       app_overlap_minutes: {
         Args: { profile_a: string; profile_b: string }
         Returns: number
@@ -2182,6 +2297,7 @@ export type Database = {
         Args: { target_profile_id: string }
         Returns: number
       }
+      app_series_horizon_weeks: { Args: never; Returns: number }
       app_shared_completed_meeting: {
         Args: { profile_a: string; profile_b: string }
         Returns: boolean
@@ -2206,6 +2322,10 @@ export type Database = {
         Returns: string
       }
       rpc_cancel_meeting: { Args: { p_meeting_id: string }; Returns: undefined }
+      rpc_cancel_meeting_series: {
+        Args: { p_meeting_id: string }
+        Returns: number
+      }
       rpc_course_group_scores: {
         Args: { p_course_offering_id: string }
         Returns: {
@@ -2237,6 +2357,17 @@ export type Database = {
           p_title: string
         }
         Returns: string
+      }
+      rpc_create_meeting_series: {
+        Args: {
+          p_conversation_id?: string
+          p_ends_at: string[]
+          p_group_id?: string
+          p_location?: string
+          p_starts_at: string[]
+          p_title: string
+        }
+        Returns: string[]
       }
       rpc_create_meetings: {
         Args: {
@@ -2334,6 +2465,8 @@ export type Database = {
         Returns: string
       }
       rpc_sync_notifications: { Args: never; Returns: undefined }
+      sync_meeting_series: { Args: never; Returns: number }
+      sync_session_prompts: { Args: { p_within?: string }; Returns: number }
     }
     Enums: {
       ai_status: "ok" | "error" | "rate_limited" | "invalid_output"
@@ -2352,7 +2485,9 @@ export type Database = {
       group_request_kind: "request" | "invite"
       group_request_status: "pending" | "approved" | "rejected"
       group_size_choice: "small" | "large"
+      meeting_frequency: "weekly"
       meeting_rsvp: "going" | "cancelled"
+      meeting_series_status: "active" | "cancelled"
       meeting_status: "scheduled" | "cancelled"
       notification_type:
         | "group_request"
@@ -2524,7 +2659,9 @@ export const Constants = {
       group_request_kind: ["request", "invite"],
       group_request_status: ["pending", "approved", "rejected"],
       group_size_choice: ["small", "large"],
+      meeting_frequency: ["weekly"],
       meeting_rsvp: ["going", "cancelled"],
+      meeting_series_status: ["active", "cancelled"],
       meeting_status: ["scheduled", "cancelled"],
       notification_type: [
         "group_request",

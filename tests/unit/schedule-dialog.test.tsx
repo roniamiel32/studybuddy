@@ -19,9 +19,10 @@
  *              findMeetingSlots is mocked. It is a 'use server' module that
  *              opens a Supabase client from cookies, and what is under test here
  *              is what the component does with an answer, not how it gets one.
- * Version:     1.2.0
+ * Version:     1.3.0
  *
  * Modifications:
+ *     1.3.0  - 2026-09-01 - The repeat-weekly option, and what it posts
  *     1.2.0  - 2026-09-01 - Follows the hand-tuned cues: today is brand and
  *                           bold, past days are dimmed, and the diagonal is on
  *                           the cells rather than the heading
@@ -136,11 +137,16 @@ function todayColumnIndex(): number {
 }
 
 const findMeetingSlots = vi.fn(async () => ({ ok: true as const, data: SLOTS }));
-const createMeeting = vi.fn(async () => ({ ok: true as const, data: undefined }));
+/* Typed through the mock's own generic rather than an unused parameter list:
+   the repeat tests read the FormData it was called with. */
+const createMeeting = vi.fn<(previous: unknown, formData: FormData) => Promise<
+  { ok: true; data: undefined }
+>>(async () => ({ ok: true as const, data: undefined }));
 
 vi.mock('@/features/meetings/actions', () => ({
   findMeetingSlots: (...args: unknown[]) => findMeetingSlots(...(args as [])),
-  createMeeting: (...args: unknown[]) => createMeeting(...(args as [])),
+  createMeeting: (...args: unknown[]) =>
+    createMeeting(...(args as [unknown, FormData])),
 }));
 
 const { ScheduleMeetingDialog } = await import(
@@ -306,6 +312,62 @@ describe('the grid says where today is', () => {
         expect(struck).toBe(empty && column < pastColumns);
       });
     }
+  });
+});
+
+describe('repeating a session', () => {
+  /** Picks the first free cell, so the form has something to submit. */
+  async function pickOne() {
+    const user = await openPicker();
+    await user.click(gridCells()[0]);
+
+    return user;
+  }
+
+  it('offers the option, and leaves it off', async () => {
+    await openPicker();
+
+    const repeat = screen.getByRole('checkbox', { name: /Repeat weekly/ });
+
+    /* OFF BY DEFAULT, deliberately. A booking that quietly repeats is eight
+       weeks of somebody's diary taken by a checkbox they did not read. */
+    expect(repeat).not.toBeChecked();
+  });
+
+  it('posts the flag with the booking when it is ticked', async () => {
+    const user = await pickOne();
+
+    await user.click(screen.getByRole('checkbox', { name: /Repeat weekly/ }));
+    await user.click(screen.getByRole('button', { name: /^Schedule/ }));
+
+    await waitFor(() => {
+      expect(createMeeting).toHaveBeenCalled();
+    });
+
+    /*
+     * The FIELD NAME is the contract with the action, which reads it straight
+     * off the FormData — a renamed input would book one-offs forever and fail
+     * nowhere.
+     */
+    const posted = createMeeting.mock.calls[0][1] as FormData;
+
+    expect(posted.get('repeatWeekly')).toBe('on');
+  });
+
+  it('posts nothing at all when it is left alone', async () => {
+    const user = await pickOne();
+
+    await user.click(screen.getByRole('button', { name: /^Schedule/ }));
+
+    await waitFor(() => {
+      expect(createMeeting).toHaveBeenCalled();
+    });
+
+    /* An unticked checkbox is absent from the form, not false — which is the
+       absence the schema's default reads. */
+    const posted = createMeeting.mock.calls[0][1] as FormData;
+
+    expect(posted.get('repeatWeekly')).toBeNull();
   });
 });
 
