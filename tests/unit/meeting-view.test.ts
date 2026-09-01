@@ -14,9 +14,10 @@
  *
  *              Times are injected rather than taken from the clock, so none of
  *              this depends on when the suite runs.
- * Version:     0.49.0
+ * Version:     1.1.0
  *
  * Modifications:
+ *     1.1.0  - 2026-09-01 - campusToday, which is what marks today's column
  *     0.49.0 - 2026-08-19 - Paging: buildSlotGrid takes a baseDate naming a week
  *     0.48.0 - 2026-08-19 - buildSlotGrid now anchors on the week's Sunday and
  *                           draws a fixed set of rows; assertions follow
@@ -29,6 +30,7 @@ import {
   MEETING_MAX_HOURS,
   buildChatFeed,
   buildSlotGrid,
+  campusToday,
   clampSlotsToGridRows,
   formatDuration,
   formatMeetingWhen,
@@ -289,6 +291,45 @@ describe('the campus clock', () => {
     ]);
 
     expect(days[0].date).toBe('2026-09-02');
+  });
+});
+
+describe('campusToday', () => {
+  /*
+   * THE COMPARISON THE GRID MAKES IS A STRING COMPARISON, and these are the
+   * three properties it rests on: the key is the campus date rather than the
+   * machine's, the time of day is not in it, and the format sorts the way dates
+   * do. Get any of the three wrong and a column is marked as today for the wrong
+   * three hours of the day, or struck through while it is still bookable.
+   */
+  it('reads the campus date, not the machine zone', () => {
+    /* 21:30 UTC on the 1st is 00:30 on the 2nd in Israel. */
+    expect(campusToday(new Date('2026-09-01T21:30:00.000Z'))).toBe('2026-09-02');
+  });
+
+  it('ignores the time of day', () => {
+    const earlyMorning = campusToday(new Date('2026-09-01T05:00:00.000Z'));
+    const lateEvening = campusToday(new Date('2026-09-01T18:00:00.000Z'));
+
+    expect(earlyMorning).toBe('2026-09-01');
+    expect(lateEvening).toBe(earlyMorning);
+  });
+
+  it('sorts as a date does, which is how "before today" is asked', () => {
+    const yesterday = campusToday(new Date('2026-08-31T09:00:00.000Z'));
+    const today = campusToday(new Date('2026-09-01T09:00:00.000Z'));
+    const tomorrow = campusToday(new Date('2026-09-02T09:00:00.000Z'));
+
+    expect(yesterday < today).toBe(true);
+    expect(tomorrow < today).toBe(false);
+  });
+
+  it('is the same key a grid column carries', () => {
+    /* The two have to agree exactly, or no column ever matches today. */
+    const noon = new Date('2026-09-01T09:00:00.000Z');
+    const grid = buildSlotGrid([], 7, noon);
+
+    expect(grid.columns.map((column) => column.date)).toContain(campusToday(noon));
   });
 });
 

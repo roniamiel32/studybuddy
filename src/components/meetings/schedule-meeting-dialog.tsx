@@ -56,9 +56,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createMeeting, findMeetingSlots } from '@/features/meetings/actions';
 import {
+  SCHEDULER_GRID_DAYS,
   SCHEDULER_WINDOW_DAYS,
   buildSlotGrid,
   campusTimeValue,
+  campusToday,
   clampSlotsToGridRows,
   defaultMeetingTitle,
   formatDuration,
@@ -195,7 +197,10 @@ export function ScheduleMeetingDialog({
     const baseDate = new Date();
     baseDate.setDate(baseDate.getDate() + (weekOffset * 7));
 
-    return buildSlotGrid(offered, SCHEDULER_WINDOW_DAYS, baseDate);
+    /* One WEEK of columns, out of a two-week fetch. SCHEDULER_WINDOW_DAYS here
+       would draw fourteen columns side by side instead of paging through two
+       sets of seven. */
+    return buildSlotGrid(offered, SCHEDULER_GRID_DAYS, baseDate);
   }, [offered, weekOffset]);
   const days = useMemo(() => groupSlotsByDay(offered), [offered]);
   const runs = useMemo(() => mergeSelectedSlots(offered, selected), [offered, selected]);
@@ -462,6 +467,13 @@ function ViewToggle({
 /**
  * The week as a table: days across, hours down.
  *
+ * TODAY IS MARKED AND THE DAYS BEHIND IT ARE STRUCK THROUGH. The grid always
+ * draws a whole Sunday-to-Saturday week, so opening it on a Thursday shows four
+ * columns that are simply over — and an empty column is ambiguous in a picker
+ * whose whole job is showing emptiness: "nobody is free" and "this day has been
+ * and gone" looked identical. The strikethrough answers that without a legend,
+ * and the marked column gives the eye somewhere to start.
+ *
  * @returns The grid element.
  */
 function SlotGridView({
@@ -473,6 +485,13 @@ function SlotGridView({
   selected: string[];
   onToggle: (startsAt: string) => void;
 }) {
+  /*
+   * Read once per render, not once per column: seven calls would be seven
+   * Intl formats for one answer, and a column comparing itself against a
+   * different instant than its neighbour is a bug waiting for midnight.
+   */
+  const today = campusToday();
+
   return (
     /*
      * Horizontal scroll on narrow screens rather than a cramped grid, exactly as
@@ -496,16 +515,37 @@ function SlotGridView({
         <thead>
           <tr>
             <th className="w-14" />
-            {grid.columns.map((column) => (
-              <th key={column.date} scope="col" className="pb-1">
-                <span className="text-on-surface-variant block text-label-sm">
-                  {column.weekday}
-                </span>
-                <span className="text-outline block text-[11px] font-normal">
-                  {column.dayLabel}
-                </span>
-              </th>
-            ))}
+            {grid.columns.map((column) => {
+              /* Both are day-key comparisons, so the time of day cannot come
+                 into it — see campusToday. */
+              const isToday = column.date === today;
+              const isPast = column.date < today;
+
+              return (
+                <th key={column.date} scope="col" className="pb-1">
+                  <span
+                    className={cn(
+                      'block text-label-sm',
+                      isToday ? 'text-brand font-bold' : 'text-on-surface-variant',
+                      isPast && 'opacity-50'
+                    )}
+                  >
+                    {column.weekday}
+                  </span>
+                  <span
+                    className={cn(
+                      'block text-[11px]',
+                      isToday ? 'text-brand font-bold' : 'text-outline font-normal',
+                      isPast && 'opacity-50'
+
+                    )}
+                  >
+                    {column.dayLabel}
+                    {isToday ? ' (Today)' : ''}
+                  </span>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -522,19 +562,26 @@ function SlotGridView({
                 const slotsArray = column.slotsByTime[time];
                 const slot = slotsArray?.[0];
 
+                const isPast = column.date < today;
+
                 if (!slot) {
-                  /*
-                   * Not a disabled button — not a control at all. Keyboard focus
-                   * skips it and a screen reader is not read dozens of
-                   * "unavailable" stops to cross a week. The row and column
-                   * headers still say what the cell is.
-                   */
                   return (
                     <td key={column.date}>
                       <div
                         aria-hidden="true"
-                        className="bg-surface-container-high/60 border-outline-variant/30 h-9 w-full rounded-sm border"
-                      />
+                        className={cn(
+                          "relative h-9 w-full rounded-sm border overflow-hidden",
+                          isPast
+                            ? "opacity-60 bg-surface-container-high/40 border-outline-variant/50"
+                            : "bg-surface-container-high/60 border-outline-variant/30"
+                        )}
+                      >
+                        {isPast && (
+                          <svg className="absolute inset-0 h-full w-full text-outline" preserveAspectRatio="none" viewBox="0 0 100 100">
+                            <line x1="0" y1="0" x2="100" y2="100" stroke="currentColor" strokeWidth="1.5" />
+                          </svg>
+                        )}
+                      </div>
                     </td>
                   );
                 }
@@ -660,7 +707,7 @@ function SlotListView({
                       : isOn
                         ? /* Part of it came from the grid. Tinted rather than
                              filled, so the two states are not the same shape. */
-                          'border-brand bg-brand-fixed text-brand'
+                        'border-brand bg-brand-fixed text-brand'
                         : 'border-outline-variant/60 hover:bg-brand-fixed/60 bg-white',
                   )}
                 >
@@ -684,7 +731,7 @@ function SlotListView({
             onClick={onShowMore}
             className="text-brand hover:text-brand-bright focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none"
           >
-            Load more 
+            Load more
           </button>
         ) : null}
 
@@ -875,7 +922,7 @@ function FineTune({
                 <span className="text-outline text-[11px] font-normal">
                   {formatDuration(session.startsAt, session.endsAt)}
                   {session.startsAt !== session.run.startsAt ||
-                  session.endsAt !== session.run.endsAt
+                    session.endsAt !== session.run.endsAt
                     ? ` of ${formatDuration(session.run.startsAt, session.run.endsAt)} free`
                     : null}
                 </span>
