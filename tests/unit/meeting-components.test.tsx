@@ -361,6 +361,59 @@ describe('a session that repeats', () => {
     expect(screen.queryByRole('button', { name: 'Stop repeating' })).not.toBeInTheDocument();
   });
 
+  it('is one card on the banner, not eight', async () => {
+    /*
+     * THE COST OF MATERIALISED OCCURRENCES, PAID AT THE SCREEN. A weekly series
+     * is eight real rows and every one of them is still ahead, so the banner
+     * became the same session stacked on eight consecutive Tuesdays — with a
+     * "+7" offering to expand into seven more copies of it.
+     */
+    const twoHours = 7_200_000;
+    const sittings = [0, 1, 2, 3].map((week) =>
+      weekly({
+        id: `sitting-${week}`,
+        startsAt: new Date(Date.now() + twoHours + week * 604_800_000).toISOString(),
+        endsAt: new Date(Date.now() + 2 * twoHours + week * 604_800_000).toISOString(),
+      }),
+    );
+
+    render(<MeetingStrip meetings={sittings} />);
+
+    expect(screen.getAllByText('Recursion catch-up')).toHaveLength(1);
+    expect(screen.queryByText('+3')).not.toBeInTheDocument();
+  });
+
+  it('still stacks two different series', () => {
+    const twoHours = 7_200_000;
+
+    render(
+      <MeetingStrip
+        meetings={[
+          weekly({ id: 'mondays', seriesId: 'weekly-1' }),
+          weekly({
+            id: 'fridays',
+            seriesId: 'weekly-2',
+            title: 'Linear algebra',
+            startsAt: new Date(Date.now() + 3 * twoHours).toISOString(),
+            endsAt: new Date(Date.now() + 4 * twoHours).toISOString(),
+          }),
+        ]}
+      />,
+    );
+
+    /* Two bookings are two bookings. Collapsing is per series, not per chat. */
+    expect(screen.getByText('Recursion catch-up')).toBeInTheDocument();
+    expect(screen.getByText('+1')).toBeInTheDocument();
+  });
+
+  it('says it repeats on the card in the feed', () => {
+    renderWithToasts(<MeetingChatCard meeting={weekly()} />);
+
+    /* The card is now the only one there is, so it has to say what it stands
+       for. The separator matches the "· Not attending" idiom beside it. */
+    expect(screen.getByText(/· Repeats weekly/)).toBeInTheDocument();
+  });
+
   it('leaves a one-off with the single ending it always had', () => {
     render(<MeetingStrip meetings={[meeting({ isOrganiser: true })]} />);
 

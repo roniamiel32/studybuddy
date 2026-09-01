@@ -333,17 +333,27 @@ test.describe('scheduling a session from a chat', () => {
     expect(occurrences[0].series_id).not.toBeNull();
 
     /*
+     * EIGHT ROWS, ONE CARD. The occurrences are real meetings — which is what
+     * makes them block their slots — and the thread had one booking in it, so
+     * the feed and the banner each show only the sitting that is next. This
+     * assertion is the whole of that rule, end to end.
+     */
+    await expect(page.getByRole('button', { name: /Every week, please/ })).toHaveCount(1);
+
+    /*
+     * The banner's half of the same rule is asserted in the unit suite instead.
+     * By the time this test runs the thread holds earlier bookings too, so which
+     * session the banner puts on top — and which it folds behind "+N" — depends
+     * on the tests before it. A meaningful assertion here would have to
+     * reconstruct that, which is a test of the fixture rather than of the rule.
+     */
+
+    /*
      * Reached through the CARD IN THE THREAD rather than the banner. That is how
      * a student opens a sitting that is days away, and it is the path the two
      * endings had to be added to.
-     *
-     * WHICHEVER CARD COMES FIRST, deliberately. The occurrences are booked in
-     * one act and ordered by id, so this samples an arbitrary one of the eight —
-     * and every one of them must behave the same. That is how this test caught
-     * the setTimeout overflow in useHasFinished: the sittings past the first
-     * month were drawing themselves as already attended.
      */
-    await page.getByRole('button', { name: /Every week, please/ }).first().click();
+    await page.getByRole('button', { name: /Every week, please/ }).click();
 
     const details = page.getByRole('dialog').filter({ hasText: 'Every week, please' });
     await expect(details.getByText('Repeats weekly')).toBeVisible();

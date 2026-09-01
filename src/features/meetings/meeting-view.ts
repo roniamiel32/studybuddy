@@ -14,9 +14,11 @@
  *
  *              No 'server-only' here: the dialog is a client component and needs
  *              these formatters.
- * Version:     1.2.0
+ * Version:     1.3.0
  *
  * Modifications:
+ *     1.3.0  - 2026-09-01 - collapseSeries: a weekly series is one card, not
+ *                           eight, on both surfaces that draw sessions
  *     1.2.0  - 2026-09-01 - MeetingView carries seriesId, so a session can say
  *                           that it repeats
  *     1.1.0  - 2026-09-01 - The picker asks for two weeks, so its second page
@@ -401,6 +403,67 @@ export type ChatFeedEntry<TMessage> =
  * @param meetings - Sessions booked from this chat.
  * @returns Every entry, oldest first.
  */
+/**
+ * Collapses each weekly series to the one sitting still ahead of it.
+ *
+ * THE COST OF MATERIALISED OCCURRENCES, PAID BACK HERE. Booking a weekly series
+ * writes eight real meetings, which is what makes them block their slots and
+ * refuse double bookings without a line of special-case code — and it is also
+ * eight identical cards stacked in a thread that had one booking in it. The
+ * database is right and the screen was wrong, so the collapsing belongs at the
+ * point of rendering rather than in the schema.
+ *
+ * FINISHED SITTINGS ARE NEVER COLLAPSED. They are the record that those sessions
+ * happened: the feed is a history of the thread, and the rating rule in 7D reads
+ * exactly those rows to decide who may rate whom. Hiding last month's Tuesday
+ * behind next Tuesday would quietly cost somebody the ability to rate the people
+ * they sat with.
+ *
+ * IT ASKS `hasFinished` RATHER THAN THE CLOCK, and that is deliberate. Both
+ * callers render on the server first and hydrate on the client, and a rule that
+ * consulted `Date.now()` would be answered twice by two different clocks — a
+ * different set of cards in the HTML than in the hydration, for any session that
+ * ended in between. `hasFinished` is the server's single answer, carried in the
+ * view for exactly this reason.
+ *
+ * @param meetings - Every session in the chat, as read.
+ * @returns The same list, with the later sittings of each series removed.
+ */
+export function collapseSeries(meetings: MeetingView[]): MeetingView[] {
+  /* The sitting each series is currently represented by. */
+  const soonest = new Map<string, MeetingView>();
+
+  for (const meeting of meetings) {
+    if (!meeting.seriesId || meeting.hasFinished) {
+      continue;
+    }
+
+    const standing = soonest.get(meeting.seriesId);
+
+    if (!standing) {
+      soonest.set(meeting.seriesId, meeting);
+      continue;
+    }
+
+    const gap =
+      new Date(meeting.startsAt).getTime() - new Date(standing.startsAt).getTime();
+
+    /* The id breaks a tie, so the answer cannot depend on the order rows came
+       back in — two sittings at one instant is not a thing a series can produce,
+       but a stable rule costs nothing and a flapping card would be baffling. */
+    if (gap < 0 || (gap === 0 && meeting.id < standing.id)) {
+      soonest.set(meeting.seriesId, meeting);
+    }
+  }
+
+  return meetings.filter(
+    (meeting) =>
+      !meeting.seriesId ||
+      meeting.hasFinished ||
+      soonest.get(meeting.seriesId)?.id === meeting.id,
+  );
+}
+
 export function buildChatFeed<TMessage extends { id: string; createdAt: string }>(
   messages: TMessage[],
   meetings: MeetingView[],
@@ -414,7 +477,9 @@ export function buildChatFeed<TMessage extends { id: string; createdAt: string }
         message,
       }),
     ),
-    ...meetings.map(
+    /* Collapsed here rather than at each call site: both chat surfaces build
+       their feed through this, and neither should have to remember. */
+    ...collapseSeries(meetings).map(
       (meeting): ChatFeedEntry<TMessage> => ({
         kind: 'meeting',
         id: `meeting-${meeting.id}`,

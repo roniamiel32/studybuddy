@@ -21,6 +21,7 @@ import {
 } from '@/features/meetings/actions';
 import { useHasFinished } from '@/lib/use-has-finished';
 import {
+  collapseSeries,
   formatMeetingWhen,
   isBannerMeeting,
   type MeetingView,
@@ -41,7 +42,13 @@ export interface MeetingStripProps {
 export function MeetingStrip({ meetings }: MeetingStripProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const showing = meetings.filter((meeting) => isBannerMeeting(meeting));
+  /*
+   * Collapsed BEFORE the window is applied. A weekly series is eight real rows
+   * and every one of them is still ahead, so without this the banner became a
+   * stack of the same session on eight consecutive Tuesdays — and the "+7 more"
+   * it offered to expand was seven copies of what was already on screen.
+   */
+  const showing = collapseSeries(meetings).filter((meeting) => isBannerMeeting(meeting));
 
   if (showing.length === 0) {
     return null;

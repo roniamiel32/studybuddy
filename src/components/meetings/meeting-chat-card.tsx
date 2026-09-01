@@ -90,6 +90,10 @@ export function MeetingChatCard({ meeting }: MeetingChatCardProps) {
               className="text-[#7b2f00] text-[13px]"
             >
               {when}
+              {/* Said on the card because the card is now the only one there is:
+                  the rest of the series is collapsed behind it, and a session
+                  that silently repeats is worse than one that says so. */}
+              {meeting.seriesId ? ' · Repeats weekly' : null}
               {meeting.going ? null : ' · Not attending'}
             </p>
           </div>
