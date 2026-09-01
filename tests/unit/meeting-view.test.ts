@@ -14,9 +14,11 @@
  *
  *              Times are injected rather than taken from the clock, so none of
  *              this depends on when the suite runs.
- * Version:     1.1.0
+ * Version:     1.3.0
  *
  * Modifications:
+ *     1.3.0  - 2026-09-01 - collapseSeries: eight sittings become one card, and
+ *                           the finished ones are never among the eight
  *     1.1.0  - 2026-09-01 - campusToday, which is what marks today's column
  *     0.49.0 - 2026-08-19 - Paging: buildSlotGrid takes a baseDate naming a week
  *     0.48.0 - 2026-08-19 - buildSlotGrid now anchors on the week's Sunday and
@@ -32,6 +34,7 @@ import {
   buildSlotGrid,
   campusToday,
   clampSlotsToGridRows,
+  collapseSeries,
   formatDuration,
   formatMeetingWhen,
   formatSlotRange,
@@ -64,6 +67,7 @@ function meeting(overrides: Partial<MeetingView> = {}): MeetingView {
     hasFinished: true,
     createdAt: '2026-08-13T09:00:00Z',
     bannerDismissed: false,
+    seriesId: null,
     ...overrides,
   };
 }
@@ -291,6 +295,90 @@ describe('the campus clock', () => {
     ]);
 
     expect(days[0].date).toBe('2026-09-02');
+  });
+});
+
+describe('collapseSeries', () => {
+  /** One sitting of the weekly series, ahead of us unless told otherwise. */
+  function sitting(id: string, day: string, overrides: Partial<MeetingView> = {}) {
+    return meeting({
+      id,
+      seriesId: 'weekly-1',
+      startsAt: `${day}T09:00:00Z`,
+      endsAt: `${day}T11:00:00Z`,
+      hasFinished: false,
+      ...overrides,
+    });
+  }
+
+  it('keeps the soonest sitting still ahead, and drops the rest', () => {
+    const kept = collapseSeries([
+      sitting('third', '2026-09-15'),
+      sitting('first', '2026-09-01'),
+      sitting('second', '2026-09-08'),
+    ]);
+
+    expect(kept.map((entry) => entry.id)).toEqual(['first']);
+  });
+
+  it('never collapses a sitting that has already happened', () => {
+    /*
+     * THE RULE WITH TEETH. The feed is a history of the thread and the rating
+     * system in 7D reads exactly these rows to decide who may rate whom —
+     * folding last month's Tuesday behind next Tuesday would quietly cost
+     * somebody the ability to rate the people they sat with.
+     */
+    const kept = collapseSeries([
+      sitting('gone', '2026-08-04', { hasFinished: true }),
+      sitting('also-gone', '2026-08-11', { hasFinished: true }),
+      sitting('next', '2026-09-01'),
+      sitting('later', '2026-09-08'),
+    ]);
+
+    expect(kept.map((entry) => entry.id)).toEqual(['gone', 'also-gone', 'next']);
+  });
+
+  it('leaves a one-off session entirely alone', () => {
+    const kept = collapseSeries([
+      meeting({ id: 'one-off-a', seriesId: null, hasFinished: false }),
+      meeting({ id: 'one-off-b', seriesId: null, hasFinished: false }),
+    ]);
+
+    expect(kept).toHaveLength(2);
+  });
+
+  it('treats two series as two series', () => {
+    const kept = collapseSeries([
+      sitting('mondays-next', '2026-09-01'),
+      sitting('mondays-later', '2026-09-08'),
+      sitting('fridays-next', '2026-09-04', { seriesId: 'weekly-2' }),
+      sitting('fridays-later', '2026-09-11', { seriesId: 'weekly-2' }),
+    ]);
+
+    expect(kept.map((entry) => entry.id)).toEqual(['mondays-next', 'fridays-next']);
+  });
+
+  it('gives the same answer whatever order the rows arrive in', () => {
+    /* PostgREST orders by starts_at today; a card that changed identity because
+       a query grew an ORDER BY would be an unpleasant surprise. */
+    const rows = [
+      sitting('a', '2026-09-08'),
+      sitting('b', '2026-09-01'),
+      sitting('c', '2026-09-15'),
+    ];
+
+    expect(collapseSeries(rows).map((entry) => entry.id)).toEqual(['b']);
+    expect(collapseSeries([...rows].reverse()).map((entry) => entry.id)).toEqual(['b']);
+  });
+
+  it('keeps what survives in the order it came', () => {
+    const kept = collapseSeries([
+      meeting({ id: 'one-off', seriesId: null, hasFinished: false }),
+      sitting('next', '2026-09-01'),
+      sitting('later', '2026-09-08'),
+    ]);
+
+    expect(kept.map((entry) => entry.id)).toEqual(['one-off', 'next']);
   });
 });
 

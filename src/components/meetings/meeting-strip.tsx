@@ -10,11 +10,18 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Repeat,
 } from 'lucide-react';
 
-import { cancelMeeting, dismissMeeting, setMeetingRsvp } from '@/features/meetings/actions';
+import {
+  cancelMeeting,
+  cancelMeetingSeries,
+  dismissMeeting,
+  setMeetingRsvp,
+} from '@/features/meetings/actions';
 import { useHasFinished } from '@/lib/use-has-finished';
 import {
+  collapseSeries,
   formatMeetingWhen,
   isBannerMeeting,
   type MeetingView,
@@ -35,7 +42,13 @@ export interface MeetingStripProps {
 export function MeetingStrip({ meetings }: MeetingStripProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const showing = meetings.filter((meeting) => isBannerMeeting(meeting));
+  /*
+   * Collapsed BEFORE the window is applied. A weekly series is eight real rows
+   * and every one of them is still ahead, so without this the banner became a
+   * stack of the same session on eight consecutive Tuesdays — and the "+7 more"
+   * it offered to expand was seven copies of what was already on screen.
+   */
+  const showing = collapseSeries(meetings).filter((meeting) => isBannerMeeting(meeting));
 
   if (showing.length === 0) {
     return null;
@@ -225,6 +238,15 @@ function MeetingCard({
                 {meeting.location}
               </span>
             ) : null}
+
+            {/* Said on the card, not only in the dialog: the two cancel choices
+                below make no sense to somebody who does not know this repeats. */}
+            {meeting.seriesId ? (
+              <span className="flex items-center gap-1">
+                <Repeat className="size-3.5" aria-hidden="true" />
+                Repeats weekly
+              </span>
+            ) : null}
           </p>
 
           {!meeting.going ? (
@@ -248,15 +270,45 @@ function MeetingCard({
               {meeting.going ? 'Cannot make it' : 'I can make it'}
             </button>
 
+            {/*
+              * TWO ANSWERS FOR A REPEATING SESSION, spelled out rather than
+              * hidden behind a confirm. "Call it off" is one word away from
+              * meaning either of them, and the two are not equally undoable:
+              * this Tuesday can be rebooked in a press, eight weeks of Tuesdays
+              * cannot. So each button names its own scope, and neither is the
+              * default.
+              */}
             {meeting.isOrganiser ? (
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => act(() => cancelMeeting({ meetingId: meeting.id }))}
-                className="text-outline hover:text-destructive focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
-              >
-                Call it off
-              </button>
+              meeting.seriesId ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => act(() => cancelMeeting({ meetingId: meeting.id }))}
+                    className="text-outline hover:text-destructive focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
+                  >
+                    Call off this one
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => act(() => cancelMeetingSeries({ meetingId: meeting.id }))}
+                    className="text-outline hover:text-destructive focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
+                  >
+                    Stop repeating
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => act(() => cancelMeeting({ meetingId: meeting.id }))}
+                  className="text-outline hover:text-destructive focus-visible:ring-brand/35 rounded-md text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
+                >
+                  Call it off
+                </button>
+              )
             ) : null}
           </div>
         )}

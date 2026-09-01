@@ -24,9 +24,12 @@
  *              into the calendar it opened. Stepping out of a session therefore
  *              has to ASK the student to remove their own copy, which is what
  *              the toast on "Not attending" is for.
- * Version:     0.49.0
+ * Version:     0.53.0
  *
  * Modifications:
+ *     0.53.0 - 2026-09-01 - A repeating session says so, carries the rule for
+ *                           Google in its link, and offers the organiser the two
+ *                           ways of ending it
  *     0.49.0 - 2026-09-01 - "Not attending" raises a toast asking the student to
  *                           remove the session from their personal calendar
  *     0.29.0 - 2026-08-14 - Initial implementation (Phase 9G)
@@ -35,10 +38,23 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { AlertCircle, CalendarClock, Check, Loader2, MapPin, Users, X } from 'lucide-react';
+import {
+  AlertCircle,
+  CalendarClock,
+  Check,
+  Loader2,
+  MapPin,
+  Repeat,
+  Users,
+  X,
+} from 'lucide-react';
 
 import { useToast } from '@/components/ui/toast';
-import { setMeetingRsvp } from '@/features/meetings/actions';
+import {
+  cancelMeeting,
+  cancelMeetingSeries,
+  setMeetingRsvp,
+} from '@/features/meetings/actions';
 import { formatMeetingWhen, type MeetingView } from '@/features/meetings/meeting-view';
 import { useHasFinished } from '@/lib/use-has-finished';
 import { cn } from '@/lib/utils';
@@ -49,6 +65,19 @@ const formatGoogleCalendarDate = (startsAt: string | Date, endsAt: string | Date
   const format = (d: string | Date) => new Date(d).toISOString().replace(/-|:|\.\d+/g, '');
   return `${format(startsAt)}/${format(endsAt)}`;
 };
+
+/*
+ * THE RULE GOES OVER THE LINK, WHICH IS THE WHOLE POINT OF THE MANUAL ROUTE.
+ * We cannot write to anybody's calendar, but the template URL takes an RRULE and
+ * Google expands it on their side — so one press still gives the student every
+ * Tuesday rather than one Tuesday and a note to do the other seven by hand.
+ *
+ * No UNTIL and no COUNT, matching what the series actually is: it repeats until
+ * somebody stops it. Stopping it here frees the slots in StudyBuddy; the copy
+ * that Google is now holding is the student's own, and the toast on "Not
+ * attending" is what asks them to tidy it.
+ */
+const WEEKLY_RRULE = 'RRULE:FREQ=WEEKLY';
 
 /*
  * Said after a successful "Not attending". The session is off for this student
@@ -143,6 +172,35 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
     });
   };
 
+  /**
+   * Ends a repeating session — this sitting, or the rest of the series.
+   *
+   * THE CHOICE LIVES HERE AS WELL AS ON THE BANNER, and it has to. The banner is
+   * a strip of what is imminent; a series booked for the next eight Tuesdays is
+   * reached through its card in the thread, and that card opens this. Offering
+   * the choice only on the banner would mean a student could not stop a series
+   * until its next sitting was nearly upon them.
+   *
+   * @param stop - The action to run, scoped to one sitting or to the series.
+   * @returns Nothing.
+   */
+  const end = (stop: (input: { meetingId: string }) => Promise<
+    { ok: true; data: unknown } | { ok: false; error: { message: string } }
+  >) => {
+    setError(null);
+
+    startTransition(async () => {
+      const result = await stop({ meetingId: meeting.id });
+
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+
+      onClose();
+    });
+  };
+
   return (
     <dialog
       ref={dialogRef}
@@ -201,6 +259,20 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
             </div>
           ) : null}
 
+          {meeting.seriesId ? (
+            <div className="flex items-start gap-3">
+              <Repeat className="text-outline mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <div>
+                <dt className="sr-only">How often</dt>
+                <dd className="text-label-md font-normal">
+                  Repeats weekly
+                  {/* Said here because the link below now books all of them, and
+                      somebody pressing it should know what they are adding. */}
+                </dd>
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex items-start gap-3">
             <Users className="text-outline mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <div>
@@ -223,13 +295,15 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
             )}&dates=${formatGoogleCalendarDate(
               meeting.startsAt,
               meeting.endsAt,
-            )}&details=${encodeURIComponent('Study session via StudyBuddy')}`}
+            )}&details=${encodeURIComponent('Study session via StudyBuddy')}${
+              meeting.seriesId ? `&recur=${encodeURIComponent(WEEKLY_RRULE)}` : ''
+            }`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-brand hover:bg-brand/90 text-white rounded-xl text-label-sm font-medium transition shadow-sm"
           >
             <Calendar className="w-4 h-4 mr-1" />
-            Add to Google Calendar
+            {meeting.seriesId ? 'Add weekly to Google Calendar' : 'Add to Google Calendar'}
           </a>
         </div>
 
@@ -273,6 +347,43 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
             </div>
           </fieldset>
         )}
+
+        {/*
+          * TWO NAMED ENDINGS, AND ONLY FOR A SERIES. A one-off is called off from
+          * the banner exactly as it always was; what needed saying out loud is
+          * the difference between missing one Tuesday and ending all of them,
+          * because the two are one word apart and only one of them is undoable
+          * in a press.
+          */}
+        {meeting.seriesId && meeting.isOrganiser && !hasFinished ? (
+          <div className="border-outline-variant/30 flex flex-col gap-2 border-t pt-4">
+            <p className="text-label-md">Ending it</p>
+            <p className="text-outline text-label-sm font-normal text-pretty">
+              Calling off this one leaves the rest of them. Stopping the series frees
+              every future session for everybody.
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => end(cancelMeeting)}
+                className="border-outline-variant/60 hover:text-destructive focus-visible:ring-brand/35 rounded-md border bg-white px-4 py-2 text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Call off this one
+              </button>
+
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => end(cancelMeetingSeries)}
+                className="border-outline-variant/60 hover:text-destructive focus-visible:ring-brand/35 rounded-md border bg-white px-4 py-2 text-label-sm transition-colors focus-visible:ring-4 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Stop repeating
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </dialog>
   );

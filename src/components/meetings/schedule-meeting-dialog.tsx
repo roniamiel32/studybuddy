@@ -48,6 +48,7 @@ import {
   Check,
   List,
   Loader2,
+  Repeat,
   X,
 } from 'lucide-react';
 
@@ -396,6 +397,35 @@ export function ScheduleMeetingDialog({
                 placeholder="Library, floor 2 — or a video call"
               />
             </div>
+
+            {/*
+              * A NATIVE CHECKBOX INSIDE ITS LABEL, so the whole box is the
+              * target and the explanation is part of what you press. An
+              * unticked one posts nothing at all, which is the absence the
+              * action reads as false.
+              */}
+            <label
+              htmlFor="meeting-repeat"
+              className="border-outline-variant/60 hover:bg-brand-fixed/30 flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors"
+            >
+              <input
+                id="meeting-repeat"
+                name="repeatWeekly"
+                type="checkbox"
+                className="accent-brand mt-0.5 size-4 shrink-0"
+              />
+              <span>
+                <span className="text-label-md flex items-center gap-1.5">
+                  <Repeat className="size-3.5" aria-hidden="true" />
+                  Repeat weekly
+                </span>
+                <span className="text-on-surface-variant mt-0.5 block text-label-sm font-normal text-pretty">
+                  {bookable.length > 1
+                    ? 'Books each of these times every week and keeps them free for everyone. Stop it whenever you like.'
+                    : 'Books the same time every week and keeps it free for everyone. Stop it whenever you like.'}
+                </span>
+              </span>
+            </label>
           </>
         )}
 
@@ -541,7 +571,6 @@ function SlotGridView({
                     )}
                   >
                     {column.dayLabel}
-                    {isToday ? ' (Today)' : ''}
                   </span>
                 </th>
               );

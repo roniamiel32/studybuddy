@@ -41,6 +41,7 @@ interface MeetingRow {
   ends_at: string;
   created_by: string | null;
   created_at: string;
+  series_id: string | null;
   meeting_attendees: { profile_id: string; rsvp: 'going' | 'cancelled' }[];
 }
 
@@ -52,6 +53,7 @@ const MEETING_SELECT = `
   ends_at,
   created_by,
   created_at,
+  series_id,
   meeting_attendees ( profile_id, rsvp )
 `;
 
@@ -83,6 +85,7 @@ function toMeetingView(
     hasFinished: new Date(row.ends_at) <= new Date(),
     createdAt: row.created_at,
     bannerDismissed,
+    seriesId: row.series_id,
   };
 }
 

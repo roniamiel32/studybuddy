@@ -13,9 +13,12 @@
  *              dialog asks for it on open, from the client — the intersection is
  *              too expensive to compute for a chat nobody has opened the
  *              scheduler on.
- * Version:     0.49.0
+ * Version:     0.53.0
  *
  * Modifications:
+ *     0.53.0 - 2026-09-01 - Recurring sessions: createMeeting books a series when
+ *                           the picker asks for one, and cancelMeetingSeries
+ *                           stops the rest of one
  *     0.49.0 - 2026-09-01 - The four Google Calendar push calls are commented
  *                           out. RSVPs and cancellations still do everything
  *                           they did in our own database; only the mirroring
@@ -166,18 +169,31 @@ export async function createMeeting(
         startsAt: start,
         endsAt: endsAt[index] ?? '',
       })),
+      /* An unticked checkbox posts nothing at all, which is the absence the
+         schema's default reads as false. */
+      repeatWeekly: formData.get('repeatWeekly') === 'on',
     };
 
     const input = createMeetingSchema.parse(raw);
 
-    const { error } = await supabase.rpc('rpc_create_meetings', {
+    const times = {
       p_conversation_id: input.conversationId,
       p_group_id: input.groupId,
       p_title: input.title,
       p_location: input.location,
       p_starts_at: input.sessions.map((session) => session.startsAt),
       p_ends_at: input.sessions.map((session) => session.endsAt),
-    });
+    };
+
+    /*
+     * TWO FUNCTIONS, NOT A FLAG ON ONE. PostgREST resolves an overload from the
+     * argument names it is sent, so a defaulted parameter added to the function
+     * this action already calls would make both candidates match every call.
+     * The arguments are identical, which is why they are built once above.
+     */
+    const { error } = input.repeatWeekly
+      ? await supabase.rpc('rpc_create_meeting_series', times)
+      : await supabase.rpc('rpc_create_meetings', times);
 
     if (error) {
       /*
@@ -188,6 +204,12 @@ export async function createMeeting(
        * booked, because that is what the transaction did.
        */
       if (error.message.includes('clash')) {
+        /*
+         * For a series this is the FIRST sitting only. Later weeks that clash
+         * are skipped by the database rather than refused — one busy Tuesday
+         * three weeks out must not stop somebody studying every Tuesday — so a
+         * failure here really does mean nothing was booked.
+         */
         return fail(
           ERROR_CODES.VALIDATION_FAILED,
           input.sessions.length === 1
@@ -366,6 +388,48 @@ export async function dismissMeeting(input: { meetingId: string }): Promise<Acti
     return ok(undefined);
   } catch (error) {
     return toActionError(error, 'meetings.dismissMeeting');
+  }
+}
+
+/**
+ * Stops a repeating session, from now on.
+ *
+ * THE OTHER HALF OF A CHOICE, and the pair only makes sense together: cancelling
+ * one sitting of a weekly series leaves next week alone, and stopping the series
+ * leaves the sittings that already happened alone. A student who cannot make
+ * this Tuesday wants the first; a student whose exam is over wants the second.
+ *
+ * Restricted to the organiser by the RPC, exactly as cancelMeeting is. Anyone
+ * else steps out of each sitting with their own RSVP — one person not coming any
+ * more is not the series ending.
+ *
+ * @param input - Any sitting of the series, usually the one on screen.
+ * @returns How many future sessions were called off, or a failure.
+ */
+export async function cancelMeetingSeries(input: {
+  meetingId: string;
+}): Promise<ActionResult<number>> {
+  try {
+    await requireUser();
+    const parsed = meetingIdSchema.parse(input);
+    const supabase = await createClient();
+
+    const { data, error } = await supabase.rpc('rpc_cancel_meeting_series', {
+      p_meeting_id: parsed.meetingId,
+    });
+
+    if (error) {
+      return fail(
+        ERROR_CODES.FORBIDDEN,
+        'That series is not yours to stop, or has already been stopped.',
+      );
+    }
+
+    revalidateMeetingSurfaces();
+
+    return ok(data ?? 0);
+  } catch (error) {
+    return toActionError(error, 'meetings.cancelMeetingSeries');
   }
 }
 

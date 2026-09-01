@@ -4,9 +4,11 @@
  * Description: Validation for the meeting writes. Bounds mirror the database
  *              CHECK constraints, so a rejection arrives as a message rather than
  *              a 500.
- * Version:     0.19.0
+ * Version:     0.53.0
  *
  * Modifications:
+ *     0.53.0 - 2026-09-01 - repeatWeekly, and the lower cap a repeating
+ *                           selection is held to
  *     0.19.0 - 2026-08-11 - Initial implementation (Phase 7)
  */
 
@@ -35,6 +37,15 @@ export const meetingSlotsSchema = scope.and(
   }),
 );
 
+/**
+ * How many series one press may create.
+ *
+ * Lower than the twenty one-off sessions allowed below, and mirroring the cap
+ * inside rpc_create_meeting_series: each of these is eight weeks of rows rather
+ * than one, and refusing here turns a database error into a sentence.
+ */
+export const MAX_SERIES_PER_BOOKING = 5;
+
 export const createMeetingSchema = scope.and(
   z.object({
     title: z
@@ -61,7 +72,20 @@ export const createMeetingSchema = scope.and(
       /* Mirrors the cap inside rpc_create_meetings, so an absurd selection is
          refused with a sentence rather than a database error. */
       .max(20, 'That is more sessions than can be booked at once.'),
+
+    /*
+     * One checkbox in the picker. Every selected session becomes its own weekly
+     * series rather than a single booking — the flag is about the selection, not
+     * about one time in it.
+     */
+    repeatWeekly: z.boolean().default(false),
   }),
+).refine(
+  (value) => !value.repeatWeekly || value.sessions.length <= MAX_SERIES_PER_BOOKING,
+  {
+    message: `You can start ${MAX_SERIES_PER_BOOKING} repeating sessions at once. Pick fewer times, or book the rest separately.`,
+    path: ['sessions'],
+  },
 );
 
 export const meetingIdSchema = z.object({ meetingId: z.uuid() });

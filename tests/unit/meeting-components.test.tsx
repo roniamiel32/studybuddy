@@ -26,9 +26,11 @@
  *              from your own calendar — is the only thing that closes the loop
  *              on a manually added event, and asserting it through the real
  *              provider is what proves a student actually sees it.
- * Version:     0.50.0
+ * Version:     0.53.0
  *
  * Modifications:
+ *     0.53.0 - 2026-09-01 - Recurring sessions: the two cancel choices, and the
+ *                           rule the calendar link carries
  *     0.50.0 - 2026-09-01 - The finished-session assertion follows the copy the
  *                           dialog actually shows
  *     0.49.0 - 2026-09-01 - Renders go through the toast provider, and the
@@ -47,11 +49,13 @@ import type { MeetingView } from '@/features/meetings/meeting-view';
 const dismissMeeting = vi.fn(async () => ({ ok: true as const, data: undefined }));
 const setMeetingRsvp = vi.fn(async () => ({ ok: true as const, data: undefined }));
 const cancelMeeting = vi.fn(async () => ({ ok: true as const, data: undefined }));
+const cancelMeetingSeries = vi.fn(async () => ({ ok: true as const, data: 8 }));
 
 vi.mock('@/features/meetings/actions', () => ({
   dismissMeeting: (...args: unknown[]) => dismissMeeting(...(args as [])),
   setMeetingRsvp: (...args: unknown[]) => setMeetingRsvp(...(args as [])),
   cancelMeeting: (...args: unknown[]) => cancelMeeting(...(args as [])),
+  cancelMeetingSeries: (...args: unknown[]) => cancelMeetingSeries(...(args as [])),
 }));
 
 const { MeetingChatCard } = await import('@/components/meetings/meeting-chat-card');
@@ -93,6 +97,7 @@ function meeting(overrides: Partial<MeetingView> = {}): MeetingView {
     hasFinished: false,
     createdAt: new Date(Date.now() - twoHours).toISOString(),
     bannerDismissed: false,
+    seriesId: null,
     ...overrides,
   };
 }
@@ -257,6 +262,173 @@ describe('MeetingDetailsDialog', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'This session has already started.',
     );
+  });
+});
+
+describe('a session that repeats', () => {
+  /** The same meeting, as one sitting of a weekly series. */
+  const weekly = (overrides: Partial<MeetingView> = {}) =>
+    meeting({ seriesId: 'series-1', ...overrides });
+
+  it('says so in the dialog, and hands Google the rule', () => {
+    renderWithToasts(<MeetingDetailsDialog open onClose={() => {}} meeting={weekly()} />);
+
+    expect(screen.getByText('Repeats weekly')).toBeInTheDocument();
+
+    /*
+     * THE POINT OF THE MANUAL INTEGRATION. We cannot write to a calendar, but
+     * the template URL takes an RRULE and Google expands it — so one press adds
+     * every Tuesday rather than one Tuesday and seven jobs for later.
+     */
+    const link = screen.getByRole('link', { name: /Add weekly to Google Calendar/ });
+
+    expect(link).toHaveAttribute('href', expect.stringContaining('recur=RRULE'));
+    expect(link).toHaveAttribute('href', expect.stringContaining('FREQ%3DWEEKLY'));
+  });
+
+  it('sends no rule for a one-off', () => {
+    renderWithToasts(<MeetingDetailsDialog open onClose={() => {}} meeting={meeting()} />);
+
+    const link = screen.getByRole('link', { name: 'Add to Google Calendar' });
+
+    expect(link.getAttribute('href')).not.toContain('recur=');
+    expect(screen.queryByText('Repeats weekly')).not.toBeInTheDocument();
+  });
+
+  it('offers the organiser both endings, and they do different things', async () => {
+    const user = userEvent.setup();
+    render(<MeetingStrip meetings={[weekly({ isOrganiser: true })]} />);
+
+    /*
+     * TWO NAMED CHOICES RATHER THAN ONE AMBIGUOUS BUTTON. They are not equally
+     * undoable — this Tuesday can be rebooked in a press, eight weeks of them
+     * cannot — so neither may be the default reading of "Call it off".
+     */
+    await user.click(screen.getByRole('button', { name: 'Call off this one' }));
+
+    await waitFor(() => {
+      expect(cancelMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' });
+    });
+    expect(cancelMeetingSeries).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Stop repeating' }));
+
+    await waitFor(() => {
+      expect(cancelMeetingSeries).toHaveBeenCalledWith({ meetingId: 'meeting-1' });
+    });
+  });
+
+  it('offers the same two endings in the dialog, where a future sitting is reached', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    renderWithToasts(
+      <MeetingDetailsDialog
+        open
+        onClose={onClose}
+        meeting={weekly({ isOrganiser: true })}
+      />,
+    );
+
+    /*
+     * THE BANNER IS NOT ENOUGH. It carries what is imminent; a series booked for
+     * the next eight Tuesdays is reached through its card in the thread, which
+     * opens this dialog. Without these the organiser could not stop a series
+     * until its next sitting was nearly upon them.
+     */
+    await user.click(screen.getByRole('button', { name: 'Stop repeating' }));
+
+    await waitFor(() => {
+      expect(cancelMeetingSeries).toHaveBeenCalledWith({ meetingId: 'meeting-1' });
+    });
+
+    /* It closes on success, like every other answer this dialog takes. */
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('offers no endings in the dialog for a one-off, or to a guest', () => {
+    const { unmount } = renderWithToasts(
+      <MeetingDetailsDialog open onClose={() => {}} meeting={meeting({ isOrganiser: true })} />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Stop repeating' })).not.toBeInTheDocument();
+    unmount();
+
+    renderWithToasts(
+      <MeetingDetailsDialog open onClose={() => {}} meeting={weekly({ isOrganiser: false })} />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Stop repeating' })).not.toBeInTheDocument();
+  });
+
+  it('is one card on the banner, not eight', async () => {
+    /*
+     * THE COST OF MATERIALISED OCCURRENCES, PAID AT THE SCREEN. A weekly series
+     * is eight real rows and every one of them is still ahead, so the banner
+     * became the same session stacked on eight consecutive Tuesdays — with a
+     * "+7" offering to expand into seven more copies of it.
+     */
+    const twoHours = 7_200_000;
+    const sittings = [0, 1, 2, 3].map((week) =>
+      weekly({
+        id: `sitting-${week}`,
+        startsAt: new Date(Date.now() + twoHours + week * 604_800_000).toISOString(),
+        endsAt: new Date(Date.now() + 2 * twoHours + week * 604_800_000).toISOString(),
+      }),
+    );
+
+    render(<MeetingStrip meetings={sittings} />);
+
+    expect(screen.getAllByText('Recursion catch-up')).toHaveLength(1);
+    expect(screen.queryByText('+3')).not.toBeInTheDocument();
+  });
+
+  it('still stacks two different series', () => {
+    const twoHours = 7_200_000;
+
+    render(
+      <MeetingStrip
+        meetings={[
+          weekly({ id: 'mondays', seriesId: 'weekly-1' }),
+          weekly({
+            id: 'fridays',
+            seriesId: 'weekly-2',
+            title: 'Linear algebra',
+            startsAt: new Date(Date.now() + 3 * twoHours).toISOString(),
+            endsAt: new Date(Date.now() + 4 * twoHours).toISOString(),
+          }),
+        ]}
+      />,
+    );
+
+    /* Two bookings are two bookings. Collapsing is per series, not per chat. */
+    expect(screen.getByText('Recursion catch-up')).toBeInTheDocument();
+    expect(screen.getByText('+1')).toBeInTheDocument();
+  });
+
+  it('says it repeats on the card in the feed', () => {
+    renderWithToasts(<MeetingChatCard meeting={weekly()} />);
+
+    /* The card is now the only one there is, so it has to say what it stands
+       for. The separator matches the "· Not attending" idiom beside it. */
+    expect(screen.getByText(/· Repeats weekly/)).toBeInTheDocument();
+  });
+
+  it('leaves a one-off with the single ending it always had', () => {
+    render(<MeetingStrip meetings={[meeting({ isOrganiser: true })]} />);
+
+    expect(screen.getByRole('button', { name: 'Call it off' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop repeating' })).not.toBeInTheDocument();
+  });
+
+  it('offers no ending at all to somebody who did not book it', () => {
+    render(<MeetingStrip meetings={[weekly({ isOrganiser: false })]} />);
+
+    /* Stepping out is their own rsvp. One person not coming any more is not the
+       series ending for everybody. */
+    expect(screen.queryByRole('button', { name: 'Stop repeating' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Call off this one' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cannot make it' })).toBeInTheDocument();
   });
 });
 
