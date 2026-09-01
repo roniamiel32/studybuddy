@@ -19,9 +19,11 @@
  *              findMeetingSlots is mocked. It is a 'use server' module that
  *              opens a Supabase client from cookies, and what is under test here
  *              is what the component does with an answer, not how it gets one.
- * Version:     1.3.0
+ * Version:     1.4.0
  *
  * Modifications:
+ *     1.4.0  - 2026-09-01 - The day headings, and the bookable slots they are
+ *                           strictly confined to
  *     1.3.0  - 2026-09-01 - The repeat-weekly option, and what it posts
  *     1.2.0  - 2026-09-01 - Follows the hand-tuned cues: today is brand and
  *                           bold, past days are dimmed, and the diagonal is on
@@ -38,7 +40,7 @@
  */
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import {
@@ -190,9 +192,18 @@ async function openPicker() {
   return user;
 }
 
-/** The grid's own selectable cells, excluding the toggle and the footer. */
+/**
+ * The grid's own selectable cells, excluding the toggle and the footer.
+ *
+ * NARROWED BY aria-pressed SINCE THE DAY HEADINGS BECAME BUTTONS. A cell is a
+ * toggle and says so; a heading is an action and does not. Without the filter
+ * this helper started returning the headings too, and "the first cell" became
+ * whichever column heading came first in the table.
+ */
 function gridCells() {
-  return within(screen.getByRole('table')).getAllByRole('button');
+  return within(screen.getByRole('table'))
+    .getAllByRole('button')
+    .filter((button) => button.hasAttribute('aria-pressed'));
 }
 
 describe('the picker opens on the grid', () => {
@@ -312,6 +323,151 @@ describe('the grid says where today is', () => {
         expect(struck).toBe(empty && column < pastColumns);
       });
     }
+  });
+});
+
+describe('a day heading fills the free hours of its column', () => {
+  /*
+   * SATURDAY THROUGHOUT, and that is not arbitrary. The grid draws a fixed
+   * Sunday-to-Saturday week and a column that has been and gone offers nothing,
+   * so the only day that is bookable whatever weekday the suite runs on is the
+   * last one. Anchoring here is what stops these being six different tests
+   * depending on the day.
+   */
+  const SATURDAY = 6;
+
+  /** Three free hours on Saturday, so "full" is a number worth counting to. */
+  const saturdayHours = [slotAt(SATURDAY, 10), slotAt(SATURDAY, 14), slotAt(SATURDAY, 16)];
+
+  /** The three cells of that column, top to bottom. */
+  const saturdayCells = () =>
+    within(screen.getByRole('table')).getAllByRole('button', { name: /^Sat/ });
+
+  const pressedCount = () =>
+    saturdayCells().filter((cell) => cell.getAttribute('aria-pressed') === 'true').length;
+
+  /** Saturday's heading, whichever of the three things it currently offers. */
+  const heading = () => screen.getByRole('button', { name: /hour on Sat/ });
+
+  async function openWithSaturday() {
+    findMeetingSlots.mockResolvedValue({ ok: true, data: saturdayHours });
+
+    return openPicker();
+  }
+
+  it('is a control only where something can actually be booked', async () => {
+    await openPicker();
+
+    const headings = screen
+      .getAllByRole('button')
+      .filter((button) => /hour on /.test(button.getAttribute('aria-label') ?? ''));
+
+    /*
+     * THE RULE THIS GRID ADDS. The availability grid is forty-nine equal cells;
+     * this one draws days that have gone and hours nobody is free for. A heading
+     * belongs only on a column that is both still ahead and has a slot in it —
+     * the fixture offers Sunday, Tuesday, Thursday and Saturday, and the ones
+     * behind today are not among them however many slots they hold.
+     */
+    const offered = [0, 2, 4, 6].filter((day) => day >= todayColumnIndex());
+
+    expect(headings).toHaveLength(offered.length);
+  });
+
+  it('fills every free hour in the column', async () => {
+    const user = await openWithSaturday();
+
+    expect(pressedCount()).toBe(0);
+
+    await user.click(heading());
+
+    expect(pressedCount()).toBe(3);
+  });
+
+  it('counts a day as full at its free hours, not at a whole day of them', async () => {
+    const user = await openWithSaturday();
+
+    await user.click(heading());
+
+    /*
+     * THREE OF THREE IS FULL. The column has seven rows and four of them are
+     * cells nobody can book, so a rule that counted rows would never call this
+     * day full and the second press would fill it again — the cycle would have
+     * no way back.
+     */
+    expect(heading()).toHaveAccessibleName(/^Undo selecting every free hour on Sat/);
+
+    await user.click(heading());
+
+    expect(pressedCount()).toBe(0);
+  });
+
+  it('puts back the hours a fill replaced', async () => {
+    const user = await openWithSaturday();
+
+    /* One hour picked by hand: the selection a careless bulk press would eat. */
+    const [first] = saturdayCells();
+    await user.click(first);
+    expect(pressedCount()).toBe(1);
+
+    await user.click(heading());
+    expect(pressedCount()).toBe(3);
+
+    await user.click(heading());
+
+    expect(pressedCount()).toBe(1);
+    expect(saturdayCells()[0]).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('clears a day that was already full, and fills it again', async () => {
+    const user = await openWithSaturday();
+
+    /* Full by hand rather than by a press, so there is no fill to undo. */
+    for (const cell of saturdayCells()) {
+      await user.click(cell);
+    }
+    expect(pressedCount()).toBe(3);
+    expect(heading()).toHaveAccessibleName(/^Clear every hour on Sat/);
+
+    await user.click(heading());
+    expect(pressedCount()).toBe(0);
+
+    await user.click(heading());
+    expect(pressedCount()).toBe(3);
+  });
+
+  it('previews only the free hours a press would add', async () => {
+    const user = await openWithSaturday();
+
+    await user.click(saturdayCells()[0]);
+    fireEvent.pointerEnter(heading(), { pointerType: 'mouse' });
+
+    const previewed = (cell: HTMLElement) => cell.classList.contains('bg-brand-fixed/60');
+    const cells = saturdayCells();
+
+    /* Already chosen: nothing about it would change. */
+    expect(previewed(cells[0])).toBe(false);
+    expect(cells.slice(1).every(previewed)).toBe(true);
+
+    /* And nothing outside the column, bookable or not. */
+    const elsewhere = within(screen.getByRole('table'))
+      .getAllByRole('button')
+      .filter((cell) => !/^Sat/.test(cell.getAttribute('aria-label') ?? ''));
+
+    expect(elsewhere.some(previewed)).toBe(false);
+
+    fireEvent.pointerLeave(heading());
+    expect(saturdayCells().some(previewed)).toBe(false);
+  });
+
+  it('ignores a touch, which has no hover to speak of', async () => {
+    await openWithSaturday();
+
+    fireEvent.pointerEnter(heading(), { pointerType: 'touch' });
+
+    expect(
+      saturdayCells().some((cell) => cell.classList.contains('bg-brand-fixed/60')),
+    ).toBe(false);
   });
 });
 

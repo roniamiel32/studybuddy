@@ -218,6 +218,24 @@ export function ScheduleMeetingDialog({
   };
 
   /**
+   * Replaces one day's selection wholesale, for the column headings.
+   *
+   * THE SELECTION STAYS UP HERE, and only the answer comes from the grid. The
+   * list view and the fine-tune panel read the same array, so a heading that
+   * wrote its own state would give the picker two of them.
+   *
+   * @param dayKeys - Every bookable slot in that column.
+   * @param keep    - Which of them should end up selected.
+   * @returns Nothing.
+   */
+  const replaceDay = (dayKeys: string[], keep: string[]) => {
+    const inDay = new Set(dayKeys);
+
+    setSelected((current) => [...current.filter((key) => !inDay.has(key)), ...keep]);
+    setEdits({});
+  };
+
+  /**
    * Selects or clears every slot inside one list block at once.
    *
    * THE JOIN BETWEEN WHAT THE LIST DRAWS AND WHAT GETS BOOKED. The list shows a
@@ -331,7 +349,12 @@ export function ScheduleMeetingDialog({
 
             {view === 'grid' ? (
               <div className="flex flex-col gap-2">
-                <SlotGridView grid={grid} selected={selected} onToggle={toggle} />
+                <SlotGridView
+                  grid={grid}
+                  selected={selected}
+                  onToggle={toggle}
+                  onReplaceDay={replaceDay}
+                />
 
                 <div className="flex items-center justify-between px-2 pt-1">
                   <button
@@ -504,16 +527,25 @@ function ViewToggle({
  * and gone" looked identical. The strikethrough answers that without a legend,
  * and the marked column gives the eye somewhere to start.
  *
+ * A DAY HEADING TAKES THE WHOLE COLUMN, exactly as the availability grid's does,
+ * and with the same promise: a bulk press remembers what it replaced, so pressing
+ * the heading again puts it back. The difference is what "the whole column" means
+ * here — this grid draws cells nobody can book, and every one of them is left
+ * out of the preview, out of the fill and out of the arithmetic that decides
+ * whether a day is full. A Thursday with three free hours is full at three.
+ *
  * @returns The grid element.
  */
 function SlotGridView({
   grid,
   selected,
   onToggle,
+  onReplaceDay,
 }: {
   grid: ReturnType<typeof buildSlotGrid>;
   selected: string[];
   onToggle: (startsAt: string) => void;
+  onReplaceDay: (dayKeys: string[], keep: string[]) => void;
 }) {
   /*
    * Read once per render, not once per column: seven calls would be seven
@@ -521,6 +553,110 @@ function SlotGridView({
    * different instant than its neighbour is a bug waiting for midnight.
    */
   const today = campusToday();
+
+  /*
+   * What each day looked like before its heading was last pressed, keyed by the
+   * column's date. Per day rather than global: pressing Tuesday and then
+   * Thursday has to leave both of them undoable.
+   */
+  const [dayMemory, setDayMemory] = useState<Record<string, string[]>>({});
+
+  /** The column the mouse is over, previewing what a press would add. */
+  const [previewDay, setPreviewDay] = useState<string | null>(null);
+
+  /**
+   * Every slot in one column that a student could actually book.
+   *
+   * THE HALF OF THIS FEATURE THAT IS NOT IN THE AVAILABILITY GRID. That grid is
+   * forty-nine equal cells; this one draws days that have gone and hours nobody
+   * is free for, and a heading that filled those would be offering times the
+   * database has already refused. So the empty cells and the past columns are
+   * not merely skipped when filling — they are absent from every question asked
+   * here, including whether the day is full.
+   *
+   * @param column - The column to read.
+   * @returns The startsAt of each bookable slot, top to bottom.
+   */
+  const bookableIn = (column: (typeof grid.columns)[number]): string[] => {
+    /* A day that has been and gone. Its cells carry the diagonal, and nothing
+       in it can be booked whatever the slots say. */
+    if (column.date < today) {
+      return [];
+    }
+
+    return grid.times
+      .map((time) => column.slotsByTime[time]?.[0])
+      .filter((slot): slot is MeetingSlotView => Boolean(slot))
+      .map((slot) => slot.startsAt);
+  };
+
+  /** Forgets a column's cycle, because its selection has been edited by hand. */
+  const forget = (date: string) =>
+    setDayMemory((current) => {
+      if (!(date in current)) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[date];
+
+      return next;
+    });
+
+  /**
+   * Fills a day's free hours, or puts the day back the way it was.
+   *
+   * The same three-state cycle the availability grid runs, over the bookable
+   * slots alone: not full fills and remembers, full-because-we-filled restores,
+   * and full-already clears — with the next press refilling, which for a day
+   * that was already full is the same thing as restoring it.
+   *
+   * @param column - The column whose heading was pressed.
+   * @returns Nothing.
+   */
+  const toggleDay = (column: (typeof grid.columns)[number]) => {
+    const keys = bookableIn(column);
+
+    /* Nothing to offer. The heading is not a control on such a day, so this is
+       belt and braces rather than a path anybody can reach. */
+    if (keys.length === 0) {
+      return;
+    }
+
+    const chosen = keys.filter((key) => selected.includes(key));
+    const isFull = chosen.length === keys.length;
+    const remembered = dayMemory[column.date];
+
+    if (isFull && remembered) {
+      onReplaceDay(keys, remembered);
+      forget(column.date);
+
+      return;
+    }
+
+    setDayMemory((current) => ({ ...current, [column.date]: chosen }));
+    onReplaceDay(keys, isFull ? [] : keys);
+  };
+
+  /**
+   * What pressing a heading would do, said out loud for a screen reader.
+   *
+   * @param column - The column the heading belongs to.
+   * @returns The label.
+   */
+  const dayActionLabel = (column: (typeof grid.columns)[number]) => {
+    const keys = bookableIn(column);
+    const chosen = keys.filter((key) => selected.includes(key)).length;
+    const day = `${column.weekday} ${column.dayLabel}`;
+
+    if (chosen < keys.length) {
+      return `Select every free hour on ${day}`;
+    }
+
+    return dayMemory[column.date]
+      ? `Undo selecting every free hour on ${day}`
+      : `Clear every hour on ${day}`;
+  };
 
   return (
     /*
@@ -551,8 +687,8 @@ function SlotGridView({
               const isToday = column.date === today;
               const isPast = column.date < today;
 
-              return (
-                <th key={column.date} scope="col" className="pb-1">
+              const labels = (
+                <>
                   <span
                     className={cn(
                       'block text-label-sm',
@@ -572,6 +708,39 @@ function SlotGridView({
                   >
                     {column.dayLabel}
                   </span>
+                </>
+              );
+
+              /* A day with nothing bookable in it is not a control. Offering a
+                 press that could only ever do nothing is worse than plain text. */
+              const offers = bookableIn(column).length > 0;
+
+              return (
+                <th key={column.date} scope="col" className="pb-1">
+                  {offers ? (
+                    /*
+                      * POINTER EVENTS RATHER THAN onMouseEnter, and the
+                      * pointerType check is the reason: a tap fires the mouse
+                      * events too, and would leave a column previewing itself
+                      * long after the finger had gone.
+                      */
+                    <button
+                      type="button"
+                      onClick={() => toggleDay(column)}
+                      onPointerEnter={(event) => {
+                        if (event.pointerType === 'mouse') {
+                          setPreviewDay(column.date);
+                        }
+                      }}
+                      onPointerLeave={() => setPreviewDay(null)}
+                      aria-label={dayActionLabel(column)}
+                      className="focus-visible:ring-brand/35 w-full cursor-pointer rounded-sm py-0.5 transition-colors hover:opacity-80 focus-visible:ring-4 focus-visible:outline-none"
+                    >
+                      {labels}
+                    </button>
+                  ) : (
+                    labels
+                  )}
                 </th>
               );
             })}
@@ -616,6 +785,9 @@ function SlotGridView({
                 }
 
                 const isOn = selected.includes(slot.startsAt);
+                /* Only the hours a press would actually add. Tinting one already
+                   chosen would preview a change that is not coming. */
+                const previewed = previewDay === column.date && !isOn;
                 /*
                  * A cell that does not fill its whole row says so on its face.
                  * The row heading is the only label a full cell needs, but a
@@ -631,7 +803,13 @@ function SlotGridView({
                   <td key={column.date}>
                     <button
                       type="button"
-                      onClick={() => onToggle(slot.startsAt)}
+                      onClick={() => {
+                        /* A hand-picked cell closes that day's cycle: the
+                           remembered state describes a column that no longer
+                           exists, and restoring it would undo this press. */
+                        forget(column.date);
+                        onToggle(slot.startsAt);
+                      }}
                       aria-pressed={isOn}
                       aria-label={`${column.weekday} ${column.dayLabel}, ${formatSlotRange(
                         slot.startsAt,
@@ -643,6 +821,7 @@ function SlotGridView({
                         isOn
                           ? 'border-brand bg-brand text-white'
                           : 'border-outline-variant/50 hover:bg-brand-fixed/60 hover:border-brand/40 bg-white',
+                        previewed && 'border-brand/40 bg-brand-fixed/60',
                       )}
                     >
                       {isOn ? <Check className="size-3.5" aria-hidden="true" /> : null}
