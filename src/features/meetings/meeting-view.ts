@@ -14,9 +14,11 @@
  *
  *              No 'server-only' here: the dialog is a client component and needs
  *              these formatters.
- * Version:     1.0.0
+ * Version:     1.1.0
  *
  * Modifications:
+ *     1.1.0  - 2026-09-01 - The picker asks for two weeks, so its second page
+ *                           has slots to draw; campusToday, for marking today
  *     1.0.0  - 2026-08-25 - clampSlotsToGridRows: an offered slot never crosses
  *                           the grid row it is drawn in
  *     0.53.0 - 2026-08-25 - mergeSlotsIntoBlocks and formatDuration, so the list
@@ -129,6 +131,26 @@ function campusWeekday(parts: CampusParts): number {
 /** `2026-08-16`, on the campus clock. */
 function campusDayKey(parts: CampusParts): string {
   return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
+/**
+ * Today's date on the campus calendar, in the same form as `SlotGridColumn.date`.
+ *
+ * THE TIME OF DAY IS GONE BY CONSTRUCTION, which is the point. Comparing two
+ * `YYYY-MM-DD` keys answers "is this column today?" and "is it behind us?"
+ * without a single instant arithmetic — no timezone drift at 23:00, no column
+ * that stops being today an hour before midnight. String order is date order in
+ * this format, so `column.date < campusToday()` is exactly "before today".
+ *
+ * On the campus clock rather than the reader's, because that is what the grid's
+ * columns are built from; asking the two questions in different zones would put
+ * the marker on the wrong column for a student who is travelling.
+ *
+ * @param now - The instant to read, defaulting to the present.
+ * @returns The day key, e.g. `2026-09-01`.
+ */
+export function campusToday(now: Date = new Date()): string {
+  return campusDayKey(campusParts(now));
 }
 
 /**
@@ -398,8 +420,26 @@ export function buildChatFeed<TMessage extends { id: string; createdAt: string }
 /* The picker: a week of offered times, and what a selection turns into        */
 /* -------------------------------------------------------------------------- */
 
-/** How far ahead the picker looks. One week, as the grid shows. */
-export const SCHEDULER_WINDOW_DAYS = 7;
+/**
+ * How far ahead the picker ASKS FOR.
+ *
+ * TWO WEEKS, BECAUSE THE GRID PAGES THROUGH TWO. "Next week" moves the grid's
+ * anchor forward by seven days, and with a seven-day window that second page was
+ * drawn from slots nobody had asked the database for: it was empty every time,
+ * on every chat, and the times it should have offered could not be booked at
+ * all. The RPC clamps this to 1..60 and defaults to 14 itself.
+ */
+export const SCHEDULER_WINDOW_DAYS = 14;
+
+/**
+ * How many days ONE PAGE of the grid draws.
+ *
+ * Deliberately not the same number as the window above. The fetch spans both
+ * pages; a page is a Sunday-to-Saturday week, which is what the seven columns
+ * are. Keeping the two apart is what let the window widen without the grid
+ * growing a second week of columns sideways.
+ */
+export const SCHEDULER_GRID_DAYS = 7;
 
 /**
  * The longest a single session may be, matching the meetings_bounded CHECK.

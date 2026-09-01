@@ -19,7 +19,8 @@ Tuesday" is not a commitment anybody is held to.
 
 StudyBuddy replaces all three: a ranked list of real classmates, an explanation of
 why each one was ranked there, and scheduling built into the conversation so a
-session becomes a calendar entry both people can see.
+session becomes a real booking both people can see — and a one-press add to
+whatever calendar they already use.
 
 ## Features
 
@@ -47,8 +48,11 @@ Realtime, with AI-written icebreakers
 invitations, and a fit score so an admin can see how well an applicant matches
 
 **Scheduling** — a picker that intersects everyone's free time, subtracts what is
-already booked, and books one or several sessions in a single transaction. Sessions
-sync to Google Calendar, and calendar busy time flows back into availability.
+already booked, and books one or several sessions in a single transaction. A booked
+session carries an **Add to Google Calendar** link: a plain calendar template URL the
+student follows themselves, so StudyBuddy needs no Google account access, no OAuth
+scope and no verified app. Stepping out of a session says so, and asks the student to
+remove their own copy — nothing here can reach into a calendar it did not connect to.
 
 **Reputation** — after a session has finished, attendees can rate each other. Positive
 ratings appear publicly as study connections; negative ratings are private to their
@@ -190,8 +194,8 @@ the server keeps serving the previous build.
 4. Opening a conversation drafts an icebreaker so the first message is not the hardest
    one.
 5. The calendar icon in the composer opens a picker showing only hours both students
-   are free, with existing bookings removed. Booking writes the meeting, its attendees
-   and both calendar events.
+   are free, with existing bookings removed. Booking writes the meeting and its
+   attendees; each student adds it to their own calendar from the session dialog.
 6. Once the session has finished, each attendee can say how it went — which is what
    feeds reputation back into step 3.
 

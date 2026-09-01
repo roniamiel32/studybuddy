@@ -13,9 +13,13 @@
  *              dialog asks for it on open, from the client — the intersection is
  *              too expensive to compute for a chat nobody has opened the
  *              scheduler on.
- * Version:     0.47.0
+ * Version:     0.49.0
  *
  * Modifications:
+ *     0.49.0 - 2026-09-01 - The four Google Calendar push calls are commented
+ *                           out. RSVPs and cancellations still do everything
+ *                           they did in our own database; only the mirroring
+ *                           into Google is gone
  *     0.47.0 - 2026-08-19 - The default title names the study partner, and is
  *                           applied here rather than only in the picker
  *     0.29.0 - 2026-08-14 - dismissMeeting, the one-sided banner (Phase 9G)
@@ -27,12 +31,18 @@
 import { revalidatePath } from 'next/cache';
 
 import { ERROR_CODES, fail, ok, toActionError, type ActionResult } from '@/lib/errors';
-import {
-  pushMeetingToCalendar,
-  removeMeetingFromAllCalendars,
-  removeMeetingFromCalendar,
-  syncUpcomingMeetings,
-} from '@/features/calendar/write-sync';
+/*
+ * GOOGLE CALENDAR PUSH DISABLED — 2026-09-01. See the note at the top of
+ * src/features/calendar/write-sync.ts. Uncomment this import and the four call
+ * sites below together with that file.
+ *
+ * import {
+ *   pushMeetingToCalendar,
+ *   removeMeetingFromAllCalendars,
+ *   removeMeetingFromCalendar,
+ *   syncUpcomingMeetings,
+ * } from '@/features/calendar/write-sync';
+ */
 import { createClient, requireUser } from '@/lib/supabase/server';
 
 import { defaultMeetingTitle, type MeetingSlotView } from './meeting-view';
@@ -117,7 +127,10 @@ export async function createMeeting(
   formData: FormData,
 ): Promise<ActionResult<void>> {
   try {
-    const user = await requireUser();
+    /* The binding goes back on when the calendar reconcile at the end of this
+       function does — `user.id` was its only reader. The call itself is the auth
+       gate and stays either way. */
+    await requireUser();
 
     /*
      * getAll, paired by position. The picker renders one hidden input of each
@@ -197,8 +210,12 @@ export async function createMeeting(
      * call and does not hand their ids back. Awaited so the calendar is already
      * right when the page revalidates — it never throws, and a student with no
      * calendar connected pays one cheap query for it.
+     *
+     * DISABLED — 2026-09-01. The student adds the session to their own calendar
+     * from the session dialog now.
+     *
+     * await syncUpcomingMeetings(user.id);
      */
-    await syncUpcomingMeetings(user.id);
 
     revalidateMeetingSurfaces();
 
@@ -265,7 +282,11 @@ export async function setMeetingRsvp(input: {
           p_meeting_id: parsed.meetingId,
         });
         
-        await removeMeetingFromAllCalendars(parsed.meetingId);
+        /* DISABLED — 2026-09-01. The session is still cancelled in our own
+           database above; the toast in the session dialog is what asks the
+           student to take it out of their personal calendar.
+
+           await removeMeetingFromAllCalendars(parsed.meetingId); */
         
         meetingWasAutoCancelled = true;
       }
@@ -273,11 +294,16 @@ export async function setMeetingRsvp(input: {
     // -----------------------------
 
     if (!meetingWasAutoCancelled) {
-      if (parsed.going) {
-        await pushMeetingToCalendar(user.id, parsed.meetingId);
-      } else {
-        await removeMeetingFromCalendar(user.id, parsed.meetingId);
-      }
+      /*
+       * DISABLED — 2026-09-01. The RSVP itself is written above; this was only
+       * the mirror of it in Google.
+       *
+       * if (parsed.going) {
+       *   await pushMeetingToCalendar(user.id, parsed.meetingId);
+       * } else {
+       *   await removeMeetingFromCalendar(user.id, parsed.meetingId);
+       * }
+       */
     }
 
     revalidateMeetingSurfaces();
@@ -373,8 +399,13 @@ export async function cancelMeeting(input: { meetingId: string }): Promise<Actio
      * Every attendee's copy, not just the organiser's. A cancelled session that
      * stays in four other people's calendars is worse than one that was never
      * mirrored — they would each turn up.
+     *
+     * DISABLED — 2026-09-01. Nothing removes an event from anybody's calendar
+     * any more, because nothing put one there: each attendee added the session
+     * themselves from the dialog and takes it out the same way.
+     *
+     * await removeMeetingFromAllCalendars(parsed.meetingId);
      */
-    await removeMeetingFromAllCalendars(parsed.meetingId);
 
     revalidateMeetingSurfaces();
 

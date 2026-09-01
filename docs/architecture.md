@@ -7,8 +7,12 @@ Course:      Internet Technologies, Reichman University
 Description: The system as built — components, stack, schema, routes, data flow,
              permissions and third-party services. Figures are measured from the
              repository and the local database, not estimated.
-Version:     1.0
-Date:        August 2026
+Version:     1.1
+Date:        September 2026
+
+Modifications:
+    1.1 - 2026-09-01 - Google Calendar is a manual template link, not an API
+                       integration. The two-way sync is commented out
 ```
 
 ---
@@ -44,7 +48,7 @@ on Vercel, and the database enforces its own access rules through Row Level Secu
 └─────────────────────────┬────────────────────────────────────────┘
                           │
         ┌─────────────────┴──────────────────┐
-        │  Google Calendar API   Brevo SMTP  │
+        │  Brevo SMTP                        │
         │  Anthropic Messages API            │
         └────────────────────────────────────┘
 ```
@@ -137,7 +141,7 @@ one forward-only and applied identically to local and production.
 | `meetings` | A dated session, belonging to exactly one chat (`meetings_one_scope`). |
 | `meeting_attendees` | One row per invitee with an RSVP, kept after cancellation — it is the evidence a session was attended, which the rating rule depends on. |
 | `dismissed_meetings` | Per-user banner dismissal. |
-| `calendar_connections`, `calendar_event_links` | Google OAuth tokens, and the mapping from a meeting to the event written into one student's calendar. |
+| `calendar_connections`, `calendar_event_links` | Google OAuth tokens, and the mapping from a meeting to the event written into one student's calendar. **Dormant since 2026-09-01** — the code that wrote them is commented out; the tables are kept so nothing already stored is lost. |
 | `group_meeting_ratings` | Ratings scoped to a group session. |
 
 ### 3.6 Social
@@ -245,7 +249,7 @@ with `requireUser()`, and returns a discriminated `ActionResult` rather than thr
 | `features/onboarding/actions.ts` | 4 — one per step |
 | `features/profiles/actions.ts` | 4 — rate, withdraw rating, block, unblock |
 | `features/notifications/actions.ts` | 3 — mark read, mark all read, dismiss |
-| `features/calendar/actions.ts` | 3 — connect, sync now, disconnect |
+| `features/calendar/actions.ts` | 3 — connect, sync now, disconnect. **Commented out since 2026-09-01**; see §8 |
 | `features/search/actions.ts`, `course-wall/member-actions.ts` | 2 — search, paginate members |
 
 ### 5.2 Route Handlers — 4
@@ -253,7 +257,7 @@ with `requireUser()`, and returns a discriminated `ActionResult` rather than thr
 | Route | Why it is a handler rather than an action |
 |---|---|
 | `GET /auth/callback` | Supabase redirects a browser here after an email link; a redirect target must be a URL |
-| `GET /api/auth/google-calendar/callback` | Google's OAuth redirect URI, same reason |
+| `GET /api/auth/google-calendar/callback` | Google's OAuth redirect URI, same reason. **Commented out since 2026-09-01** — no handler is exported, so the path answers 405 |
 | `GET /api/courses` | Course catalogue lookup, consumed by a debounced client-side search |
 | `POST /api/icebreaker` | AI icebreaker generation, called from the client with its own loading state |
 
@@ -375,8 +379,25 @@ several attendees at once. Every other path goes through the user-scoped client.
 | **Supabase Storage** | The `avatars` bucket | Profile renders an initial badge instead |
 | **Supabase Realtime** | Live chat and meeting updates | Falls back to server-rendered data on navigation |
 | **Brevo SMTP** | Transactional email — confirmation codes and reset links | Configured as Supabase custom SMTP; the built-in sender is rate-limited and development-only |
-| **Google Calendar API** | Two-way sync: sessions written out, busy time read in | Optional. Absent credentials switch the integration off and the Connect button explains why |
+| **Google Calendar** | **No API integration.** A booked session carries an `calendar.google.com/calendar/render?action=TEMPLATE` link that the student's own browser follows | None to fail. A plain URL needs no credentials, no OAuth scope and no verified app — see the note below |
 | **Anthropic Messages API** | Course catalogue generation, icebreakers, match re-ranking | Optional. Without a key the app falls back to a placeholder catalogue, written icebreakers, and the deterministic SQL ranking |
+
+#### Google Calendar — why the API integration was withdrawn
+
+The two-way sync worked: sessions were written into a connected calendar and busy
+time flowed back into availability. Both halves needed **sensitive OAuth scopes**
+(`calendar.events` and `calendar.readonly`), and a Google project requesting those
+outside its named test users has to pass Google's verification review — an external
+approval on somebody else's timeline, which §6.6 of the technical design flagged as
+the risk in this feature from the start.
+
+The manual template link does the part students actually asked for. As of 2026-09-01
+every piece of the integration is **commented out rather than deleted** — the client,
+the read and write syncs, the connect/resync/disconnect actions, the OAuth callback
+and the sync card — each with a note naming what else has to come back with it. The
+tables, migrations and environment variables are untouched. What this costs: nothing
+removes a session from a calendar the student added it to, so cancelling asks them to
+do it themselves.
 
 ### Configuration
 

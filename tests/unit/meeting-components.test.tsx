@@ -20,16 +20,28 @@
  *              jsdom HAS NO <dialog>. showModal and close are stubbed below,
  *              which is why `open` is asserted as a property rather than by
  *              looking for the dialog role.
- * Version:     0.29.0
+ *
+ *              THE TOAST PROVIDER IS REAL, not mocked. The message the dialog
+ *              raises when somebody steps out of a session — go and remove this
+ *              from your own calendar — is the only thing that closes the loop
+ *              on a manually added event, and asserting it through the real
+ *              provider is what proves a student actually sees it.
+ * Version:     0.50.0
  *
  * Modifications:
+ *     0.50.0 - 2026-09-01 - The finished-session assertion follows the copy the
+ *                           dialog actually shows
+ *     0.49.0 - 2026-09-01 - Renders go through the toast provider, and the
+ *                           cancellation message is asserted
  *     0.29.0 - 2026-08-14 - Initial tests (Phase 9G)
  */
 
+import type { ReactElement } from 'react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { ToastProvider } from '@/components/ui/toast';
 import type { MeetingView } from '@/features/meetings/meeting-view';
 
 const dismissMeeting = vi.fn(async () => ({ ok: true as const, data: undefined }));
@@ -45,6 +57,19 @@ vi.mock('@/features/meetings/actions', () => ({
 const { MeetingChatCard } = await import('@/components/meetings/meeting-chat-card');
 const { MeetingDetailsDialog } = await import('@/components/meetings/meeting-details-dialog');
 const { MeetingStrip } = await import('@/components/meetings/meeting-strip');
+
+/**
+ * Renders inside the toast provider.
+ *
+ * The details dialog calls useToast, which throws outside a provider — so every
+ * render that mounts it, the chat card included, has to come through here.
+ *
+ * @param ui - The element under test.
+ * @returns Testing Library's render result.
+ */
+function renderWithToasts(ui: ReactElement) {
+  return render(ui, { wrapper: ToastProvider });
+}
 
 /**
  * Builds a meeting view, with everything not under test held constant.
@@ -99,7 +124,7 @@ beforeEach(() => {
 
 describe('MeetingChatCard', () => {
   it('shows the session title and time as one control', async () => {
-    render(<MeetingChatCard meeting={meeting()} />);
+    renderWithToasts(<MeetingChatCard meeting={meeting()} />);
 
     const card = screen.getByRole('button', { name: /Recursion catch-up/ });
 
@@ -110,7 +135,7 @@ describe('MeetingChatCard', () => {
 
   it('opens the details dialog when the card is clicked', async () => {
     const user = userEvent.setup();
-    render(<MeetingChatCard meeting={meeting()} />);
+    renderWithToasts(<MeetingChatCard meeting={meeting()} />);
 
     expect(document.querySelector('dialog')?.open).toBe(false);
 
@@ -120,7 +145,7 @@ describe('MeetingChatCard', () => {
   });
 
   it('says so on the card when the viewer is not going', () => {
-    render(<MeetingChatCard meeting={meeting({ going: false })} />);
+    renderWithToasts(<MeetingChatCard meeting={meeting({ going: false })} />);
 
     /* The separator is in the pattern on purpose: the dialog this card mounts
        has a "Not attending" button, and a looser match finds that instead. */
@@ -129,7 +154,7 @@ describe('MeetingChatCard', () => {
 
   it('stays in the feed after its banner has been dismissed', () => {
     /* The rule that separates the two surfaces. */
-    render(<MeetingChatCard meeting={finished({ bannerDismissed: true })} />);
+    renderWithToasts(<MeetingChatCard meeting={finished({ bannerDismissed: true })} />);
 
     expect(screen.getByRole('button', { name: /Recursion catch-up/ })).toBeInTheDocument();
   });
@@ -137,14 +162,14 @@ describe('MeetingChatCard', () => {
 
 describe('MeetingDetailsDialog', () => {
   it('shows the place and who else is coming', () => {
-    render(<MeetingDetailsDialog open onClose={() => {}} meeting={meeting()} />);
+    renderWithToasts(<MeetingDetailsDialog open onClose={() => {}} meeting={meeting()} />);
 
     expect(screen.getByText('Library, floor 2')).toBeInTheDocument();
     expect(screen.getByText('1 other coming')).toBeInTheDocument();
   });
 
   it('marks the answer the viewer has already given', () => {
-    render(<MeetingDetailsDialog open onClose={() => {}} meeting={meeting({ going: true })} />);
+    renderWithToasts(<MeetingDetailsDialog open onClose={() => {}} meeting={meeting({ going: true })} />);
 
     expect(screen.getByRole('button', { name: 'Attending' })).toHaveAttribute(
       'aria-pressed',
@@ -158,7 +183,7 @@ describe('MeetingDetailsDialog', () => {
 
   it('sends the RSVP the button names', async () => {
     const user = userEvent.setup();
-    render(<MeetingDetailsDialog open onClose={() => {}} meeting={meeting({ going: true })} />);
+    renderWithToasts(<MeetingDetailsDialog open onClose={() => {}} meeting={meeting({ going: true })} />);
 
     await user.click(screen.getByRole('button', { name: 'Not attending' }));
 
@@ -167,17 +192,56 @@ describe('MeetingDetailsDialog', () => {
     });
   });
 
+  it('asks the student to clear their own calendar when they step out', async () => {
+    /*
+     * THE ONLY WAY BACK OUT OF A CALENDAR WE CANNOT REACH. The session is added
+     * to Google by a plain template link, from the student's own browser, so
+     * nothing on this side can delete the copy it created. Cancelling therefore
+     * has to say so, and it has to say so in a toast — the dialog closes on
+     * success, taking any sentence inside it with it.
+     */
+    const user = userEvent.setup();
+    renderWithToasts(
+      <MeetingDetailsDialog open onClose={() => {}} meeting={meeting({ going: true })} />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Not attending' }));
+
+    expect(
+      await screen.findByText(/remember to remove it there as well/),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing about calendars when the answer is yes', async () => {
+    const user = userEvent.setup();
+    renderWithToasts(
+      <MeetingDetailsDialog open onClose={() => {}} meeting={meeting({ going: false })} />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Attending' }));
+
+    await waitFor(() => {
+      expect(setMeetingRsvp).toHaveBeenCalledWith({ meetingId: 'meeting-1', going: true });
+    });
+
+    expect(
+      screen.queryByText(/remember to remove it there as well/),
+    ).not.toBeInTheDocument();
+  });
+
   it('offers no RSVP once the session has finished, and explains why', () => {
     /*
      * Attendance is frozen by a database trigger from the moment a session
      * starts — the rule the Phase 7D rating system rests on. Offering buttons
      * the database would refuse is worse than a sentence.
      */
-    render(<MeetingDetailsDialog open onClose={() => {}} meeting={finished()} />);
+    renderWithToasts(<MeetingDetailsDialog open onClose={() => {}} meeting={finished()} />);
 
     expect(screen.queryByRole('button', { name: 'Attending' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Not attending' })).not.toBeInTheDocument();
-    expect(screen.getByText(/Attendance is fixed/)).toBeInTheDocument();
+    /* `finished()` is going: true, so the dialog reports attendance in the past
+       tense rather than offering an answer. */
+    expect(screen.getByText('You attended this session.')).toBeInTheDocument();
   });
 
   it('surfaces a refusal rather than pretending it saved', async () => {
@@ -187,7 +251,7 @@ describe('MeetingDetailsDialog', () => {
       error: { message: 'This session has already started.' },
     } as never);
 
-    render(<MeetingDetailsDialog open onClose={() => {}} meeting={meeting()} />);
+    renderWithToasts(<MeetingDetailsDialog open onClose={() => {}} meeting={meeting()} />);
     await user.click(screen.getByRole('button', { name: 'Not attending' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(

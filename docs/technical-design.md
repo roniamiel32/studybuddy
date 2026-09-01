@@ -6,9 +6,12 @@ Authors:     Roni Amiel & Eden Bitran
 Description: Technical design for StudyBuddy — database schema, folder
              structure, backend surface, component tree, and phased
              implementation plan. Derived from the SDD/PRD (August 2026).
-Version:     0.11.0
+Version:     0.12.0
 
 Modifications:
+    0.12.0 - 2026-09-01 - Amended §6.6: the Google Calendar API integration is
+                          withdrawn in favour of manual template links, for the
+                          verification reason this section predicted
     0.11.0 - 2026-08-10 - Added section 15: Phase 6 as built — profiles and the
                           rating system, decisions D35-D39, why the privacy rule
                           lives in a SELECT policy, and the age disclosure
@@ -1158,6 +1161,26 @@ Mitigated by the double assertion in §1.9 plus dedicated RLS integration
 tests that log in as a student of university A and try to read B's data.
 
 ### 6.6 Calendar sync (D7) — the constraints to know before starting 4c
+
+> **Amendment, 2026-09-01 — this section is history, not the current design.**
+>
+> The Google sync described below was built, and then withdrawn for exactly the
+> reason this section named: calendar scopes are sensitive scopes, and a project
+> requesting them beyond its named test users needs Google's verification review.
+>
+> **What ships instead:** a booked session carries an
+> `calendar.google.com/calendar/render?action=TEMPLATE` link that the student
+> follows in their own browser. No OAuth, no scope, no stored credential, no
+> verification, and no consent screen — so the trap the last bullet below warns
+> about cannot be reached. Availability is the hand-drawn weekly grid again.
+>
+> **What it costs**, stated plainly: the app cannot see a calendar and cannot
+> reach back into one. Nothing flows into availability, and nothing removes an
+> event the student added — so cancelling a session asks them to remove their own
+> copy. Both are acceptable prices for not depending on an external review.
+>
+> The code is commented out, not deleted, with restore notes; the privacy
+> posture below still describes what a restored integration must honour.
 
 **Apple Calendar has no OAuth API.** There is no "Sign in with Apple and grant
 calendar access" flow equivalent to Google's; Apple exposes no consumer

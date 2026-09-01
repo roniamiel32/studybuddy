@@ -19,9 +19,11 @@
  *              findMeetingSlots is mocked. It is a 'use server' module that
  *              opens a Supabase client from cookies, and what is under test here
  *              is what the component does with an answer, not how it gets one.
- * Version:     0.49.0
+ * Version:     1.1.0
  *
  * Modifications:
+ *     1.1.0  - 2026-09-01 - The picker asks for a fortnight and still draws one
+ *                           week; today is marked and past days are struck out
  *     0.53.0 - 2026-08-25 - A list block selects every slot it covers, and the
  *                           panel names the real duration
  *     0.49.0 - 2026-08-19 - The list's "Load more" no longer counts the days it
@@ -84,6 +86,52 @@ function slotAt(dayOfWeek: number, hour: number): MeetingSlotView {
    ignores the day. */
 const SLOTS = [slotAt(0, 14), slotAt(0, 16), slotAt(2, 14), slotAt(4, 14), slotAt(6, 14)];
 
+/** Today on the campus calendar, as `[year, month, day]`. */
+function campusTodayParts(): [number, number, number] {
+  const [year, month, day] = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(new Date())
+    .split('-')
+    .map(Number);
+
+  return [year, month, day];
+}
+
+/**
+ * Today's column label, written the way buildSlotGrid writes it.
+ *
+ * @returns e.g. `1 Sep`.
+ */
+function todayLabel(): string {
+  const [year, month, day] = campusTodayParts();
+
+  return new Date(Date.UTC(year, month - 1, day, 12)).toLocaleDateString(undefined, {
+    timeZone: 'Asia/Jerusalem',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+/**
+ * Which column today is, counting from the grid's Sunday.
+ *
+ * ALSO THE NUMBER OF COLUMNS BEHIND IT, which is the point: the grid always
+ * draws a whole Sunday-to-Saturday week, so on a Wednesday three days of it are
+ * already over. Derived rather than hard-coded, because the suite runs on every
+ * weekday and on a Sunday the answer is legitimately zero.
+ *
+ * @returns 0 for Sunday through 6 for Saturday.
+ */
+function todayColumnIndex(): number {
+  const [year, month, day] = campusTodayParts();
+
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}
+
 const findMeetingSlots = vi.fn(async () => ({ ok: true as const, data: SLOTS }));
 const createMeeting = vi.fn(async () => ({ ok: true as const, data: undefined }));
 
@@ -139,11 +187,17 @@ function gridCells() {
 }
 
 describe('the picker opens on the grid', () => {
-  it('asks for exactly one week', async () => {
+  it('asks for two weeks, because it pages through two', async () => {
     await openPicker();
 
+    /*
+     * THE BUG THIS PINS. "Next week" moves the grid's anchor forward seven days
+     * while the fetch only ever covered seven — so the second page was drawn
+     * from slots nobody had asked for. It was empty on every chat, and the times
+     * it should have offered could not be booked at all.
+     */
     expect(findMeetingSlots).toHaveBeenCalledWith(
-      expect.objectContaining({ days: 7 }),
+      expect.objectContaining({ days: 14 }),
     );
   });
 
@@ -157,10 +211,15 @@ describe('the picker opens on the grid', () => {
     );
   });
 
-  it('gives every day in the window a column', async () => {
+  it('draws one week of columns even though the window is two', async () => {
     await openPicker();
 
-    /* Seven days plus the empty corner above the row headings. */
+    /*
+     * Seven days plus the empty corner above the row headings — NOT fourteen
+     * plus one. The window and the page are separate numbers precisely so that
+     * widening the fetch pages the grid instead of stretching it sideways off
+     * the screen.
+     */
     expect(within(screen.getByRole('table')).getAllByRole('columnheader')).toHaveLength(8);
   });
 
@@ -189,6 +248,41 @@ describe('the picker opens on the grid', () => {
     expect(
       gridCells().every((cell) => cell.getAttribute('aria-pressed') === 'false'),
     ).toBe(true);
+  });
+});
+
+describe('the grid says where today is', () => {
+  /*
+   * ASSERTED THROUGH THE CLASS NAMES, unusually for this suite. Both cues are
+   * purely visual — there is no role, no state and no accessible name for "this
+   * day has already been" — and asserting the rendered text alone would pass
+   * against a grid that marked every column or none.
+   */
+  it("marks today's column once, and does not strike it out", async () => {
+    await openPicker();
+
+    const marked = within(screen.getByRole('table'))
+      .getAllByRole('columnheader')
+      .filter((header) => header.textContent?.includes('(Today)'));
+
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveTextContent(todayLabel());
+    expect(marked[0].querySelector('.line-through')).toBeNull();
+  });
+
+  it('strikes through the days that have already gone, and only those', async () => {
+    await openPicker();
+
+    const headers = within(screen.getByRole('table')).getAllByRole('columnheader');
+    const struck = headers.filter((header) => header.querySelector('.line-through'));
+
+    /*
+     * Exactly the columns before today: none on a Sunday, six on a Saturday.
+     * They are the ones that can never hold a bookable cell, which is what the
+     * strikethrough is there to explain.
+     */
+    expect(struck).toHaveLength(todayColumnIndex());
+    expect(struck.some((header) => header.textContent?.includes('(Today)'))).toBe(false);
   });
 });
 
