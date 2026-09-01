@@ -19,11 +19,14 @@
  *              findMeetingSlots is mocked. It is a 'use server' module that
  *              opens a Supabase client from cookies, and what is under test here
  *              is what the component does with an answer, not how it gets one.
- * Version:     1.1.0
+ * Version:     1.2.0
  *
  * Modifications:
+ *     1.2.0  - 2026-09-01 - Follows the hand-tuned cues: today is brand and
+ *                           bold, past days are dimmed, and the diagonal is on
+ *                           the cells rather than the heading
  *     1.1.0  - 2026-09-01 - The picker asks for a fortnight and still draws one
- *                           week; today is marked and past days are struck out
+ *                           week; today is marked and past days are dimmed
  *     0.53.0 - 2026-08-25 - A list block selects every slot it covers, and the
  *                           panel names the real duration
  *     0.49.0 - 2026-08-19 - The list's "Load more" no longer counts the days it
@@ -253,36 +256,56 @@ describe('the picker opens on the grid', () => {
 
 describe('the grid says where today is', () => {
   /*
-   * ASSERTED THROUGH THE CLASS NAMES, unusually for this suite. Both cues are
-   * purely visual — there is no role, no state and no accessible name for "this
-   * day has already been" — and asserting the rendered text alone would pass
-   * against a grid that marked every column or none.
+   * ASSERTED THROUGH THE CLASS NAMES AND THE SVG, unusually for this suite.
+   * Every cue here is purely visual — there is no role, no state and no
+   * accessible name for "this day has already been" — and asserting the
+   * rendered text alone would pass against a grid that marked every column or
+   * none of them.
    */
-  it("marks today's column once, and does not strike it out", async () => {
-    await openPicker();
-
-    const marked = within(screen.getByRole('table'))
-      .getAllByRole('columnheader')
-      .filter((header) => header.textContent?.includes('(Today)'));
-
-    expect(marked).toHaveLength(1);
-    expect(marked[0]).toHaveTextContent(todayLabel());
-    expect(marked[0].querySelector('.line-through')).toBeNull();
-  });
-
-  it('strikes through the days that have already gone, and only those', async () => {
+  it("marks today's column, and marks only that one", async () => {
     await openPicker();
 
     const headers = within(screen.getByRole('table')).getAllByRole('columnheader');
-    const struck = headers.filter((header) => header.querySelector('.line-through'));
+    const marked = headers.filter((header) => header.querySelector('.text-brand'));
+
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveTextContent(todayLabel());
+    /* Today is never also a day that has gone. */
+    expect(marked[0].querySelector('.opacity-50')).toBeNull();
+  });
+
+  it('dims the headings of the days that have already gone', async () => {
+    await openPicker();
+
+    const headers = within(screen.getByRole('table')).getAllByRole('columnheader');
+    const dimmed = headers.filter((header) => header.querySelector('.opacity-50'));
+
+    /* Exactly the columns before today: none on a Sunday, six on a Saturday. */
+    expect(dimmed).toHaveLength(todayColumnIndex());
+  });
+
+  it('rules a diagonal through the cells that can never be booked', async () => {
+    await openPicker();
+
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
+    const pastColumns = todayColumnIndex();
 
     /*
-     * Exactly the columns before today: none on a Sunday, six on a Saturday.
-     * They are the ones that can never hold a bookable cell, which is what the
-     * strikethrough is there to explain.
+     * THE MARK IS ON THE CELL, NOT THE HEADING, and it belongs only to a cell
+     * that is both in the past and empty: a past column can still hold a slot
+     * the picker was given, and drawing a line through something clickable
+     * would be a worse lie than drawing nothing.
      */
-    expect(struck).toHaveLength(todayColumnIndex());
-    expect(struck.some((header) => header.textContent?.includes('(Today)'))).toBe(false);
+    for (const row of rows) {
+      const cells = Array.from(row.querySelectorAll('td'));
+
+      cells.forEach((cell, column) => {
+        const struck = Boolean(cell.querySelector('svg line'));
+        const empty = !cell.querySelector('button');
+
+        expect(struck).toBe(empty && column < pastColumns);
+      });
+    }
   });
 });
 

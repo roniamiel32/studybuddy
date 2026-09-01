@@ -541,7 +541,6 @@ function SlotGridView({
                     )}
                   >
                     {column.dayLabel}
-                    {isToday ? ' (Today)' : ''}
                   </span>
                 </th>
               );
