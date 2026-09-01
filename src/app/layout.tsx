@@ -19,7 +19,7 @@ import { Nunito, Plus_Jakarta_Sans } from 'next/font/google';
 
 import { ToastProvider } from '@/components/ui/toast';
 
-import { RegisterSW } from '@/components/RegisterSW';
+// import { RegisterSW } from '@/components/RegisterSW';
 
 import './globals.css';
 
@@ -67,7 +67,7 @@ export default function RootLayout({
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <ToastProvider>{children}</ToastProvider>
-        <RegisterSW />
+        {/* <RegisterSW /> */}
       </body>
     </html>
   );

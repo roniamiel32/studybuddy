@@ -33,6 +33,8 @@ import { formatMeetingWhen, type MeetingView } from '@/features/meetings/meeting
 import { useHasFinished } from '@/lib/use-has-finished';
 import { cn } from '@/lib/utils';
 
+import { Calendar } from 'lucide-react';
+
 const formatGoogleCalendarDate = (startsAt: string | Date, endsAt: string | Date) => {
   const format = (d: string | Date) => new Date(d).toISOString().replace(/-|:|\.\d+/g, '');
   return `${format(startsAt)}/${format(endsAt)}`;
@@ -177,9 +179,8 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
               <dd className="text-label-md font-normal">
                 {meeting.otherAttendees === 0
                   ? 'Nobody else is coming yet'
-                  : `${meeting.otherAttendees} other${
-                      meeting.otherAttendees === 1 ? '' : 's'
-                    } coming`}
+                  : `${meeting.otherAttendees} other${meeting.otherAttendees === 1 ? '' : 's'
+                  } coming`}
               </dd>
             </div>
           </div>
@@ -198,7 +199,8 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-brand hover:bg-brand/90 text-white rounded-xl text-label-sm font-medium transition shadow-sm"
           >
-            📅 Add to Google Calendar 📅
+            <Calendar className="w-4 h-4 mr-1" />
+            Add to Google Calendar
           </a>
         </div>
 
@@ -219,8 +221,8 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
         {hasFinished ? (
           <p className="border-outline-variant/60 text-outline rounded-md border border-dashed p-3 text-label-sm font-normal text-pretty">
             {meeting.going
-              ? 'You were down as going. Attendance is fixed once a session has started, so this can no longer change.'
-              : 'You were not going to this one, and that can no longer change.'}
+              ? 'You attended this session.'
+              : 'You didn\'t attend this session.'}
           </p>
         ) : (
           <fieldset className="border-outline-variant/30 flex flex-col gap-2 border-t pt-4">
