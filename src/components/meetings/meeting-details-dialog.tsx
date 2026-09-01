@@ -17,9 +17,18 @@
  *              the focus trap, the inert background, the Escape key and the top
  *              layer for nothing, and every one of those is a thing a div would
  *              have to reimplement badly.
- * Version:     0.29.0
+ *
+ *              THE "ADD TO GOOGLE CALENDAR" LINK IS THE WHOLE CALENDAR STORY NOW.
+ *              It is a plain template URL, so it needs no OAuth scope and no
+ *              verified Google app — but it also means the app cannot reach back
+ *              into the calendar it opened. Stepping out of a session therefore
+ *              has to ASK the student to remove their own copy, which is what
+ *              the toast on "Not attending" is for.
+ * Version:     0.49.0
  *
  * Modifications:
+ *     0.49.0 - 2026-09-01 - "Not attending" raises a toast asking the student to
+ *                           remove the session from their personal calendar
  *     0.29.0 - 2026-08-14 - Initial implementation (Phase 9G)
  */
 
@@ -28,6 +37,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { AlertCircle, CalendarClock, Check, Loader2, MapPin, Users, X } from 'lucide-react';
 
+import { useToast } from '@/components/ui/toast';
 import { setMeetingRsvp } from '@/features/meetings/actions';
 import { formatMeetingWhen, type MeetingView } from '@/features/meetings/meeting-view';
 import { useHasFinished } from '@/lib/use-has-finished';
@@ -39,6 +49,14 @@ const formatGoogleCalendarDate = (startsAt: string | Date, endsAt: string | Date
   const format = (d: string | Date) => new Date(d).toISOString().replace(/-|:|\.\d+/g, '');
   return `${format(startsAt)}/${format(endsAt)}`;
 };
+
+/*
+ * Said after a successful "Not attending". The session is off for this student
+ * either way — this is only about the copy they may have added themselves with
+ * the link above, which nothing on this side can delete for them.
+ */
+const CANCELLED_MESSAGE =
+  'Session cancelled. If you added this to your personal calendar, please remember to remove it there as well.';
 
 export interface MeetingDetailsDialogProps {
   open: boolean;
@@ -61,6 +79,7 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const notify = useToast();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -100,6 +119,16 @@ export function MeetingDetailsDialog({ open, onClose, meeting }: MeetingDetailsD
            reason with it, and the student is left wondering what happened. */
         setError(result.error.message);
         return;
+      }
+
+      /*
+       * The toast, not the dialog, is what confirms a cancellation. The dialog
+       * closes on success (see below), so a line of text inside it would be gone
+       * before anybody read it — and this particular sentence is a request to go
+       * and do something in another app, which is worth surviving the close.
+       */
+      if (!going) {
+        notify({ tone: 'info', message: CANCELLED_MESSAGE });
       }
 
       /*

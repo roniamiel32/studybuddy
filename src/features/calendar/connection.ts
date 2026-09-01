@@ -11,172 +11,194 @@
  *              in the browser has a use for one, and the table is shaped so a
  *              leaked anon key cannot read it. Every function here takes the
  *              profile id from a verified session at the call site.
- * Version:     0.46.0
+ *
+ *              HALF OF THIS FILE IS COMMENTED OUT — 2026-09-01. The two
+ *              functions that spoke to Google, saveConnection and
+ *              loadUsableConnection, are disabled with the rest of the
+ *              integration. What is left touches nothing but our own database,
+ *              and standDownCalendarSync in particular is still live: it is what
+ *              hands a week back to the hand-drawn grid.
+ * Version:     0.50.0
  *
  * Modifications:
+ *     0.50.0 - 2026-09-01 - The Google-facing half is commented out; the
+ *                           database-only half still runs
  *     0.46.0 - 2026-08-18 - Initial implementation (two-way calendar sync)
  */
 
 import 'server-only';
 
-import {
-  fetchAccountEmail,
-  fetchCalendarTimezone,
-  refreshAccessToken,
-  type GoogleTokens,
-} from '@/lib/google/calendar';
+/*
+ * DISABLED — 2026-09-01. See the note at the top of src/lib/google/calendar.ts.
+ * Every import here is a call to Google.
+ *
+ * import {
+ *   fetchAccountEmail,
+ *   fetchCalendarTimezone,
+ *   refreshAccessToken,
+ *   type GoogleTokens,
+ * } from '@/lib/google/calendar';
+ */
 import { createAdminClient } from '@/lib/supabase/admin';
 
-/**
- * Refresh this far before the token actually expires.
+/*
+ * DISABLED — 2026-09-01. THE TOKEN-HANDLING HALF OF THIS FILE.
  *
- * A token that expires during the request that used it fails in exactly the way
- * that is hardest to read in a log.
+ * saveConnection stored what a consent returned and loadUsableConnection kept
+ * an access token alive; both are meaningless now that nothing can obtain one.
+ * `calendar_connections` still exists, and any row written before today is left
+ * exactly as it was — see the note at the top of src/lib/google/calendar.ts.
  */
-const EXPIRY_SKEW_MS = 2 * 60 * 1000;
-
-export interface StoredConnection {
-  accessToken: string;
-  refreshToken: string | null;
-  expiresAt: Date | null;
-  calendarTimezone: string | null;
-  googleEmail: string | null;
-}
-
-/**
- * Saves a freshly granted connection.
- *
- * REFRESH TOKENS ARE NEVER OVERWRITTEN WITH NULL. Google returns one only
- * alongside a fresh consent, so a second exchange that omits it must leave the
- * stored one alone — clobbering it would leave a connection that works for an
- * hour and then dies with no way to renew itself.
- *
- * @param profileId - Whose connection this is.
- * @param tokens    - What the exchange returned.
- * @returns True when the row was actually written.
- */
-export async function saveConnection(
-  profileId: string,
-  tokens: GoogleTokens,
-): Promise<boolean> {
-  const admin = createAdminClient();
-
-  /* Asked for once, at connect time: both are stable, and re-reading them on
-     every sync would be two extra Google calls for values that do not move. */
-  const [timezone, email] = await Promise.all([
-    fetchCalendarTimezone(tokens.accessToken),
-    fetchAccountEmail(tokens.accessToken),
-  ]);
-
-  const row = {
-    profile_id: profileId,
-    provider: 'google' as const,
-    access_token: tokens.accessToken,
-    expires_at: tokens.expiresAt?.toISOString() ?? null,
-    scope: tokens.scope,
-    calendar_timezone: timezone.ok ? timezone.data : null,
-    google_email: email.ok ? email.data : null,
-    last_sync_error: null,
-    /* Only included when present, so the upsert cannot null an existing one. */
-    ...(tokens.refreshToken ? { refresh_token: tokens.refreshToken } : {}),
-  };
-
-  const { error } = await admin
-    .from('calendar_connections')
-    .upsert(row, { onConflict: 'profile_id' });
-
-  if (error) {
-    /*
-     * Checked, because it used to be discarded. A failed write here leaves no
-     * connection row, so the sync that follows reports "not connected" and the
-     * student is told the SYNC failed — which is downstream of the real problem
-     * and sends everyone looking in the wrong place. It cost an afternoon once.
-     */
-    console.error('[calendar.connection] storing the connection failed:', error.message);
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Loads a connection, renewing the access token if it is due.
- *
- * @param profileId - Whose connection to load.
- * @returns The connection with a usable token, or null when there is none or it
- *          can no longer be renewed.
- */
-export async function loadUsableConnection(
-  profileId: string,
-): Promise<StoredConnection | null> {
-  const admin = createAdminClient();
-
-  const { data } = await admin
-    .from('calendar_connections')
-    .select('access_token, refresh_token, expires_at, calendar_timezone, google_email')
-    .eq('profile_id', profileId)
-    .maybeSingle();
-
-  if (!data) {
-    return null;
-  }
-
-  const expiresAt = data.expires_at ? new Date(data.expires_at) : null;
-  const stillFresh = expiresAt !== null && expiresAt.getTime() - EXPIRY_SKEW_MS > Date.now();
-
-  if (stillFresh) {
-    return {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresAt,
-      calendarTimezone: data.calendar_timezone,
-      googleEmail: data.google_email,
-    };
-  }
-
-  /*
-   * Expired, or an expiry we never recorded. Without a refresh token there is
-   * nothing to do but disconnect — the student has to grant consent again, and
-   * saying so is better than retrying a dead token on every sync.
-   */
-  if (!data.refresh_token) {
-    await markDisconnected(profileId, 'Google access expired. Reconnect to resume syncing.');
-    return null;
-  }
-
-  const renewed = await refreshAccessToken(data.refresh_token);
-
-  if (!renewed.ok) {
-    if (renewed.reason === 'auth_revoked') {
-      await markDisconnected(
-        profileId,
-        'Google access was revoked. Reconnect to resume syncing.',
-      );
-      return null;
-    }
-
-    /* A transient failure leaves the connection in place to try again later. */
-    return null;
-  }
-
-  await admin
-    .from('calendar_connections')
-    .update({
-      access_token: renewed.data.accessToken,
-      expires_at: renewed.data.expiresAt?.toISOString() ?? null,
-      /* A refresh grant does not return a new refresh token; keep the old one. */
-      ...(renewed.data.refreshToken ? { refresh_token: renewed.data.refreshToken } : {}),
-    })
-    .eq('profile_id', profileId);
-
-  return {
-    accessToken: renewed.data.accessToken,
-    refreshToken: data.refresh_token,
-    expiresAt: renewed.data.expiresAt,
-    calendarTimezone: data.calendar_timezone,
-    googleEmail: data.google_email,
-  };
-}
+// /**
+//  * Refresh this far before the token actually expires.
+//  *
+//  * A token that expires during the request that used it fails in exactly the way
+//  * that is hardest to read in a log.
+//  */
+// const EXPIRY_SKEW_MS = 2 * 60 * 1000;
+//
+// export interface StoredConnection {
+//   accessToken: string;
+//   refreshToken: string | null;
+//   expiresAt: Date | null;
+//   calendarTimezone: string | null;
+//   googleEmail: string | null;
+// }
+//
+// /**
+//  * Saves a freshly granted connection.
+//  *
+//  * REFRESH TOKENS ARE NEVER OVERWRITTEN WITH NULL. Google returns one only
+//  * alongside a fresh consent, so a second exchange that omits it must leave the
+//  * stored one alone — clobbering it would leave a connection that works for an
+//  * hour and then dies with no way to renew itself.
+//  *
+//  * @param profileId - Whose connection this is.
+//  * @param tokens    - What the exchange returned.
+//  * @returns True when the row was actually written.
+//  */
+// export async function saveConnection(
+//   profileId: string,
+//   tokens: GoogleTokens,
+// ): Promise<boolean> {
+//   const admin = createAdminClient();
+//
+//   /* Asked for once, at connect time: both are stable, and re-reading them on
+//      every sync would be two extra Google calls for values that do not move. */
+//   const [timezone, email] = await Promise.all([
+//     fetchCalendarTimezone(tokens.accessToken),
+//     fetchAccountEmail(tokens.accessToken),
+//   ]);
+//
+//   const row = {
+//     profile_id: profileId,
+//     provider: 'google' as const,
+//     access_token: tokens.accessToken,
+//     expires_at: tokens.expiresAt?.toISOString() ?? null,
+//     scope: tokens.scope,
+//     calendar_timezone: timezone.ok ? timezone.data : null,
+//     google_email: email.ok ? email.data : null,
+//     last_sync_error: null,
+//     /* Only included when present, so the upsert cannot null an existing one. */
+//     ...(tokens.refreshToken ? { refresh_token: tokens.refreshToken } : {}),
+//   };
+//
+//   const { error } = await admin
+//     .from('calendar_connections')
+//     .upsert(row, { onConflict: 'profile_id' });
+//
+//   if (error) {
+//     /*
+//      * Checked, because it used to be discarded. A failed write here leaves no
+//      * connection row, so the sync that follows reports "not connected" and the
+//      * student is told the SYNC failed — which is downstream of the real problem
+//      * and sends everyone looking in the wrong place. It cost an afternoon once.
+//      */
+//     console.error('[calendar.connection] storing the connection failed:', error.message);
+//     return false;
+//   }
+//
+//   return true;
+// }
+//
+// /**
+//  * Loads a connection, renewing the access token if it is due.
+//  *
+//  * @param profileId - Whose connection to load.
+//  * @returns The connection with a usable token, or null when there is none or it
+//  *          can no longer be renewed.
+//  */
+// export async function loadUsableConnection(
+//   profileId: string,
+// ): Promise<StoredConnection | null> {
+//   const admin = createAdminClient();
+//
+//   const { data } = await admin
+//     .from('calendar_connections')
+//     .select('access_token, refresh_token, expires_at, calendar_timezone, google_email')
+//     .eq('profile_id', profileId)
+//     .maybeSingle();
+//
+//   if (!data) {
+//     return null;
+//   }
+//
+//   const expiresAt = data.expires_at ? new Date(data.expires_at) : null;
+//   const stillFresh = expiresAt !== null && expiresAt.getTime() - EXPIRY_SKEW_MS > Date.now();
+//
+//   if (stillFresh) {
+//     return {
+//       accessToken: data.access_token,
+//       refreshToken: data.refresh_token,
+//       expiresAt,
+//       calendarTimezone: data.calendar_timezone,
+//       googleEmail: data.google_email,
+//     };
+//   }
+//
+//   /*
+//    * Expired, or an expiry we never recorded. Without a refresh token there is
+//    * nothing to do but disconnect — the student has to grant consent again, and
+//    * saying so is better than retrying a dead token on every sync.
+//    */
+//   if (!data.refresh_token) {
+//     await markDisconnected(profileId, 'Google access expired. Reconnect to resume syncing.');
+//     return null;
+//   }
+//
+//   const renewed = await refreshAccessToken(data.refresh_token);
+//
+//   if (!renewed.ok) {
+//     if (renewed.reason === 'auth_revoked') {
+//       await markDisconnected(
+//         profileId,
+//         'Google access was revoked. Reconnect to resume syncing.',
+//       );
+//       return null;
+//     }
+//
+//     /* A transient failure leaves the connection in place to try again later. */
+//     return null;
+//   }
+//
+//   await admin
+//     .from('calendar_connections')
+//     .update({
+//       access_token: renewed.data.accessToken,
+//       expires_at: renewed.data.expiresAt?.toISOString() ?? null,
+//       /* A refresh grant does not return a new refresh token; keep the old one. */
+//       ...(renewed.data.refreshToken ? { refresh_token: renewed.data.refreshToken } : {}),
+//     })
+//     .eq('profile_id', profileId);
+//
+//   return {
+//     accessToken: renewed.data.accessToken,
+//     refreshToken: data.refresh_token,
+//     expiresAt: renewed.data.expiresAt,
+//     calendarTimezone: data.calendar_timezone,
+//     googleEmail: data.google_email,
+//   };
+// }
 
 /**
  * Turns sync off and records why, without discarding the row.
