@@ -372,6 +372,35 @@ describeDb('Recurring meetings', () => {
     )).toBe(true);
   });
 
+  it('takes a session as long as a one-off may be', async () => {
+    /*
+     * THE BUG THIS PINS, AND IT SHIPPED. meeting_series carried its own copy of
+     * the duration bound, transcribed from the original meetings table — where
+     * it was eight hours. 20260816140000_full_day_sessions.sql had since raised
+     * the real one to twenty-four, so a long session booked as a one-off went
+     * in and the identical booking with "repeat weekly" ticked was refused by a
+     * check constraint. The student was told "we could not book that session",
+     * which is every bit as useful as it sounds.
+     *
+     * Ten hours: comfortably past the old bound, comfortably inside the real
+     * one, and a plausible thing to pick from a grid that offers 08:00 to 22:00.
+     */
+    /* Day eight, which no other test in this file touches — a ten-hour block
+       covers most of a day and would otherwise collide with half of them. */
+    const start = new Date();
+    start.setUTCDate(start.getUTCDate() + 8);
+    start.setUTCHours(6, 0, 0, 0);
+
+    const { error } = await clients.ada.rpc('rpc_create_meeting_series', {
+      p_conversation_id: conversationId,
+      p_title: 'A long Saturday',
+      p_starts_at: [start.toISOString()],
+      p_ends_at: [new Date(start.getTime() + 10 * 3_600_000).toISOString()],
+    });
+
+    expect(error).toBeNull();
+  });
+
   it('tops the horizon up without booking anything twice', async () => {
     const first = window(6, 18);
 
