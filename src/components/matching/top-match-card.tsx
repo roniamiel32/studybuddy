@@ -109,11 +109,13 @@ export function TopMatchCard({ match }: TopMatchCardProps) {
             <p className="text-body-md font-semibold">
               {availability ?? 'No overlapping free time yet — add more to your week'}
             </p>
-            {match.sharedCourseNames.length > 1 ? (
-              <p className="text-outline mt-2 text-label-sm font-normal">
-                Also together in {match.sharedCourseNames.slice(1).join(', ')}
-              </p>
-            ) : null}
+            <p className="text-outline mt-2 text-label-sm font-normal">
+              {match.sharedCourseNames.length === 0
+                ? 'No shared courses'
+                : match.sharedCourseNames.length === 1
+                  ? '1 shared course'
+                  : `you have ${match.sharedCourseNames.length} shared courses`}
+            </p>
           </div>
 
           {/*
