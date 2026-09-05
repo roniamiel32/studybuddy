@@ -13,9 +13,11 @@
  *              dialog asks for it on open, from the client — the intersection is
  *              too expensive to compute for a chat nobody has opened the
  *              scheduler on.
- * Version:     0.53.0
+ * Version:     0.53.1
  *
  * Modifications:
+ *     0.53.1 - 2026-09-01 - A refused booking says why in the log, and a
+ *                           missing function is not reported as "try again"
  *     0.53.0 - 2026-09-01 - Recurring sessions: createMeeting books a series when
  *                           the picker asks for one, and cancelMeetingSeries
  *                           stops the rest of one
@@ -196,6 +198,35 @@ export async function createMeeting(
       : await supabase.rpc('rpc_create_meetings', times);
 
     if (error) {
+      /*
+       * LOGGED BEFORE IT IS TRANSLATED, and this line is here because its
+       * absence cost an afternoon. A series was refused by a check constraint
+       * the one-off path does not have, and every sentence below turned that
+       * into "we could not book that session. Try again." — advice that could
+       * never work, for a reason nothing on the screen or in the log could name.
+       * The student gets a sentence; whoever is on call gets the code.
+       */
+      console.error(
+        '[meetings.createMeeting] booking failed:',
+        error.code,
+        error.message,
+      );
+
+      /*
+       * PGRST202 is PostgREST saying it has never heard of the function. Not a
+       * student problem and not a retry: either the migration has not been
+       * applied to this database, or its schema cache has not reloaded since it
+       * was. Saying "try again" to that is a lie in both cases.
+       */
+      if (error.code === 'PGRST202') {
+        return fail(
+          ERROR_CODES.UNEXPECTED,
+          input.repeatWeekly
+            ? 'Repeating sessions are not set up on this deployment yet.'
+            : 'Scheduling is not set up on this deployment yet.',
+        );
+      }
+
       /*
        * The clash trigger is the one a student can actually hit by being slow:
        * they opened the picker, went to make coffee, and someone else took the
@@ -419,6 +450,14 @@ export async function cancelMeetingSeries(input: {
     });
 
     if (error) {
+      /* For the reason the note in createMeeting gives: the sentence below is
+         for the student, and this is for whoever has to work out why. */
+      console.error(
+        '[meetings.cancelMeetingSeries] stopping the series failed:',
+        error.code,
+        error.message,
+      );
+
       return fail(
         ERROR_CODES.FORBIDDEN,
         'That series is not yours to stop, or has already been stopped.',
