@@ -59,9 +59,10 @@ export interface ConversationView {
  * @returns A short local time, e.g. "10:42".
  */
 export function formatMessageTime(timestamp: string): string {
-  return new Date(timestamp).toLocaleTimeString(undefined, {
+  return new Date(timestamp).toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   });
 }
 
@@ -117,10 +118,10 @@ export function formatConversationTime(timestamp: string, now: Date = new Date()
   const days = Math.floor(hours / 24);
 
   if (days < 7) {
-    return then.toLocaleDateString(undefined, { weekday: 'short' });
+    return then.toLocaleDateString('en-GB', { weekday: 'short' });
   }
 
-  return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return then.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 /**
@@ -205,10 +206,10 @@ function dayLabel(day: Date, now: Date): string {
   }
 
   if (daysApart < 7) {
-    return day.toLocaleDateString(undefined, { weekday: 'long' });
+    return day.toLocaleDateString('en-GB', { weekday: 'long' });
   }
 
-  return day.toLocaleDateString(undefined, {
+  return day.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'long',
   });
