@@ -5,9 +5,10 @@
  *
  *              Shows the photo the student actually has, a preview of the one
  *              they just chose, and saves it to Storage. 
- * Version:     0.18.0
+ * Version:     0.53.1
  *
  * Modifications:
+ *     0.53.1 - 2026-09-06 - Lint: setState moved out of effects, stale suppressions removed
  *     0.18.0 - 2026-08-12 - Fixed preview state clearing bug on selection
  *     0.17.0 - 2026-08-12 - Added instant local state sync for immediate UI updates without manual refresh
  *     0.16.0 - 2026-08-12 - Fixed instant UI update and dynamic remove button appearance after save
@@ -51,20 +52,38 @@ export function AvatarForm({ fullName, avatarUrl }: AvatarFormProps) {
     (removeState && !removeState.ok ? removeState.error : null);
   const saved = state?.ok === true || removeState?.ok === true;
 
-  // איפוס ה-preview רק כאשר פעולת השמירה או המחיקה מסתיימת בהצלחה מהשרת
-  useEffect(() => {
-    if (state?.ok) {
+  /*
+   * איפוס ה-preview רק כאשר פעולת השמירה או המחיקה מסתיימת בהצלחה מהשרת.
+   *
+   * THE CLEAR HAPPENS DURING RENDER AND THE REFRESH IN AN EFFECT, which is the
+   * split the two halves actually want. Dropping the preview is a state
+   * adjustment on a changed value — the same pattern the meeting dialogs use —
+   * while router.refresh() is a real side effect on an external system, which
+   * is what an effect is for. Written as one effect doing both, it was a
+   * cascading render the lint rule refuses.
+   *
+   * Keyed on the result OBJECT, not on `.ok`: useActionState hands back a new
+   * object per submission, so re-uploading after a success is a change this
+   * notices and a boolean would not.
+   */
+  const [handled, setHandled] = useState<{ save: unknown; remove: unknown }>({
+    save: state,
+    remove: removeState,
+  });
+
+  if (handled.save !== state || handled.remove !== removeState) {
+    setHandled({ save: state, remove: removeState });
+
+    if (state?.ok || removeState?.ok) {
       setPreview(null);
-      router.refresh();
     }
-  }, [state, router]);
+  }
 
   useEffect(() => {
-    if (removeState?.ok) {
-      setPreview(null);
+    if (state?.ok || removeState?.ok) {
       router.refresh();
     }
-  }, [removeState, router]);
+  }, [state, removeState, router]);
 
   /* Object URLs are a leak if they are never revoked. */
   useEffect(() => {

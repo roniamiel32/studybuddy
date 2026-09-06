@@ -18,7 +18,7 @@
  *              It takes plain arguments rather than FormData because it is not
  *              called from a form: both call sites already sit inside one, and
  *              nesting forms is invalid HTML.
- * Version:     0.45.0
+ * Version:     0.53.1
  *
  * Modifications:
  *     0.45.0 - Added rate limiting and tracking created_by to prevent spam.
@@ -142,8 +142,9 @@ async function createCourse(
       name,
       source: 'placeholder',
       is_user_generated: true,
-      // @ts-ignore
-      created_by: context.userId, // <--- Saving the user who created it
+      /* `created_by` has been on the generated types since the authorship
+         migration; the suppression that used to sit here was hiding nothing. */
+      created_by: context.userId,
     },
     /* Two students adding the same course at once must not create two rows. */
     { onConflict: 'university_id,code', ignoreDuplicates: true },

@@ -6,9 +6,10 @@
  *
  *              Every query runs as the signed-in student, so RLS has already
  *              scoped the rows before this code sees one.
- * Version:     0.15.0
+ * Version:     0.53.1
  *
  * Modifications:
+ *     0.53.1 - 2026-09-06 - Lint: setState moved out of effects, stale suppressions removed
  *     0.15.0 - Added deleteUserGeneratedCourse for MVP spam control
  *     0.14.0 - 2026-08-10 - Initial implementation (Phase 4)
  */
@@ -289,7 +290,9 @@ export async function deleteUserGeneratedCourse(offeringId: string): Promise<boo
     .eq('id', offering.course_id)
     .maybeSingle();
 
-  const course = response.data as any;
+  /* No cast: the row comes back typed, `created_by` included, and `as any`
+     turned the ownership check below into an unchecked one. */
+  const course = response.data;
 
   if (!course || course.created_by !== user.id) {
     return false; // Not authorized to delete
