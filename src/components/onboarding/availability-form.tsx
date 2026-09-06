@@ -2,9 +2,10 @@
  * File:        src/components/onboarding/availability-form.tsx
  * Authors:     Roni Amiel & Eden Bitran
  * Description: Step 4 — the weekly availability grid, and finishing setup.
- * Version:     0.49.0
+ * Version:     0.53.1
  *
  * Modifications:
+ *     0.53.1 - 2026-09-06 - Lint: setState moved out of effects, stale suppressions removed
  *     0.49.0 - 2026-09-01 - The Google Calendar sync card is commented out
  *     0.25.0 - 2026-08-13 - Initial implementation
  */
@@ -22,8 +23,10 @@ import { saveAvailabilityAndFinish } from '@/features/onboarding/actions';
 export interface AvailabilityFormProps {
   defaultSelected: string[];
   /* Optional while the sync card is commented out — nothing reads it, and the
-     page has stopped passing it. Required again when the card comes back. */
-  calendarStatus?: any;
+     page has stopped passing it. `unknown` rather than `any` for exactly that
+     reason: nothing may read it without narrowing it first. It goes back to
+     CalendarStatus when the card comes back. */
+  calendarStatus?: unknown;
 }
 
 export function AvailabilityForm({ defaultSelected }: AvailabilityFormProps) {

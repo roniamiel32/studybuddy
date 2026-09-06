@@ -3,7 +3,7 @@
  * Authors:     Roni Amiel & Eden Bitran
  * Description: The Messages tab — personal conversations and group chats in one
  *              list, with the controls over it.
- * Version:     0.26.4
+ * Version:     0.53.1
  */
 
 'use client';
@@ -212,11 +212,6 @@ function ThreadRow({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [pendingHide, startHiding] = useTransition();
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const unreadCount = thread.unreadCount;
   const unread = unreadCount > 0;
@@ -249,8 +244,16 @@ function ThreadRow({
             <h2 className={cn('truncate text-label-md text-[15px]', unread && 'font-bold')}>
               {thread.title}
             </h2>
-            <span className="text-outline shrink-0 text-label-sm font-normal">
-              {isMounted ? formatConversationTime(thread.lastMessageAt) : ''}
+            {/* Formatted in the reader's own zone, which the server does not
+                share — so the first paint would otherwise be a hydration
+                mismatch for anybody outside the university's timezone. The same
+                treatment the meeting cards give their times, and it replaces a
+                mounted flag that rendered an empty string on the server. */}
+            <span
+              suppressHydrationWarning
+              className="text-outline shrink-0 text-label-sm font-normal"
+            >
+              {formatConversationTime(thread.lastMessageAt)}
             </span>
           </div>
 

@@ -16,7 +16,7 @@
  *              downstream — the score, the ranking, the reason shown on a match
  *              card — is built on shared courses, so a student who picks none is
  *              unmatchable and the next three steps cannot help them.
- * Version:     0.45.0
+ * Version:     0.53.1
  *
  * Modifications:
  *     0.45.0 - Added Load More/Less pagination, Community Reporting, and Deletion UI.
@@ -128,10 +128,19 @@ export function CoursePicker({
   const settledQuery = useDebouncedValue(query);
   const trimmed = settledQuery.trim().toLowerCase();
 
-  // Reset pagination when searching
-  useEffect(() => {
+  /*
+   * Reset pagination when the search changes — DURING RENDER, not in an effect.
+   * The same adjust-on-a-changed-value pattern the meeting dialogs use to clear
+   * a stale error: an effect would paint one frame of the old page size against
+   * the new results, and setState inside one is the cascading render the lint
+   * rule refuses.
+   */
+  const [searchWas, setSearchWas] = useState(trimmed);
+
+  if (searchWas !== trimmed) {
+    setSearchWas(trimmed);
     setDisplayLimit(INITIAL_LIMIT);
-  }, [trimmed]);
+  }
 
   const unverified = useMemo(
     () => catalog.filter((offering) => UNVERIFIED_SOURCES.includes(offering.source)),
